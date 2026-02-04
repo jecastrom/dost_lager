@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   MOCK_ITEMS, MOCK_RECEIPT_HEADERS, MOCK_RECEIPT_ITEMS, MOCK_COMMENTS, 
@@ -412,7 +411,8 @@ export default function App() {
         });
     }
 
-    handleNavigation('dashboard');
+    // Redirect to Receipt Management instead of Dashboard
+    handleNavigation('receipt-management');
   };
 
   return (
@@ -456,11 +456,7 @@ export default function App() {
                     inventory={inventory}
                     logs={stockLogs}
                     theme={theme}
-                    onUpdate={handleStockUpdate}
-                    onUpdateItem={handleUpdateItem}
-                    onCreateItem={handleCreateItem}
                     onAddStock={handleAddStock}
-                    onLogStock={handleLogStock}
                     onNavigate={handleNavigation}
                     orders={purchaseOrders}
                     receipts={receiptMasters}

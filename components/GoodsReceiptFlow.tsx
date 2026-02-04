@@ -654,6 +654,8 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
       .filter(item => !existingItems.find(ex => ex.id === item.id));
 
     const finalHeader = { ...headerData, status: finalResultStatus };
+    
+    // Call onSuccess which triggers navigation in parent App.tsx
     onSuccess(finalHeader, cleanCartItems, newItemsCreated);
   };
 
@@ -731,9 +733,11 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                 <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 ${
                   ['Schaden', 'Schaden + Falsch', 'Falsch geliefert', 'Abgelehnt'].includes(finalResultStatus) 
                     ? 'bg-red-100 dark:bg-red-500/20' 
-                    : ['Teillieferung', 'Übermenge', 'Projekt'].includes(finalResultStatus) 
+                    : ['Teillieferung', 'Übermenge'].includes(finalResultStatus) 
                       ? 'bg-amber-100 dark:bg-amber-500/20'
-                      : 'bg-emerald-100 dark:bg-emerald-500/20'
+                      : ['Projekt'].includes(finalResultStatus) 
+                        ? 'bg-blue-100 dark:bg-blue-500/20'
+                        : 'bg-emerald-100 dark:bg-emerald-500/20'
                 }`}>
                    {['Schaden', 'Schaden + Falsch', 'Falsch geliefert'].includes(finalResultStatus) ? (
                       <AlertCircle size={48} className="text-red-600 dark:text-red-400" strokeWidth={3} />
@@ -742,7 +746,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                    ) : ['Übermenge', 'Teillieferung'].includes(finalResultStatus) ? (
                       <AlertTriangle size={48} className="text-amber-600 dark:text-amber-400" strokeWidth={3} />
                    ) : finalResultStatus === 'Projekt' ? (
-                      <Briefcase size={48} className="text-amber-600 dark:text-amber-400" strokeWidth={3} />
+                      <Briefcase size={48} className="text-blue-600 dark:text-blue-400" strokeWidth={3} />
                    ) : (
                       <CheckCircle2 size={48} className="text-emerald-600 dark:text-emerald-400" strokeWidth={3} />
                    )}
@@ -1045,14 +1049,14 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                         </div>
                     )}
                     {anomalies.hasMissing && (
-                        <div className={`p-4 rounded-xl border flex items-center gap-4 ${isDark ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
-                            <div className={`p-2 rounded-full shrink-0 ${isDark ? 'bg-red-500/20' : 'bg-red-100'}`}><AlertTriangle size={24} className={isDark ? 'text-red-400' : 'text-red-600'} /></div>
+                        <div className={`p-4 rounded-xl border flex items-center gap-4 ${isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                            <div className={`p-2 rounded-full shrink-0 ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}`}><AlertTriangle size={24} className={isDark ? 'text-amber-400' : 'text-amber-600'} /></div>
                             <div><h4 className="font-bold text-sm">Achtung: Teillieferung erkannt</h4><p className="text-xs opacity-90 mt-0.5">Fehlende Mengen werden vermerkt.</p></div>
                         </div>
                     )}
                     {anomalies.hasExtra && (
-                        <div className={`p-4 rounded-xl border flex items-center gap-4 ${isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
-                            <div className={`p-2 rounded-full shrink-0 ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}`}><AlertTriangle size={24} className={isDark ? 'text-amber-400' : 'text-amber-600'} /></div>
+                        <div className={`p-4 rounded-xl border flex items-center gap-4 ${isDark ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'bg-orange-50 border-orange-200 text-orange-700'}`}>
+                            <div className={`p-2 rounded-full shrink-0 ${isDark ? 'bg-orange-500/20' : 'bg-orange-100'}`}><AlertTriangle size={24} className={isDark ? 'text-orange-400' : 'text-orange-600'} /></div>
                             <div><h4 className="font-bold text-sm">Hinweis: Überlieferung erkannt</h4><p className="text-xs opacity-90 mt-0.5">Sie haben mehr erhalten als bestellt. Bitte wählen Sie eine Aktion für die entsprechenden Positionen.</p></div>
                         </div>
                     )}
@@ -1076,8 +1080,8 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                {linkedPoId && <th className="px-3 py-2 w-24 text-center">Bestellt</th>}
                                {showHistoryColumn && <th className="px-3 py-2 w-20 text-center text-slate-400">Bisher</th>}
                                <th className="px-3 py-2 w-24 text-center">{linkedPoId ? (showHistoryColumn ? 'Aktuell' : 'Geliefert') : 'Menge'}</th>
-                               {linkedPoId && <th className="px-3 py-2 w-20 text-center text-red-500">Offen</th>}
-                               {linkedPoId && <th className="px-3 py-2 w-20 text-center text-amber-500">Zu viel</th>}
+                               {linkedPoId && <th className="px-3 py-2 w-20 text-center text-amber-500">Offen</th>}
+                               {linkedPoId && <th className="px-3 py-2 w-20 text-center text-orange-500">Zu viel</th>}
                                
                                {/* REFINED ISSUE COLUMNS */}
                                <th className="px-3 py-2 w-16 text-center">Schaden</th>
@@ -1154,12 +1158,12 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                       </td>
 
                                       {linkedPoId && (
-                                          <td className="px-3 py-2 text-center font-bold text-red-500 text-sm">
+                                          <td className={`px-3 py-2 text-center font-bold text-sm ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
                                             {pending > 0 ? pending : <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}
                                           </td>
                                       )}
                                       {linkedPoId && (
-                                          <td className="px-3 py-2 text-center font-bold text-amber-500 text-sm">
+                                          <td className={`px-3 py-2 text-center font-bold text-sm ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>
                                             {over > 0 ? over : <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}
                                           </td>
                                       )}
@@ -1235,22 +1239,22 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                    
                                    {/* Over-Delivery Resolution Row */}
                                    {showOverResolution && (
-                                       <tr className={`animate-in fade-in slide-in-from-top-1 ${isDark ? 'bg-amber-500/5' : 'bg-amber-50'}`}>
+                                       <tr className={`animate-in fade-in slide-in-from-top-1 ${isDark ? 'bg-orange-500/5' : 'bg-orange-50'}`}>
                                            <td colSpan={linkedPoId ? (showHistoryColumn ? 10 : 9) : 6} className="px-2 py-2">
-                                               <div className={`flex flex-col gap-3 p-3 rounded-lg border ${isDark ? 'border-amber-500/20' : 'border-amber-200'}`}>
+                                               <div className={`flex flex-col gap-3 p-3 rounded-lg border ${isDark ? 'border-orange-500/20' : 'border-orange-200'}`}>
                                                    <div className="flex flex-col md:flex-row md:items-center gap-3">
-                                                       <div className="flex items-center gap-2 text-amber-500">
+                                                       <div className="flex items-center gap-2 text-orange-500">
                                                            <Info size={16} />
                                                            <span className="text-xs font-bold uppercase">Achtung: {over} Stück zu viel (Gesamt)</span>
                                                        </div>
-                                                       <div className="h-4 w-px bg-amber-500/20 hidden md:block"></div>
+                                                       <div className="h-4 w-px bg-orange-500/20 hidden md:block"></div>
                                                        <div className="flex items-center gap-2 flex-1">
                                                            <button 
                                                                 onClick={() => {
                                                                     const newValue = line.overDeliveryResolution === 'return' ? null : 'return';
                                                                     updateCartItem(idx, 'overDeliveryResolution', newValue);
                                                                 }}
-                                                                className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${line.overDeliveryResolution === 'return' ? 'bg-amber-600 text-white border-transparent shadow-md shadow-amber-600/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/30 hover:bg-amber-500/20'}`}
+                                                                className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${line.overDeliveryResolution === 'return' ? 'bg-orange-600 text-white border-transparent shadow-md shadow-orange-600/20' : 'bg-orange-500/10 text-orange-500 border-orange-500/30 hover:bg-orange-500/20'}`}
                                                            >
                                                                <LogOut size={14} /> Zurückweisen
                                                            </button>
@@ -1266,14 +1270,14 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                                        </div>
                                                    </div>
                                                    {line.overDeliveryResolution === 'return' && (
-                                                       <div className={`mt-3 pt-3 border-t border-dashed grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 ${isDark ? 'border-amber-500/20' : 'border-amber-200/60'}`}>
+                                                       <div className={`mt-3 pt-3 border-t border-dashed grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 ${isDark ? 'border-orange-500/20' : 'border-orange-200/60'}`}>
                                                            <div className="space-y-1">
-                                                               <label className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-amber-400/70' : 'text-amber-700/70'}`}>Rückversand / Abholung *</label>
-                                                               <input value={line.returnMethod || ''} onChange={(e) => updateCartItem(idx, 'returnMethod', e.target.value)} placeholder="z.B. DHL..." className={`w-full text-xs px-3 py-2 rounded-lg border outline-none focus:ring-1 focus:ring-amber-500 ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-amber-200 text-slate-900'}`} />
+                                                               <label className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-orange-400/70' : 'text-orange-700/70'}`}>Rückversand / Abholung *</label>
+                                                               <input value={line.returnMethod || ''} onChange={(e) => updateCartItem(idx, 'returnMethod', e.target.value)} placeholder="z.B. DHL..." className={`w-full text-xs px-3 py-2 rounded-lg border outline-none focus:ring-1 focus:ring-orange-500 ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-orange-200 text-slate-900'}`} />
                                                            </div>
                                                            <div className="space-y-1">
-                                                               <label className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-amber-400/50' : 'text-amber-700/50'}`}>Tracking Nr. (Optional)</label>
-                                                               <input value={line.returnTrackingId || ''} onChange={(e) => updateCartItem(idx, 'returnTrackingId', e.target.value)} placeholder="Sendungsnummer..." className={`w-full text-xs px-3 py-2 rounded-lg border outline-none focus:ring-1 focus:ring-amber-500 ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-amber-200 text-slate-900'}`} />
+                                                               <label className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-orange-400/50' : 'text-orange-700/50'}`}>Tracking Nr. (Optional)</label>
+                                                               <input value={line.returnTrackingId || ''} onChange={(e) => updateCartItem(idx, 'returnTrackingId', e.target.value)} placeholder="Sendungsnummer..." className={`w-full text-xs px-3 py-2 rounded-lg border outline-none focus:ring-1 focus:ring-orange-500 ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-orange-200 text-slate-900'}`} />
                                                            </div>
                                                        </div>
                                                    )}
@@ -1340,10 +1344,10 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                               </div>
 
                               {showOverResolution && (
-                                <div className={`p-3 rounded-lg border flex flex-col gap-3 ${isDark ? 'border-amber-500/20 bg-amber-500/5' : 'border-amber-200 bg-amber-50'}`}>
-                                    <div className="flex items-center gap-2 text-amber-500 mb-1"><Info size={14} /><span className="text-xs font-bold uppercase">{over} Stück zu viel (Gesamt)</span></div>
-                                    <div className="flex gap-2"><button onClick={() => updateCartItem(idx, 'overDeliveryResolution', line.overDeliveryResolution === 'return' ? null : 'return')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${line.overDeliveryResolution === 'return' ? 'bg-amber-600 text-white border-transparent shadow-md shadow-amber-600/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/30 hover:bg-amber-500/20'}`}>Zurückweisen</button><button onClick={() => updateCartItem(idx, 'overDeliveryResolution', line.overDeliveryResolution === 'keep' ? null : 'keep')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${line.overDeliveryResolution === 'keep' ? 'bg-emerald-600 text-white border-transparent shadow-md shadow-emerald-600/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20'}`}>Behalten</button></div>
-                                    {line.overDeliveryResolution === 'return' && (<div className={`mt-2 pt-3 border-t border-dashed space-y-3 animate-in fade-in slide-in-from-top-1 ${isDark ? 'border-amber-500/20' : 'border-amber-200/60'}`}><div className="space-y-1"><label className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-amber-400/70' : 'text-amber-700/70'}`}>Rückversand / Abholung *</label><input value={line.returnMethod || ''} onChange={(e) => updateCartItem(idx, 'returnMethod', e.target.value)} placeholder="z.B. DHL..." className={`w-full text-xs px-3 py-2 rounded-lg border outline-none focus:ring-1 focus:ring-amber-500 ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-amber-200 text-slate-900'}`} /></div><div className="space-y-1"><label className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-amber-400/50' : 'text-amber-700/50'}`}>Tracking Nr. (Optional)</label><input value={line.returnTrackingId || ''} onChange={(e) => updateCartItem(idx, 'returnTrackingId', e.target.value)} placeholder="Sendungsnummer..." className={`w-full text-xs px-3 py-2 rounded-lg border outline-none focus:ring-1 focus:ring-amber-500 ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-amber-200 text-slate-900'}`} /></div></div>)}
+                                <div className={`p-3 rounded-lg border flex flex-col gap-3 ${isDark ? 'border-orange-500/20 bg-orange-500/5' : 'border-orange-200 bg-orange-50'}`}>
+                                    <div className="flex items-center gap-2 text-orange-500 mb-1"><Info size={14} /><span className="text-xs font-bold uppercase">{over} Stück zu viel (Gesamt)</span></div>
+                                    <div className="flex gap-2"><button onClick={() => updateCartItem(idx, 'overDeliveryResolution', line.overDeliveryResolution === 'return' ? null : 'return')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${line.overDeliveryResolution === 'return' ? 'bg-orange-600 text-white border-transparent shadow-md shadow-orange-600/20' : 'bg-orange-500/10 text-orange-500 border-orange-500/30 hover:bg-orange-500/20'}`}>Zurückweisen</button><button onClick={() => updateCartItem(idx, 'overDeliveryResolution', line.overDeliveryResolution === 'keep' ? null : 'keep')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${line.overDeliveryResolution === 'keep' ? 'bg-emerald-600 text-white border-transparent shadow-md shadow-emerald-600/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20'}`}>Behalten</button></div>
+                                    {line.overDeliveryResolution === 'return' && (<div className={`mt-2 pt-3 border-t border-dashed space-y-3 animate-in fade-in slide-in-from-top-1 ${isDark ? 'border-orange-500/20' : 'border-orange-200/60'}`}><div className="space-y-1"><label className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-orange-400/70' : 'text-orange-700/70'}`}>Rückversand / Abholung *</label><input value={line.returnMethod || ''} onChange={(e) => updateCartItem(idx, 'returnMethod', e.target.value)} placeholder="z.B. DHL..." className={`w-full text-xs px-3 py-2 rounded-lg border outline-none focus:ring-1 focus:ring-orange-500 ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-orange-200 text-slate-900'}`} /></div><div className="space-y-1"><label className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-orange-400/50' : 'text-orange-700/50'}`}>Tracking Nr. (Optional)</label><input value={line.returnTrackingId || ''} onChange={(e) => updateCartItem(idx, 'returnTrackingId', e.target.value)} placeholder="Sendungsnummer..." className={`w-full text-xs px-3 py-2 rounded-lg border outline-none focus:ring-1 focus:ring-orange-500 ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-orange-200 text-slate-900'}`} /></div></div>)}
                                 </div>
                               )}
 
@@ -1403,16 +1407,20 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
             <div className={`p-4 rounded-xl border flex items-center gap-4 ${
                 ['Schaden', 'Schaden + Falsch', 'Falsch geliefert', 'Abgelehnt'].includes(headerData.status) 
                     ? isDark ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-red-50 border-red-200 text-red-700'
-                    : ['Teillieferung', 'Übermenge'].includes(headerData.status) 
-                        ? isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700'
-                        : isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : headerData.status === 'Übermenge'
+                        ? isDark ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'bg-orange-50 border-orange-200 text-orange-700'
+                        : headerData.status === 'Teillieferung'
+                            ? isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700'
+                            : isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-700'
             }`}>
                 <div className={`p-2 rounded-full shrink-0 ${
                     ['Schaden', 'Schaden + Falsch', 'Falsch geliefert', 'Abgelehnt'].includes(headerData.status) 
                         ? isDark ? 'bg-red-500/20' : 'bg-red-100'
-                        : ['Teillieferung', 'Übermenge'].includes(headerData.status) 
-                            ? isDark ? 'bg-amber-500/20' : 'bg-amber-100'
-                            : isDark ? 'bg-emerald-500/20' : 'bg-emerald-100'
+                        : headerData.status === 'Übermenge'
+                            ? isDark ? 'bg-orange-500/20' : 'bg-orange-100'
+                            : headerData.status === 'Teillieferung'
+                                ? isDark ? 'bg-amber-500/20' : 'bg-amber-100'
+                                : isDark ? 'bg-emerald-500/20' : 'bg-emerald-100'
                 }`}>
                     {['Gebucht'].includes(headerData.status) ? <CheckCircle2 size={24} /> : <AlertTriangle size={24} />}
                 </div>
@@ -1447,8 +1455,8 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                             <th className="px-3 py-2">Artikel</th>
                             {linkedPoId && <th className="px-3 py-2 w-24 text-center">Bestellt</th>}
                             <th className="px-3 py-2 w-24 text-center">{linkedPoId ? 'Geliefert' : 'Menge'}</th>
-                            {linkedPoId && <th className="px-3 py-2 w-20 text-center text-red-500">Offen</th>}
-                            {linkedPoId && <th className="px-3 py-2 w-20 text-center text-amber-500">Zu viel</th>}
+                            {linkedPoId && <th className="px-3 py-2 w-20 text-center text-amber-500">Offen</th>}
+                            {linkedPoId && <th className="px-3 py-2 w-20 text-center text-orange-500">Zu viel</th>}
                             <th className="px-3 py-2 w-32 text-center">Status</th>
                         </tr>
                     </thead>
@@ -1479,13 +1487,13 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                         <div className="font-bold text-sm">{line.item.name}</div>
                                         <div className="text-[10px] opacity-60 font-mono">{line.item.sku}</div>
                                         {line.isManualAddition && (<div className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700'}`}><AlertTriangle size={8} /> Manuell</div>)}
-                                        {line.overDeliveryResolution === 'return' && over > 0 && (<div className="text-[10px] text-amber-600 font-bold mt-0.5 flex items-center gap-1"><LogOut size={10} /> {over}x Rücksendung</div>)}
+                                        {line.overDeliveryResolution === 'return' && over > 0 && (<div className="text-[10px] text-orange-600 font-bold mt-0.5 flex items-center gap-1"><LogOut size={10} /> {over}x Rücksendung</div>)}
                                         {line.overDeliveryResolution === 'keep' && over > 0 && (<div className="text-[10px] text-emerald-600 font-bold mt-0.5 flex items-center gap-1"><PlusCircle size={10} /> {over}x Akzeptiert</div>)}
                                     </td>
                                     {linkedPoId && <td className="px-3 py-2 text-center font-mono opacity-70 text-sm">{ordered > 0 ? ordered : '-'}</td>}
                                     <td className="px-3 py-2 text-center font-bold text-sm">{line.qty}</td>
-                                    {linkedPoId && <td className="px-3 py-2 text-center font-bold text-red-500 text-sm">{pending > 0 ? pending : <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}</td>}
-                                    {linkedPoId && <td className="px-3 py-2 text-center font-bold text-amber-500 text-sm">{over > 0 ? over : <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}</td>}
+                                    {linkedPoId && <td className={`px-3 py-2 text-center font-bold text-sm ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>{pending > 0 ? pending : <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}</td>}
+                                    {linkedPoId && <td className={`px-3 py-2 text-center font-bold text-sm ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>{over > 0 ? over : <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}</td>}
                                     <td className="px-3 py-2 text-center">
                                         {(() => {
                                             if (line.isDamaged && line.isWrongItem) return <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-500/10 text-red-500 text-xs font-bold border border-red-500/20"><AlertTriangle size={12} /> Schaden+Falsch</span>;
@@ -1495,8 +1503,8 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                             if (linkedPoId) {
                                                 if (received < ordered) return <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200'}`}><AlertTriangle size={12} /> Fehlmenge</span>;
                                                 if (received > ordered) {
-                                                    if (line.overDeliveryResolution === 'return') return <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200'}`}><LogOut size={12} /> Rücksendung</span>;
-                                                    return <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200'}`}><Info size={12} /> Übermenge</span>;
+                                                    if (line.overDeliveryResolution === 'return') return <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border ${isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-50 text-orange-600 border-orange-200'}`}><LogOut size={12} /> Rücksendung</span>;
+                                                    return <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border ${isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-50 text-orange-600 border-orange-200'}`}><Info size={12} /> Übermenge</span>;
                                                 }
                                             }
                                             return <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-500/10 text-emerald-500 text-xs font-bold border border-emerald-500/20"><Check size={12} /> OK</span>;
