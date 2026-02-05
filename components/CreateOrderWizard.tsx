@@ -2,10 +2,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  X, Search, Plus, Calendar, Truck, Package, 
-  Hash, Info, CheckCircle2, ChevronDown, Check,
+  X, Search, Plus, Calendar, Truck, 
+  Hash, Info, CheckCircle2, ChevronDown, 
   ArrowRight, ArrowLeft, Trash2, Loader2, AlertTriangle, FileText,
-  Briefcase, Box, Download
+  Briefcase, Box, Download, Clock
 } from 'lucide-react';
 import { StockItem, Theme, PurchaseOrder, ActiveModule } from '../types';
 
@@ -15,6 +15,7 @@ interface CreateOrderWizardProps {
   onNavigate: (module: ActiveModule) => void;
   onCreateOrder: (order: PurchaseOrder) => void;
   initialOrder?: PurchaseOrder | null;
+  requireDeliveryDate: boolean;
 }
 
 interface CartItem {
@@ -28,6 +29,7 @@ interface OrderFormData {
   orderId: string;
   supplier: string;
   orderDate: string;
+  expectedDeliveryDate: string;
   poType: 'normal' | 'project' | null;
 }
 
@@ -36,17 +38,20 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
   items, 
   onNavigate, 
   onCreateOrder,
-  initialOrder 
+  initialOrder,
+  requireDeliveryDate
 }) => {
   const isDark = theme === 'dark';
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
 
   // -- Data State --
+  // Initialize with standard ISO date string YYYY-MM-DD
   const [formData, setFormData] = useState<OrderFormData>({
     orderId: '',
     supplier: '',
     orderDate: new Date().toISOString().split('T')[0],
+    expectedDeliveryDate: '',
     poType: null
   });
 
@@ -58,17 +63,22 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
         setFormData({
             orderId: initialOrder.id,
             supplier: initialOrder.supplier,
-            orderDate: initialOrder.dateCreated,
+            orderDate: initialOrder.dateCreated, // Expecting YYYY-MM-DD from backend
+            expectedDeliveryDate: initialOrder.expectedDeliveryDate || '',
             poType: initialOrder.status === 'Projekt' ? 'project' : 'normal'
         });
-        setCart(initialOrder.items.map(i => ({
-            sku: i.sku,
-            name: i.name,
-            quantity: i.quantityExpected,
-            system: 'Bestand' // Default fallback if not stored
-        })));
+        setCart(initialOrder.items.map(i => {
+            // Try to find original item to get System info, else fallback
+            const original = items.find(x => x.sku === i.sku);
+            return {
+                sku: i.sku,
+                name: i.name,
+                quantity: i.quantityExpected,
+                system: original ? original.system : 'Bestand' 
+            };
+        }));
     }
-  }, [initialOrder]);
+  }, [initialOrder, items]);
 
   // -- UI State: Dropdowns & Portals --
   const [isCreatingNew, setIsCreatingNew] = useState(false);
@@ -175,6 +185,15 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
     ).slice(0, 50); 
   }, [searchTerm, items]);
 
+  // -- Helper: Date Format for Display (German) --
+  const formatDate = (dateStr: string) => {
+      if (!dateStr) return '';
+      // Ensure dateStr is treated as YYYY-MM-DD
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
   // -- Position Updaters --
   const updateSupplierDropdownPosition = () => {
     if (supplierInputRef.current) {
@@ -247,6 +266,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
               id: formData.orderId,
               supplier: formData.supplier,
               dateCreated: formData.orderDate,
+              expectedDeliveryDate: formData.expectedDeliveryDate,
               status: formData.poType === 'project' ? 'Projekt' : 'Offen',
               isArchived: false,
               items: cart.map(c => ({
@@ -266,7 +286,16 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
   };
 
   const canGoNext = () => {
-      if (step === 1) return formData.orderId && formData.supplier && formData.orderDate && formData.poType;
+      if (step === 1) {
+          // Check basic fields
+          const basicValid = formData.orderId && formData.supplier && formData.orderDate && formData.poType;
+          if (!basicValid) return false;
+          
+          // Check Delivery Date Requirement
+          if (requireDeliveryDate && !formData.expectedDeliveryDate) return false;
+          
+          return true;
+      }
       if (step === 2) return cart.length > 0;
       return false;
   };
@@ -348,6 +377,28 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-5 relative">
+            
+            {/* PERSISTENT CONTEXT BANNERS */}
+            {formData.poType === 'normal' && (
+                <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 animate-in slide-in-from-top-2 ${isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                    <AlertTriangle size={20} className="shrink-0 mt-0.5" />
+                    <div className="text-sm">
+                        <span className="font-bold block mb-0.5">Lagerbestellung</span>
+                        Hinweis: Lagerbestellung. Nach Abschluss des Wareneingangs wird der Bestand automatisch erhöht.
+                    </div>
+                </div>
+            )}
+
+            {formData.poType === 'project' && (
+                <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 animate-in slide-in-from-top-2 ${isDark ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
+                    <Info size={20} className="shrink-0 mt-0.5" />
+                    <div className="text-sm">
+                        <span className="font-bold block mb-0.5">Projektbestellung</span>
+                        Hinweis: Projektbestellung. Ware wird direkt dem Projekt zugeordnet und erhöht nicht den Lagerbestand.
+                    </div>
+                </div>
+            )}
+
             {step === 1 && (
                 <div className="max-w-xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4">
                     <div className="mb-4">
@@ -451,16 +502,38 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
                             </div>
                         </div>
 
-                        <div className="space-y-1">
-                            <label className="text-xs font-medium opacity-70">Bestelldatum <span className="text-red-500">*</span></label>
-                            <div className="relative">
-                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50" size={16} />
-                                <input 
-                                    type="date"
-                                    value={formData.orderDate}
-                                    onChange={e => setFormData({...formData, orderDate: e.target.value})}
-                                    className={`${inputClass} pl-10`}
-                                />
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-xs font-medium opacity-70">Bestelldatum <span className="text-red-500">*</span></label>
+                                <div className="relative">
+                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50 pointer-events-none" size={16} />
+                                    <input 
+                                        type="date"
+                                        value={formData.orderDate}
+                                        onChange={e => setFormData({...formData, orderDate: e.target.value})}
+                                        className={`${inputClass} pl-10`}
+                                        style={{ colorScheme: isDark ? 'dark' : 'light' }}
+                                    />
+                                </div>
+                            </div>
+                            
+                            {/* New Delivery Date Field */}
+                            <div className="space-y-1">
+                                <label className="text-xs font-medium opacity-70">
+                                    Geplanter Liefertermin 
+                                    {requireDeliveryDate ? <span className="text-red-500 ml-1">*</span> : <span className="opacity-50 ml-1 font-normal">(Optional)</span>}
+                                </label>
+                                <div className="relative">
+                                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50 pointer-events-none" size={16} />
+                                    <input 
+                                        type="date"
+                                        value={formData.expectedDeliveryDate}
+                                        onChange={e => setFormData({...formData, expectedDeliveryDate: e.target.value})}
+                                        className={`${inputClass} pl-10`}
+                                        required={requireDeliveryDate}
+                                        style={{ colorScheme: isDark ? 'dark' : 'light' }}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -503,7 +576,9 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
                         </div>
                         <div>
                             <span className={`block text-[10px] uppercase font-bold tracking-wider opacity-60 mb-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Datum</span>
-                            <span className={`font-bold text-sm flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}><Calendar size={14} className="opacity-70" /> {new Date(formData.orderDate).toLocaleDateString('de-DE')}</span>
+                            <span className={`font-bold text-sm flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                                <Calendar size={14} className="opacity-70" /> {formatDate(formData.orderDate)}
+                            </span>
                         </div>
                     </div>
 
@@ -621,7 +696,11 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
                                             >
                                                 <div>
                                                     <div className="font-bold text-base">{item.name}</div>
-                                                    <div className="text-sm opacity-70 mt-0.5">SKU: {item.sku}</div>
+                                                    <div className="text-sm opacity-70 mt-0.5 flex items-center gap-2">
+                                                        <span>#{item.sku}</span>
+                                                        <span className="opacity-50">•</span>
+                                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}>{item.system}</span>
+                                                    </div>
                                                 </div>
                                                 <div className="bg-[#0077B5]/10 p-2 rounded-full">
                                                     <Plus size={20} className="text-[#0077B5]" />
@@ -656,7 +735,11 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
                                             <tr key={idx} className={`group ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
                                                 <td className="px-4 py-3">
                                                     <div className={`font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{line.name}</div>
-                                                    <div className={`text-xs font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>SKU: {line.sku}</div>
+                                                    <div className={`text-xs mt-0.5 flex items-center gap-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                                        <span className="font-mono">#{line.sku}</span>
+                                                        <span className="opacity-50">•</span>
+                                                        <span className="uppercase tracking-wider text-[10px] font-bold opacity-80">{line.system}</span>
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-center">
                                                     <input 
@@ -689,27 +772,38 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
                         <p className="text-sm opacity-70">Überprüfen Sie die Bestellung vor dem Speichern.</p>
                     </div>
 
-                    <div className="p-5 rounded-2xl border bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 mb-6">
+                    <div className={`p-5 rounded-2xl border mb-6 ${isDark ? 'bg-[#1f2937] border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>
-                                <div className="opacity-60 text-xs uppercase font-bold">Bestell Nr.</div>
-                                <div className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>{formData.orderId}</div>
+                                <div className={`text-xs uppercase font-bold tracking-wider mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Bestell Nr.</div>
+                                <div className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{formData.orderId}</div>
                             </div>
                             <div>
-                                <div className="opacity-60 text-xs uppercase font-bold">Datum</div>
-                                <div className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{new Date(formData.orderDate).toLocaleDateString('de-DE')}</div>
+                                <div className={`text-xs uppercase font-bold tracking-wider mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Datum</div>
+                                <div className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    {formatDate(formData.orderDate)}
+                                </div>
                             </div>
                             <div>
-                                <div className="opacity-60 text-xs uppercase font-bold">Art der Bestellung</div>
-                                <div className={`font-bold flex items-center gap-1.5 ${formData.poType === 'project' ? 'text-blue-500' : (isDark ? 'text-white' : 'text-slate-900')}`}>
+                                <div className={`text-xs uppercase font-bold tracking-wider mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Art der Bestellung</div>
+                                <div className={`font-bold flex items-center gap-1.5 ${formData.poType === 'project' ? 'text-blue-500' : (isDark ? 'text-white' : 'text-gray-900')}`}>
                                     {formData.poType === 'project' ? <Briefcase size={14} /> : <Box size={14}/>}
                                     {formData.poType === 'project' ? 'Projekt' : 'Normal (Lager)'}
                                 </div>
                             </div>
                             <div>
-                                <div className="opacity-60 text-xs uppercase font-bold">Lieferant</div>
-                                <div className={`font-semibold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}><Truck size={14}/> {formData.supplier}</div>
+                                <div className={`text-xs uppercase font-bold tracking-wider mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Lieferant</div>
+                                <div className={`font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}><Truck size={14}/> {formData.supplier}</div>
                             </div>
+                            {formData.expectedDeliveryDate && (
+                                <div className="col-span-2 pt-2 border-t border-slate-500/10 mt-1">
+                                    <div className={`text-xs uppercase font-bold tracking-wider mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Geplanter Liefertermin</div>
+                                    <div className={`font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        <Clock size={14} className="text-[#0077B5]"/> 
+                                        {formatDate(formData.expectedDeliveryDate)}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -719,7 +813,11 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
                             <div key={idx} className={`p-4 rounded-xl border flex gap-4 items-center ${isDark ? 'bg-slate-800/30 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`}>
                                 <div className="flex-1 min-w-0">
                                     <div className={`font-bold text-sm truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{line.name}</div>
-                                    <div className={`text-xs font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{line.sku}</div>
+                                    <div className={`text-xs mt-0.5 flex items-center gap-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                        <span className="font-mono">#{line.sku}</span>
+                                        <span className="opacity-50">•</span>
+                                        <span className="uppercase tracking-wider text-[10px] font-bold opacity-80">{line.system}</span>
+                                    </div>
                                 </div>
                                 <div className="text-right">
                                     <span className="text-xs opacity-60 uppercase font-bold block">Menge</span>

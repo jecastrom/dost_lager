@@ -6,10 +6,11 @@ import {
   Hash, Info, CheckCircle2, AlertCircle, ChevronDown, Check,
   ArrowRight, ArrowLeft, Trash2, MapPin, FileText, Building2,
   AlertTriangle, Loader2, Home, ClipboardList, CheckSquare, MessageSquare, Briefcase, Ban, ListFilter,
-  LogOut, PlusCircle, XCircle
+  LogOut, PlusCircle, XCircle, Clock
 } from 'lucide-react';
-import { StockItem, Theme, ReceiptHeader, PurchaseOrder, ReceiptMaster } from '../types';
+import { StockItem, Theme, ReceiptHeader, PurchaseOrder, ReceiptMaster, Ticket } from '../types';
 import { MOCK_PURCHASE_ORDERS } from '../data';
+import { TicketConfig } from './SettingsPage';
 
 // Hardcoded Location Options (Global Scope)
 const LAGERORT_OPTIONS: string[] = [
@@ -172,6 +173,14 @@ const POSelectionModal = ({
                           <div className="flex items-center gap-1.5">
                               <Calendar size={14} /> {new Date(po.dateCreated).toLocaleDateString()}
                           </div>
+                          {po.expectedDeliveryDate && (
+                              <>
+                                <div className="w-1 h-1 rounded-full bg-current opacity-50" />
+                                <div className="flex items-center gap-1.5">
+                                    <Clock size={14} /> Geplant: {new Date(po.expectedDeliveryDate).toLocaleDateString()}
+                                </div>
+                              </>
+                          )}
                           <div className="ml-auto font-mono text-xs opacity-50">
                               {po.items.length} Pos.
                           </div>
@@ -191,7 +200,7 @@ interface GoodsReceiptFlowProps {
   existingItems: StockItem[];
   onClose: () => void;
   onSuccess: (
-    header: Omit<ReceiptHeader, 'batchId' | 'timestamp' | 'itemCount'>,
+    header: Omit<ReceiptHeader, 'timestamp' | 'itemCount'>, // Now accepts batchId in header
     cartItems: { 
         item: StockItem; 
         qty: number; 
@@ -205,6 +214,8 @@ interface GoodsReceiptFlowProps {
   purchaseOrders?: PurchaseOrder[];
   initialPoId?: string | null;
   receiptMasters?: ReceiptMaster[];
+  ticketConfig: TicketConfig;
+  onAddTicket: (ticket: Ticket) => void;
 }
 
 export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({ 
@@ -215,7 +226,9 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
   onLogStock,
   purchaseOrders,
   initialPoId,
-  receiptMasters = []
+  receiptMasters = [],
+  ticketConfig,
+  onAddTicket
 }) => {
   const isDark = theme === 'dark';
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -393,6 +406,18 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
       const source = purchaseOrders || MOCK_PURCHASE_ORDERS;
       return source.filter(po => po.status !== 'Abgeschlossen' && po.status !== 'Storniert');
   }, [purchaseOrders]);
+
+  const currentPo = useMemo(() => {
+      return purchaseOrders?.find(p => p.id === linkedPoId);
+  }, [linkedPoId, purchaseOrders]);
+
+  const isLate = useMemo(() => {
+      if (!currentPo?.expectedDeliveryDate) return false;
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const expected = new Date(currentPo.expectedDeliveryDate);
+      return today > expected;
+  }, [currentPo]);
 
   const suppliers = useMemo(() => {
     const unique = new Set<string>();
@@ -593,11 +618,89 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
   };
 
   const handleFinalize = () => {
+    // 1. Generate Batch ID here to ensure we can link the ticket
+    const batchId = `b-${Date.now()}`;
+
+    // 2. Ticket Automation Logic (Consolidated with Smart Subjects)
+    const detailedIssues: string[] = [];
+    const issueTypesSet = new Set<string>(); // Use Set to avoid duplicates in subject line
+    
+    // Global rejection check
+    if (finalResultStatus === 'Abgelehnt' && ticketConfig.rejected) {
+       detailedIssues.push(`Gesamter Wareneingang abgelehnt.`);
+       issueTypesSet.add('Ablehnung');
+    }
+
+    cart.forEach(c => {
+        const itemLabel = `${c.item.name} (${c.item.sku})`;
+        
+        // Per-item Rejection
+        if (c.isRejected && ticketConfig.rejected) {
+            detailedIssues.push(`[Abgelehnt] ${itemLabel}: ${c.rejectionReason || 'Ohne Grund'}`);
+            issueTypesSet.add('Ablehnung');
+        }
+        
+        if (!c.isRejected) {
+            // Damage Check
+            if (c.isDamaged && ticketConfig.damage) {
+                detailedIssues.push(`[Beschädigt] ${itemLabel}`);
+                issueTypesSet.add('Beschädigung');
+            }
+            // Wrong Item Check
+            if (c.isWrongItem && ticketConfig.wrong) {
+                detailedIssues.push(`[Falsch] ${itemLabel}: ${c.wrongItemReason}`);
+                issueTypesSet.add('Falschlieferung');
+            }
+            
+            // Quantity Checks (only if PO linked)
+            if (linkedPoId && c.orderedQty) {
+                const totalReceived = (c.previouslyReceived || 0) + c.qty;
+                
+                if (totalReceived < c.orderedQty && ticketConfig.missing) {
+                     const missing = c.orderedQty - totalReceived;
+                     detailedIssues.push(`[Fehlmenge] ${itemLabel}: ${missing} Stück fehlen`);
+                     issueTypesSet.add('Fehlmenge');
+                }
+                
+                if (totalReceived > c.orderedQty && ticketConfig.extra) {
+                     const extra = totalReceived - c.orderedQty;
+                     detailedIssues.push(`[Übermenge] ${itemLabel}: ${extra} Stück zu viel`);
+                     issueTypesSet.add('Überlieferung');
+                }
+            }
+        }
+    });
+
+    if (detailedIssues.length > 0) {
+        // Smart Subject Construction
+        const issueTypesArray = Array.from(issueTypesSet);
+        const subject = `Reklamation: ${issueTypesArray.join(', ')}`;
+        
+        const description = detailedIssues.join('\n');
+        const isUrgent = issueTypesSet.has('Beschädigung') || issueTypesSet.has('Ablehnung') || issueTypesSet.has('Falschlieferung');
+        
+        const newTicket: Ticket = {
+            id: crypto.randomUUID(),
+            receiptId: batchId,
+            subject: subject,
+            status: 'Open',
+            priority: isUrgent ? 'High' : 'Normal',
+            messages: [{
+                id: crypto.randomUUID(),
+                author: 'System',
+                text: `Automatisch erstellter Fall basierend auf Wareneingangsprüfung:\n\n${description}`,
+                timestamp: Date.now(),
+                type: 'system'
+            }]
+        };
+        onAddTicket(newTicket);
+    }
+
+    // 3. Prepare Items
     const cleanCartItems = cart.map(({ showIssueInputs, isRejected, rejectionReason, overDeliveryResolution, ...rest }) => {
         let finalQty = rest.qty;
         let finalNotes = rest.issueNotes || '';
 
-        // Over-Delivery Handling
         const ordered = rest.orderedQty || 0;
         const previous = rest.previouslyReceived || 0;
         const totalAfterReceipt = previous + rest.qty;
@@ -614,7 +717,6 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
             }
         }
 
-        // Issue Notes Composition
         if (rest.isWrongItem) {
             finalNotes += (finalNotes ? ' | ' : '') + `FALSCH: ${rest.wrongItemReason || 'Grund unbekannt'}`;
         }
@@ -622,7 +724,6 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
             finalNotes += (finalNotes ? ' | ' : '') + 'BESCHÄDIGT';
         }
 
-        // Rejection Handling
         if (isRejected) {
             finalQty = 0;
             finalNotes = `ABGELEHNT: ${rejectionReason || 'Ohne Grund'}. ${finalNotes}`;
@@ -635,6 +736,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
         };
     });
 
+    // 4. Log Stock
     if (onLogStock) {
         const selectedPO = purchaseOrders?.find(p => p.id === linkedPoId);
         const source = "PO-" + (selectedPO?.id || "MANUAL");
@@ -659,8 +761,13 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
       .map(c => c.item)
       .filter(item => !existingItems.find(ex => ex.id === item.id));
 
-    // Ensure status is passed correctly to parent
-    const finalHeader = { ...headerData, status: finalResultStatus };
+    // 5. Pass Batch ID up via Header
+    const finalHeader = { 
+        ...headerData, 
+        batchId: batchId, // Inject generated ID
+        status: finalResultStatus,
+        isLate: isLate
+    };
     
     // Call onSuccess which triggers navigation in parent App.tsx
     onSuccess(finalHeader, cleanCartItems, newItemsCreated);
@@ -824,7 +931,6 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                 <h3 className="text-lg font-bold mb-1">Schritt 1: Lieferung wählen & prüfen</h3>
                 <p className="text-sm opacity-70">Bitte geben Sie die Informationen zum Lieferschein ein.</p>
             </div>
-            {/* ... Step 1 Content identical to previous ... */}
             <div className="grid grid-cols-1 gap-5">
                 {/* PO Selection */}
                 <div className="space-y-1">
@@ -838,7 +944,17 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                               </div>
                               <div className="text-sm opacity-70 flex items-center gap-2">
                                   <span>{headerData.lieferant}</span>
+                                  {isLate && (
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1 ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                                          <Clock size={10} /> Verspätet
+                                      </span>
+                                  )}
                               </div>
+                              {currentPo?.expectedDeliveryDate && (
+                                  <div className={`text-xs mt-1 ${isLate ? 'text-red-500 font-bold' : 'opacity-50'}`}>
+                                      Geplant: {new Date(currentPo.expectedDeliveryDate).toLocaleDateString()}
+                                  </div>
+                              )}
                           </div>
                           <button 
                               onClick={() => setShowPoModal(true)}
@@ -986,7 +1102,6 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
         {/* STEP 2: ARTIKEL HINZUFÜGEN / PRÜFEN */}
         {step === 2 && (
           <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4">
-             {/* ... Step 2 Search / Create Logic (Unchanged, skipping verbose parts) ... */}
              <div className="flex justify-between items-end mb-2">
                 <div>
                     <h3 className="text-lg font-bold mb-1">
@@ -1001,7 +1116,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                  </button>
              </div>
              
-             {/* Search / Create Item Block (Collapsed for brevity as it's unchanged logic) */}
+             {/* Search / Create Item Block */}
              <div className="space-y-6 relative z-[50]">
                 {isCreatingNew ? (
                     <div className={`p-5 rounded-2xl border space-y-4 animate-in slide-in-from-top-2 ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
@@ -1049,7 +1164,16 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
              {/* Real-Time Feedback Banners */}
              {step === 2 && linkedPoId && (
                 <div className="space-y-3 mb-6 animate-in fade-in slide-in-from-top-2">
-                    {anomalies.isPerfect && (
+                    {isLate && (
+                        <div className={`p-4 rounded-xl border flex items-center gap-4 ${isDark ? 'bg-red-500/5 border-red-500/20 text-red-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                            <div className={`p-2 rounded-full shrink-0 ${isDark ? 'bg-red-500/20' : 'bg-red-100'}`}><Clock size={24} className={isDark ? 'text-red-400' : 'text-red-600'} /></div>
+                            <div>
+                                <h4 className="font-bold text-sm">Lieferung verspätet</h4>
+                                <p className="text-xs opacity-90 mt-0.5">Der geplante Liefertermin war am {new Date(currentPo!.expectedDeliveryDate!).toLocaleDateString()}.</p>
+                            </div>
+                        </div>
+                    )}
+                    {anomalies.isPerfect && !isLate && (
                         <div className={`p-3 rounded-xl border flex items-center gap-3 ${isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
                             <CheckCircle2 size={18} />
                             <span className="font-bold text-sm">Alles vollständig – keine Abweichungen.</span>
@@ -1114,8 +1238,8 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                    <tr className={`group transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'} ${line.isWrongItem || showOverResolution ? (isDark ? 'bg-slate-800/30' : 'bg-slate-50/80') : ''} ${line.isRejected ? 'bg-red-500/5' : ''}`}>
                                       <td className="px-3 py-2">
                                          <div className={line.isRejected ? 'opacity-50' : ''}>
-                                            <div className={`font-bold text-sm ${line.isRejected ? 'line-through text-slate-500' : ''}`}>{line.item.name}</div>
-                                            <div className="text-xs opacity-60 font-mono">{line.item.sku} • {line.item.system}</div>
+                                            <div className={`font-bold text-sm ${line.isRejected ? 'line-through text-slate-500' : (isDark ? 'text-white' : 'text-slate-900')}`}>{line.item.name}</div>
+                                            <div className={`text-xs font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{line.item.sku} • {line.item.system}</div>
                                             {line.isManualAddition && (
                                                 <div className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
                                                     <AlertTriangle size={8} /> Manuell
@@ -1136,7 +1260,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                       
                                       {linkedPoId && (
                                         <td className="px-3 py-2 text-center">
-                                           <span className={`font-mono opacity-70 text-sm ${line.isRejected ? 'opacity-50' : ''}`}>{line.orderedQty !== undefined ? line.orderedQty : '-'}</span>
+                                           <span className={`font-mono text-sm ${line.isRejected ? 'opacity-50' : ''} ${isDark ? 'text-slate-300' : 'text-slate-900'}`}>{line.orderedQty !== undefined ? line.orderedQty : '-'}</span>
                                         </td>
                                       )}
 
@@ -1160,7 +1284,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                              const val = parseInt(e.target.value, 10);
                                              updateCartItem(idx, 'qty', isNaN(val) ? 0 : Math.max(0, val));
                                            }}
-                                           className={`w-20 px-1 py-1 h-8 rounded border text-center font-bold text-sm outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${line.isRejected ? 'line-through text-slate-400 opacity-50' : ''} ${isDark ? 'bg-slate-950 border-slate-700 focus:ring-blue-500/30' : 'bg-white border-slate-300 focus:ring-[#0077B5]/20'}`}
+                                           className={`w-20 px-1 py-1 h-8 rounded border text-center font-bold text-sm outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${line.isRejected ? 'line-through text-slate-400 opacity-50' : ''} ${isDark ? 'bg-[#0b1120] border-slate-600 text-white focus:ring-blue-500/30' : 'bg-white border-slate-300 text-slate-900 focus:ring-[#0077B5]/20'}`}
                                          />
                                       </td>
 
@@ -1336,9 +1460,9 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                               <div className="flex justify-between items-start">
                                  <div className="min-w-0">
                                     <div className={line.isRejected ? 'opacity-50' : ''}>
-                                        <div className={`font-bold text-sm truncate ${line.isRejected ? 'line-through' : ''}`}>{line.item.name}</div>
-                                        <div className="text-xs text-slate-500">Artikelnummer: {line.item.sku}</div>
-                                        <div className="text-xs text-slate-500 opacity-70">System: {line.item.system}</div>
+                                        <div className={`font-bold text-sm truncate ${line.isRejected ? 'line-through' : (isDark ? 'text-white' : 'text-slate-900')}`}>{line.item.name}</div>
+                                        <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Artikelnummer: {line.item.sku}</div>
+                                        <div className={`text-xs opacity-70 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>System: {line.item.system}</div>
                                         {line.isManualAddition && (<div className={`mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700'}`}><AlertTriangle size={10} /> Nicht Teil der Bestellung</div>)}
                                     </div>
                                     {line.isRejected && (<div className="mt-2"><input value={line.rejectionReason} onChange={(e) => updateCartItem(idx, 'rejectionReason', e.target.value)} placeholder="Grund für Ablehnung..." className={`w-full px-2 py-1 text-xs rounded border outline-none ${isDark ? 'bg-slate-900 border-red-500/30 text-red-400' : 'bg-white border-red-500/30 text-red-600'}`} /></div>)}
@@ -1346,8 +1470,8 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                  <button onClick={() => removeCartItem(idx)} className="text-slate-400 hover:text-red-500 p-1"><Trash2 size={16} /></button>
                               </div>
                               <div className="grid grid-cols-2 gap-3 items-center">
-                                  {linkedPoId && (<div className={`text-left ${line.isRejected ? 'opacity-50' : ''}`}><div className="flex flex-col gap-1"><div><span className="text-[10px] font-bold opacity-60 uppercase block">Bestellt</span><span className="text-sm font-mono opacity-80">{line.orderedQty !== undefined ? line.orderedQty : '-'}</span></div>{(line.previouslyReceived || 0) > 0 && (<div><span className="text-[10px] font-bold opacity-60 uppercase block">Bisher</span><span className="text-sm font-mono opacity-50">{line.previouslyReceived}</span></div>)}</div></div>)}
-                                  <div className="text-right ml-auto"><span className="text-[10px] font-bold opacity-60 uppercase block mb-1">{linkedPoId ? 'Aktuell' : 'Menge'}</span><input type="number" min="0" value={line.qty === 0 ? '' : line.qty} disabled={line.isRejected} placeholder="0" onChange={e => { const val = parseInt(e.target.value, 10); updateCartItem(idx, 'qty', isNaN(val) ? 0 : Math.max(0, val)); }} className={`w-24 px-2 py-2 rounded border text-sm font-bold text-center ${line.isRejected ? 'line-through text-slate-400 opacity-50' : ''} ${isDark ? 'bg-slate-900 border-slate-600' : 'bg-slate-50 border-slate-300'}`} /></div>
+                                  {linkedPoId && (<div className={`text-left ${line.isRejected ? 'opacity-50' : ''}`}><div className="flex flex-col gap-1"><div><span className="text-[10px] font-bold opacity-60 uppercase block">Bestellt</span><span className={`text-sm font-mono opacity-80 ${isDark ? 'text-slate-300' : 'text-slate-900'}`}>{line.orderedQty !== undefined ? line.orderedQty : '-'}</span></div>{(line.previouslyReceived || 0) > 0 && (<div><span className="text-[10px] font-bold opacity-60 uppercase block">Bisher</span><span className="text-sm font-mono opacity-50">{line.previouslyReceived}</span></div>)}</div></div>)}
+                                  <div className="text-right ml-auto"><span className="text-[10px] font-bold opacity-60 uppercase block mb-1">{linkedPoId ? 'Aktuell' : 'Menge'}</span><input type="number" min="0" value={line.qty === 0 ? '' : line.qty} disabled={line.isRejected} placeholder="0" onChange={e => { const val = parseInt(e.target.value, 10); updateCartItem(idx, 'qty', isNaN(val) ? 0 : Math.max(0, val)); }} className={`w-24 px-2 py-2 rounded border text-sm font-bold text-center ${line.isRejected ? 'line-through text-slate-400 opacity-50' : ''} ${isDark ? 'bg-[#0b1120] border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'}`} /></div>
                               </div>
 
                               {showOverResolution && (
@@ -1451,7 +1575,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                     <div><div className={`text-[10px] uppercase font-bold tracking-wider opacity-60 mb-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Datum</div><div className="font-medium flex items-center gap-2"><Calendar size={14} className="opacity-70" /> {new Date(headerData.lieferdatum).toLocaleDateString()}</div></div>
                     <div><div className={`text-[10px] uppercase font-bold tracking-wider opacity-60 mb-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Lieferant</div><div className="font-medium flex items-center gap-2 truncate"><Truck size={14} className="opacity-70 text-[#0077B5]" /> {headerData.lieferant}</div></div>
                     <div><div className={`text-[10px] uppercase font-bold tracking-wider opacity-60 mb-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Ziel-Lagerort</div><div className="font-medium flex items-center gap-2 truncate"><MapPin size={14} className="opacity-70" /> {headerData.warehouseLocation}</div></div>
-                    {headerData.bestellNr && (<div className="col-span-2 md:col-span-4 border-t border-slate-500/10 pt-2 mt-1"><div className={`text-[10px] uppercase font-bold tracking-wider opacity-60 mb-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Verknüpfte Bestellung</div><div className="font-mono font-bold text-[#0077B5] text-sm">{headerData.bestellNr}</div></div>)}
+                    {headerData.bestellNr && (<div className="col-span-2 md:col-span-4 border-t border-slate-500/10 pt-2 mt-1"><div className={`text-[10px] uppercase font-bold tracking-wider opacity-60 mb-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Verknüpfte Bestellung</div><div className="font-mono font-bold text-[#0077B5] text-sm flex items-center gap-2">{headerData.bestellNr}{isLate && <span className="text-red-500 text-xs border border-red-500/30 px-1 rounded bg-red-500/5">Verspätet</span>}</div></div>)}
                 </div>
             </div>
 
@@ -1461,7 +1585,8 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                         <tr>
                             <th className="px-3 py-2">Artikel</th>
                             {linkedPoId && <th className="px-3 py-2 w-24 text-center">Bestellt</th>}
-                            <th className="px-3 py-2 w-24 text-center">{linkedPoId ? 'Geliefert' : 'Menge'}</th>
+                            {showHistoryColumn && <th className="px-3 py-2 w-20 text-center text-slate-400">Bisher</th>}
+                            <th className="px-3 py-2 w-24 text-center">{linkedPoId ? 'Aktuell' : 'Menge'}</th>
                             {linkedPoId && <th className="px-3 py-2 w-20 text-center text-amber-500">Offen</th>}
                             {linkedPoId && <th className="px-3 py-2 w-20 text-center text-orange-500">Zu viel</th>}
                             <th className="px-3 py-2 w-32 text-center">Status</th>
@@ -1469,6 +1594,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                     </thead>
                     <tbody className={`divide-y ${isDark ? 'divide-slate-800' : 'divide-slate-100'}`}>
                         {cart.map((line, idx) => {
+                            // Rejection Logic Preservation
                             if (line.isRejected) {
                                 return (
                                     <tr key={idx} className={`${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'} opacity-60 bg-red-500/5`}>
@@ -1477,28 +1603,37 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                             <div className="text-[10px] opacity-60 font-mono">{line.item.sku}</div>
                                             <div className="text-[10px] text-red-500 font-bold mt-0.5">Grund: {line.rejectionReason || 'Nicht angegeben'}</div>
                                         </td>
-                                        <td colSpan={linkedPoId ? 4 : 1} className="px-3 py-2 text-center font-mono text-xs opacity-50">- Abgelehnt -</td>
+                                        {linkedPoId && <td className="px-3 py-2 text-center font-mono text-xs opacity-50">-</td>}
+                                        {showHistoryColumn && <td className="px-3 py-2 text-center font-mono text-xs opacity-50">-</td>}
+                                        <td className="px-3 py-2 text-center font-mono text-xs opacity-50">-</td>
+                                        {linkedPoId && <td className="px-3 py-2 text-center font-mono text-xs opacity-50">-</td>}
+                                        {linkedPoId && <td className="px-3 py-2 text-center font-mono text-xs opacity-50">-</td>}
                                         <td className="px-3 py-2 text-center"><span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-500/10 text-red-500 text-xs font-bold border border-red-500/20"><Ban size={12} /> Abgelehnt</span></td>
                                     </tr>
                                 );
                             }
 
+                            // Calculation Logic matching Step 2
                             const ordered = line.orderedQty ?? 0;
-                            const received = line.qty;
-                            const pending = Math.max(0, ordered - received);
-                            const over = Math.max(0, received - ordered);
+                            const previous = line.previouslyReceived || 0;
+                            const current = line.qty;
+                            const totalReceived = previous + current;
+                            
+                            const pending = Math.max(0, ordered - totalReceived);
+                            const over = Math.max(0, totalReceived - ordered);
                             
                             return (
                                 <tr key={idx} className={isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}>
                                     <td className="px-3 py-2">
-                                        <div className="font-bold text-sm">{line.item.name}</div>
-                                        <div className="text-[10px] opacity-60 font-mono">{line.item.sku}</div>
+                                        <div className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>{line.item.name}</div>
+                                        <div className={`text-[10px] opacity-60 font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{line.item.sku}</div>
                                         {line.isManualAddition && (<div className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700'}`}><AlertTriangle size={8} /> Manuell</div>)}
                                         {line.overDeliveryResolution === 'return' && over > 0 && (<div className="text-[10px] text-orange-600 font-bold mt-0.5 flex items-center gap-1"><LogOut size={10} /> {over}x Rücksendung</div>)}
                                         {line.overDeliveryResolution === 'keep' && over > 0 && (<div className="text-[10px] text-emerald-600 font-bold mt-0.5 flex items-center gap-1"><PlusCircle size={10} /> {over}x Akzeptiert</div>)}
                                     </td>
-                                    {linkedPoId && <td className="px-3 py-2 text-center font-mono opacity-70 text-sm">{ordered > 0 ? ordered : '-'}</td>}
-                                    <td className="px-3 py-2 text-center font-bold text-sm">{line.qty}</td>
+                                    {linkedPoId && <td className={`px-3 py-2 text-center font-mono opacity-70 text-sm ${isDark ? 'text-slate-300' : 'text-slate-900'}`}>{ordered > 0 ? ordered : '-'}</td>}
+                                    {showHistoryColumn && <td className="px-3 py-2 text-center font-mono text-sm opacity-50">{previous > 0 ? previous : '-'}</td>}
+                                    <td className="px-3 py-2 text-center font-bold text-sm">{current > 0 ? `+${current}` : '0'}</td>
                                     {linkedPoId && <td className={`px-3 py-2 text-center font-bold text-sm ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>{pending > 0 ? pending : <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}</td>}
                                     {linkedPoId && <td className={`px-3 py-2 text-center font-bold text-sm ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>{over > 0 ? over : <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}</td>}
                                     <td className="px-3 py-2 text-center">
@@ -1508,8 +1643,8 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                             if (line.isWrongItem) return <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500/10 text-amber-500 text-xs font-bold border border-amber-500/20"><XCircle size={12} /> Falsch</span>;
                                             
                                             if (linkedPoId) {
-                                                if (received < ordered) return <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200'}`}><AlertTriangle size={12} /> Fehlmenge</span>;
-                                                if (received > ordered) {
+                                                if (totalReceived < ordered) return <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200'}`}><AlertTriangle size={12} /> Fehlmenge</span>;
+                                                if (totalReceived > ordered) {
                                                     if (line.overDeliveryResolution === 'return') return <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border ${isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-50 text-orange-600 border-orange-200'}`}><LogOut size={12} /> Rücksendung</span>;
                                                     return <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border ${isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-50 text-orange-600 border-orange-200'}`}><Info size={12} /> Übermenge</span>;
                                                 }

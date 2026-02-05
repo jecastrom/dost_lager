@@ -1,12 +1,14 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Search, Filter, Calendar, Truck, ChevronRight, 
   X, FileText, Pencil, ClipboardCheck, Archive, CheckSquare, Square, PackagePlus,
   CheckCircle2, Ban, Briefcase, Lock, Plus
 } from 'lucide-react';
-import { PurchaseOrder, Theme, ReceiptMaster, ActiveModule } from '../types';
+import { PurchaseOrder, Theme, ReceiptMaster, ActiveModule, Ticket } from '../types';
+import { LifecycleStepper } from './LifecycleStepper';
+import { MOCK_ITEMS } from '../data'; // Import Mock Data for System Lookup
 
 interface OrderManagementProps {
   orders: PurchaseOrder[]; // Required prop for Single Source of Truth
@@ -17,9 +19,10 @@ interface OrderManagementProps {
   onQuickReceipt: (id: string) => void;
   receiptMasters: ReceiptMaster[];
   onNavigate: (module: ActiveModule) => void;
+  tickets: Ticket[];
 }
 
-export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme, onArchive, onEdit, onReceiveGoods, onQuickReceipt, receiptMasters, onNavigate }) => {
+export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme, onArchive, onEdit, onReceiveGoods, onQuickReceipt, receiptMasters, onNavigate, tickets }) => {
   const isDark = theme === 'dark';
   const [searchTerm, setSearchTerm] = useState('');
   const [showArchived, setShowArchived] = useState(false);
@@ -29,6 +32,28 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
   // -- Confirmation Modal State --
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<string | null>(null);
+
+  // -- Keyboard Listener for Modal --
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            if (confirmModalOpen) {
+                setConfirmModalOpen(false);
+                setSelectedOrderForReceipt(null);
+            } else if (selectedOrder) {
+                setSelectedOrder(null);
+            }
+        }
+    };
+
+    if (selectedOrder || confirmModalOpen) {
+        window.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedOrder, confirmModalOpen]);
 
   // -- Computed --
   const filteredOrders = useMemo(() => {
@@ -43,6 +68,12 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
       );
     }).sort((a, b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime());
   }, [orders, searchTerm, showArchived]);
+
+  // -- Lifecycle Logic for Stepper --
+  const hasOpenTickets = useMemo(() => {
+      if (!selectedOrder || !selectedOrder.linkedReceiptId) return false;
+      return tickets.some(t => t.receiptId === selectedOrder.linkedReceiptId && t.status === 'Open');
+  }, [selectedOrder, tickets]);
 
   // -- Cumulative Status Badge Logic --
   const renderStatusBadges = (order: PurchaseOrder) => {
@@ -122,11 +153,11 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
         );
     }
 
-    // 8. Geschlossen
+    // 8. Erledigt (Completed/Closed) - NEUTRAL GRAY
     if (order.status === 'Abgeschlossen') {
          badges.push(
-            <span key="closed" className={`px-2.5 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
-                Geschlossen
+            <span key="closed" className={`px-2.5 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-gray-800 text-gray-400 border-gray-700' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                Erledigt
             </span>
         );
     }
@@ -238,7 +269,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
            <table className="w-full text-left text-sm min-w-[800px]">
              <thead className={`border-b ${isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
                <tr>
-                 <th className="p-4 font-semibold">PO Nummer</th>
+                 <th className="p-4 font-semibold">Bestell Nummer</th>
                  <th className="p-4 font-semibold">Datum</th>
                  <th className="p-4 font-semibold">Lieferant</th>
                  <th className="p-4 font-semibold">Status</th>
@@ -260,7 +291,8 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                   >
                     <td className="p-4 font-mono font-bold text-[#0077B5]">{order.id}</td>
                     <td className="p-4 flex items-center gap-2 text-slate-500">
-                        <Calendar size={14} /> {new Date(order.dateCreated).toLocaleDateString()}
+                        <Calendar size={14} /> 
+                        {new Date(order.dateCreated).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                     </td>
                     <td className="p-4 font-medium">
                         <div className="flex items-center gap-2">
@@ -372,7 +404,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                     {/* Title Row with Status Badge Top-Right */}
                     <div className="flex justify-between items-start mb-6">
                         <h3 className={`font-bold text-2xl ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            {selectedOrder.id}
+                            Bestell Nummer : {selectedOrder.id}
                         </h3>
                         <div className="flex items-center gap-3">
                             {/* Uses the same render logic as the table row for consistency */}
@@ -399,7 +431,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                             <div className={`text-[10px] uppercase font-bold tracking-wider opacity-60 mb-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Bestelldatum</div>
                             <div className={`font-medium flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
                                 <Calendar size={16} className="opacity-70" /> 
-                                {new Date(selectedOrder.dateCreated).toLocaleDateString()}
+                                {new Date(selectedOrder.dateCreated).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                             </div>
                         </div>
 
@@ -426,6 +458,15 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                         </div>
                     </div>
                 </div>
+
+                {/* LIFECYCLE STEPPER VISUALIZATION */}
+                <div className={`px-6 py-6 border-b ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50/50 border-slate-100'}`}>
+                    <LifecycleStepper 
+                        status={selectedOrder.status}
+                        hasOpenTickets={hasOpenTickets}
+                        theme={theme}
+                    />
+                </div>
                 
                 {/* Modal Content (Table) */}
                 <div className="flex-1 overflow-y-auto p-0">
@@ -438,11 +479,25 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                             </tr>
                         </thead>
                         <tbody className={`divide-y ${isDark ? 'divide-slate-800' : 'divide-slate-100'}`}>
-                            {selectedOrder.items.map((item, idx) => (
+                            {selectedOrder.items.map((item, idx) => {
+                                // Lookup system from MOCK_ITEMS because it's not stored in the PO Item
+                                const stockItem = MOCK_ITEMS.find(si => si.sku === item.sku);
+                                const systemInfo = stockItem?.system || 'Material';
+
+                                return (
                                 <tr key={idx} className={isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}>
                                     <td className="px-6 py-4">
-                                        <div className="font-bold">{item.name}</div>
-                                        <div className="text-xs font-mono opacity-60 mt-0.5">{item.sku}</div>
+                                        <div className={`font-bold text-sm mb-1 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{item.name}</div>
+                                        <div className="flex flex-wrap items-center gap-y-1 gap-x-3">
+                                            <div className={`text-xs flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                <span className="opacity-70">Artikelnummer:</span>
+                                                <span className="font-mono text-xs">{item.sku}</span>
+                                            </div>
+                                            
+                                            <span className={`px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold uppercase tracking-wider border ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                                {systemInfo}
+                                            </span>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 text-center font-bold">
                                         {item.quantityExpected}
@@ -457,13 +512,88 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                                         </span>
                                     </td>
                                 </tr>
-                            ))}
+                            )})}
                         </tbody>
                     </table>
                 </div>
 
-                {/* Modal Footer */}
-                <div className={`p-5 border-t flex justify-end gap-3 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                {/* Modal Footer with Actions */}
+                <div className={`p-5 border-t flex justify-between items-center gap-4 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                    
+                    {/* Action Toolbar */}
+                    <div className="flex items-center gap-2">
+                        {/* 1. Quick Receipt (PackagePlus) */}
+                        {!selectedOrder.isArchived && (selectedOrder.status === 'Offen' || selectedOrder.status === 'Projekt') && !selectedOrder.linkedReceiptId && (
+                             <button
+                                onClick={() => {
+                                    setSelectedOrderForReceipt(selectedOrder.id);
+                                    setConfirmModalOpen(true);
+                                }}
+                                className={`px-3 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${
+                                    isDark 
+                                    ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' 
+                                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                                }`}
+                                title="Wareneingang vorerfassen (Status: In Prüfung)"
+                             >
+                                <PackagePlus size={18} />
+                                <span className="hidden sm:inline">Erstellen</span>
+                             </button>
+                        )}
+
+                        {/* 2. Receive / Check (ClipboardCheck) */}
+                        {!selectedOrder.isArchived && selectedOrder.status !== 'Abgeschlossen' && (
+                            <button 
+                                onClick={() => onReceiveGoods(selectedOrder.id)}
+                                className={`px-3 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${
+                                    isDark 
+                                    ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' 
+                                    : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                }`}
+                                title="Wareneingang prüfen / buchen"
+                            >
+                                <ClipboardCheck size={18} />
+                                <span className="hidden sm:inline">Prüfen</span>
+                            </button>
+                        )}
+
+                        {/* 3. Edit (Pencil) */}
+                        {!selectedOrder.isArchived && selectedOrder.status !== 'Abgeschlossen' && (
+                            <button 
+                                onClick={() => onEdit(selectedOrder)}
+                                className={`px-3 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${
+                                    isDark 
+                                    ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' 
+                                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                }`}
+                                title="Bestellung bearbeiten"
+                            >
+                                <Pencil size={18} />
+                                <span className="hidden sm:inline">Bearbeiten</span>
+                            </button>
+                        )}
+
+                        {/* 4. Archive (Archive) */}
+                        {!selectedOrder.isArchived && (
+                            <button 
+                                onClick={(e) => {
+                                    if (window.confirm("Möchten Sie diese Bestellung wirklich archivieren?")) {
+                                        onArchive(selectedOrder.id);
+                                        setSelectedOrder(null); // Close modal after archive
+                                    }
+                                }}
+                                className={`px-3 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all ${
+                                    isDark 
+                                    ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' 
+                                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                }`}
+                                title="Archivieren"
+                            >
+                                <Archive size={18} />
+                            </button>
+                        )}
+                    </div>
+
                     <button 
                         onClick={() => setSelectedOrder(null)}
                         className={`px-6 py-2.5 rounded-xl font-bold transition-colors ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
@@ -476,9 +606,9 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
         document.body
       )}
 
-      {/* NEW: Quick Receipt Confirmation Modal */}
+      {/* NEW: Quick Receipt Confirmation Modal - INCREASED Z-INDEX to sit above Detail Modal */}
       {confirmModalOpen && createPortal(
-        <div className="fixed inset-0 z-[50] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={handleCancelQuickReceipt} />
             <div className={`relative w-full max-w-sm rounded-2xl shadow-2xl p-6 flex flex-col gap-4 animate-in zoom-in-95 duration-200 ${isDark ? 'bg-slate-900 border border-slate-700' : 'bg-white'}`}>
                 <div className="flex items-center gap-4">

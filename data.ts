@@ -154,6 +154,7 @@ export const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
         supplier: 'Battery Kutter',
         status: 'Offen',
         dateCreated: '2026-02-25',
+        expectedDeliveryDate: '2026-03-05',
         isArchived: false,
         items: [
             {
@@ -181,6 +182,7 @@ export const MOCK_PURCHASE_ORDERS: PurchaseOrder[] = [
         supplier: 'Würth',
         status: 'Offen',
         dateCreated: '2026-02-20',
+        expectedDeliveryDate: '2026-03-01',
         isArchived: false,
         items: [
             {

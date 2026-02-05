@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Search, PlusCircle, Filter, MapPin, PackagePlus, 
-  Minus, Plus, Hash, Pencil, AlertTriangle, CheckCircle2, AlertOctagon, MoreHorizontal
+  Minus, Plus, Hash, Pencil, AlertTriangle, CheckCircle2, AlertOctagon, MoreHorizontal, Copy, CopyPlus
 } from 'lucide-react';
 import { StockItem, Theme, ViewMode } from '../types';
 import { ItemModal } from './ItemModal';
@@ -42,10 +42,11 @@ interface StockComponentProps {
   onAddStock: () => void;
   onLogStock: (itemId: string, itemName: string, action: 'add' | 'remove', quantity: number, source?: string, context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project') => void;
   onClick: (item: StockItem) => void;
+  onClone: (item: StockItem) => void;
   theme: Theme;
 }
 
-const InventoryProductCard: React.FC<StockComponentProps> = ({ item, onUpdate, onAddStock, onLogStock, onClick, theme }) => {
+const InventoryProductCard: React.FC<StockComponentProps> = ({ item, onUpdate, onAddStock, onLogStock, onClick, onClone, theme }) => {
   const isDark = theme === 'dark';
   const { bulkInput, setBulkInput, handleClick } = useStockAdjust(item, onUpdate, onLogStock);
 
@@ -73,20 +74,52 @@ const InventoryProductCard: React.FC<StockComponentProps> = ({ item, onUpdate, o
           }`}>
             {item.name}
           </h3>
-          <div className="mt-2 flex items-center gap-2 text-[11px] font-medium">
+          <div className="mt-2 flex items-center gap-2 text-[11px] font-medium flex-wrap">
             <span className={`px-1.5 py-0.5 rounded border transition-colors ${
               isDark ? 'bg-slate-900 border-slate-700 text-slate-500' : 'bg-[#CACCCE]/20 border-[#CACCCE] text-[#86888A]'
             }`}>#{item.sku}</span>
             <span className="text-[#86888A]">•</span>
             <span className={`uppercase ${isDark ? 'text-slate-500' : 'text-[#86888A]'}`}>{item.system}</span>
+            
+            {/* Smart Copy Tool */}
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(item.sku);
+                    alert("Artikelnummer kopiert");
+                }}
+                onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const raw = item.sku.replace(/[^0-9]/g, '');
+                    navigator.clipboard.writeText(raw);
+                    alert("Artikelnummer (Nur Zahlen) kopiert");
+                }}
+                className={`ml-0.5 transition-colors ${
+                    isDark 
+                    ? 'text-slate-600 hover:text-blue-400' 
+                    : 'text-gray-400 hover:text-blue-500'
+                }`}
+                title="Artikelnummer kopieren (Links: Exakt | Rechts: Nur Zahlen)"
+            >
+                <Copy size={14} />
+            </button>
           </div>
         </div>
         <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-           <button onClick={() => onClick(item)} className="text-[#86888A] hover:text-[#0077B5] transition-colors p-1" title="Details ansehen">
-               <Pencil size={18} />
+           <button 
+                onClick={() => onClone(item)} 
+                className="text-[#86888A] hover:text-[#0077B5] transition-colors p-1" 
+                title="Artikel duplizieren"
+           >
+              <CopyPlus size={18} />
            </button>
-           <button onClick={onAddStock} className="text-[#86888A] hover:text-[#0077B5] transition-colors p-1" title="Wareneingang">
-              <PackagePlus size={18} />
+           <button 
+                onClick={() => onClick(item)} 
+                className="text-[#86888A] hover:text-[#0077B5] transition-colors p-1" 
+                title="Details bearbeiten"
+           >
+               <Pencil size={18} />
            </button>
         </div>
       </div>
@@ -166,7 +199,7 @@ const InventoryProductCard: React.FC<StockComponentProps> = ({ item, onUpdate, o
 };
 
 // --- TABLE ROW COMPONENT ---
-const InventoryTableRow: React.FC<StockComponentProps> = ({ item, onUpdate, onAddStock, onLogStock, onClick, theme }) => {
+const InventoryTableRow: React.FC<StockComponentProps> = ({ item, onUpdate, onAddStock, onLogStock, onClick, onClone, theme }) => {
     const isDark = theme === 'dark';
     const { bulkInput, setBulkInput, handleClick } = useStockAdjust(item, onUpdate, onLogStock);
 
@@ -227,8 +260,16 @@ const InventoryTableRow: React.FC<StockComponentProps> = ({ item, onUpdate, onAd
                         <button onClick={(e) => handleClick(e, 1)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500"><Plus size={14}/></button>
                     </div>
                     <button 
-                        onClick={(e) => { e.stopPropagation(); onClick(item); }}
+                        onClick={() => onClone(item)}
                         className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-[#0077B5]"
+                        title="Artikel duplizieren"
+                    >
+                        <CopyPlus size={16} />
+                    </button>
+                    <button 
+                        onClick={() => onClick(item)}
+                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-[#0077B5]"
+                        title="Details bearbeiten"
                     >
                         <Pencil size={16} />
                     </button>
@@ -265,6 +306,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
+  const [isCloning, setIsCloning] = useState(false);
 
   // Filter Logic
   const filteredItems = useMemo(() => {
@@ -279,21 +321,46 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   // Handlers
   const handleOpenNewItem = () => {
     setEditingItem(null);
+    setIsCloning(false);
     setIsItemModalOpen(true);
   };
 
   const handleOpenEditItem = (item: StockItem) => {
     setEditingItem(item);
+    setIsCloning(false);
+    setIsItemModalOpen(true);
+  };
+
+  const handleCloneItem = (item: StockItem) => {
+    // Create a clone with reset ID/SKU and adjusted name
+    const clone: StockItem = {
+        ...item,
+        id: '', // Reset ID to indicate new item logic in save handler or Modal interaction
+        sku: '', // User must provide new SKU
+        name: `${item.name} (Kopie)`,
+        stockLevel: 0, // Reset stock for fresh item
+        lastUpdated: Date.now()
+    };
+    setEditingItem(clone);
+    setIsCloning(true);
     setIsItemModalOpen(true);
   };
 
   const handleSaveItem = (item: StockItem) => {
-    if (editingItem) {
+    if (editingItem && !isCloning) {
+      // Standard Update
       onUpdateItem(item);
     } else {
-      onCreateItem(item);
+      // Creation (New or Clone)
+      // Ensure we have a unique ID. If ItemModal didn't generate one (because we passed empty string), do it here.
+      const newItem = { 
+          ...item, 
+          id: item.id && item.id !== '' ? item.id : crypto.randomUUID() 
+      };
+      onCreateItem(newItem);
     }
     setIsItemModalOpen(false);
+    setIsCloning(false);
   };
 
   return (
@@ -358,6 +425,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         onAddStock={onAddStock}
                         onLogStock={onLogStock}
                         onClick={handleOpenEditItem}
+                        onClone={handleCloneItem}
                         theme={theme}
                      />
                   ))}
@@ -387,6 +455,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                 onAddStock={onAddStock}
                                 onLogStock={onLogStock}
                                 onClick={handleOpenEditItem}
+                                onClone={handleCloneItem}
                                 theme={theme}
                              />
                           ))}

@@ -6,7 +6,8 @@ import {
   ArrowLeft, Mail, Phone, StickyNote, Send, Clock, User, X,
   AlertCircle, CheckCircle2, ChevronDown, ChevronUp, FileText, Truck,
   CheckSquare, BarChart3, Ban, Archive, Briefcase, PlayCircle, Info, PackagePlus,
-  AlertTriangle, Layers, Plus, MessageSquare, CornerDownRight, Unlock, Lock, XCircle, AlertOctagon, ClipboardCheck
+  AlertTriangle, Layers, Plus, MessageSquare, CornerDownRight, Unlock, Lock, XCircle, AlertOctagon, ClipboardCheck,
+  Undo2
 } from 'lucide-react';
 import { ReceiptHeader, ReceiptItem, Theme, ReceiptComment, Ticket, TicketPriority, PurchaseOrder, TicketMessage, ReceiptMaster, DeliveryLog, ActiveModule } from '../types';
 
@@ -24,6 +25,7 @@ interface ReceiptManagementProps {
   onUpdateTicket: (ticket: Ticket) => void;
   onReceiveGoods: (poId: string) => void;
   onNavigate: (module: ActiveModule) => void;
+  onRevertReceipt: (batchId: string) => void;
 }
 
 // Internal Modal Component for New Ticket
@@ -140,7 +142,8 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
   onAddTicket,
   onUpdateTicket,
   onReceiveGoods,
-  onNavigate
+  onNavigate,
+  onRevertReceipt
 }) => {
   const isDark = theme === 'dark';
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
@@ -361,6 +364,14 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
      }
   };
 
+  const handleRevert = () => {
+      if (!selectedBatchId) return;
+      if (window.confirm("Möchten Sie die Buchung stornieren? Der Lagerbestand wird entsprechend reduziert.")) {
+          onRevertReceipt(selectedBatchId);
+          // Optional: Close detail or stay? Stay to see updated status.
+      }
+  };
+
   const toggleDeliveryExpand = (id: string) => {
       setExpandedDeliveryId(prev => prev === id ? null : id);
   };
@@ -398,32 +409,43 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
       });
   };
 
-  const handleReplyTicket = (ticket: Ticket, closeAndReply: boolean) => {
-      if (!replyText.trim()) return;
+  // REFACTORED REPLY LOGIC
+  const handleReplyTicket = (ticket: Ticket, shouldClose: boolean) => {
+      const text = replyText.trim();
       
-      const newMsg: TicketMessage = {
-          id: crypto.randomUUID(),
-          author: 'Admin User',
-          text: replyText,
-          timestamp: Date.now(),
-          type: 'user'
-      };
+      // If we are NOT closing, we MUST have text.
+      // If we ARE closing, text is optional (but if present, it's sent as a final message).
+      if (!shouldClose && !text) return;
       
-      let updatedTicket = {
-          ...ticket,
-          messages: [...ticket.messages, newMsg]
-      };
+      let messages = [...ticket.messages];
 
-      if (closeAndReply) {
-          updatedTicket.status = 'Closed';
-          updatedTicket.messages.push({
+      // 1. Add User Message (if exists)
+      if (text) {
+          messages.push({
+              id: crypto.randomUUID(),
+              author: 'Admin User',
+              text: text,
+              timestamp: Date.now(),
+              type: 'user'
+          });
+      }
+
+      // 2. Add System Message & Update Status (if closing)
+      if (shouldClose) {
+          messages.push({
               id: crypto.randomUUID(),
               author: 'System',
               text: 'Ticket wurde geschlossen.',
-              timestamp: Date.now() + 1, // Ensure it's after the user message
+              timestamp: Date.now() + (text ? 1 : 0), // Ensure it appears after the user message if both happen
               type: 'system'
           });
       }
+
+      const updatedTicket: Ticket = {
+          ...ticket,
+          messages,
+          status: shouldClose ? 'Closed' : ticket.status
+      };
 
       onUpdateTicket(updatedTicket);
       setReplyText('');
@@ -477,7 +499,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
     return isDark ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-100 text-blue-700 border-blue-200';
   };
 
-  const renderReceiptBadges = (header: ReceiptHeader, po: PurchaseOrder | undefined, master: ReceiptMaster | undefined) => {
+  const renderReceiptBadges = (header: ReceiptHeader, po: PurchaseOrder | undefined, master: ReceiptMaster | undefined, receiptTickets: Ticket[]) => {
       const badges: React.ReactNode[] = [];
       const status = header.status;
       const effectiveStatus = (header as any).masterStatus || status; 
@@ -488,7 +510,9 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
       const isDamaged = effectiveStatus === 'Schaden' || effectiveStatus === 'Beschädigt' || (master?.deliveries.some(d => d.items.some(i => i.damageFlag)));
       const isWrong = effectiveStatus === 'Falsch geliefert';
       const isRejected = effectiveStatus === 'Abgelehnt' || effectiveStatus === 'Reklamation';
-      const isBooked = effectiveStatus === 'Gebucht';
+      
+      // FIXED: Prioritize 'Gebucht' status directly from header to fix list mismatch
+      const isBooked = effectiveStatus === 'Gebucht' || status === 'Gebucht';
       const isClosed = effectiveStatus === 'Abgeschlossen';
 
       // If any of these "Result" statuses are true, we consider the receipt processed and should HIDE "In Prüfung".
@@ -574,6 +598,18 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                   Gebucht
               </span>
           );
+      }
+
+      // TICKET STATUS BADGE
+      if (receiptTickets.length > 0) {
+          const allClosed = receiptTickets.every(t => t.status === 'Closed');
+          if (allClosed) {
+              badges.push(
+                  <span key="tickets-closed" className={`px-2.5 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-gray-800 text-gray-400 border-gray-700' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                      Fall gelöst
+                  </span>
+              );
+          }
       }
 
       if (isClosed) {
@@ -816,6 +852,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                     const linkedPO = purchaseOrders.find(po => po.id === row.bestellNr);
                     const linkedMaster = receiptMasters.find(m => m.poId === row.bestellNr);
                     const deliveryCount = row.deliveryCount || 1;
+                    const rowTickets = tickets.filter(t => t.receiptId === row.batchId);
 
                     return (
                     <tr 
@@ -824,7 +861,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                       className={`cursor-pointer transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`}
                     >
                       <td className="p-4">
-                        {renderReceiptBadges(row, linkedPO, linkedMaster)}
+                        {renderReceiptBadges(row, linkedPO, linkedMaster, rowTickets)}
                       </td>
                       <td className="p-4 font-medium text-slate-600 dark:text-slate-400">
                           {row.isGroup ? (
@@ -893,9 +930,27 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
             </button>
             <div className="flex items-center gap-3 ml-auto">
                <div className="flex flex-wrap items-center gap-2">
-                   {renderReceiptBadges(selectedHeader, linkedPO, linkedMaster)}
+                   {renderReceiptBadges(selectedHeader, linkedPO, linkedMaster, relatedTickets)}
                </div>
                
+               {/* SHOW "STORNO" BUTTON IF BOOKED */}
+               {selectedHeader.status === 'Gebucht' && (
+                   <>
+                       <div className="h-6 w-px bg-slate-500/20 mx-1"></div>
+                       <button
+                           onClick={handleRevert}
+                           className={`px-3 py-1.5 rounded-lg border text-sm font-bold transition-all flex items-center gap-2 ${
+                               isDark 
+                               ? 'border-amber-500/50 text-amber-400 hover:bg-amber-500/10' 
+                               : 'border-amber-500 text-amber-600 hover:bg-amber-50'
+                           }`}
+                       >
+                           <Undo2 size={16} />
+                           <span className="hidden sm:inline">Buchung stornieren / Bearbeiten</span>
+                       </button>
+                   </>
+               )}
+
                {selectedHeader.status !== 'Abgeschlossen' && (
                   <>
                     <div className="h-6 w-px bg-slate-500/20 mx-1"></div>
@@ -1022,7 +1077,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
          >
             Reklamationen & Fälle
             {relatedTickets.length > 0 && (
-                <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{relatedTickets.length}</span>
+                <span className="bg-red-500 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold">{relatedTickets.length}</span>
             )}
          </button>
       </div>
@@ -1133,10 +1188,11 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                         Noch keine physischen Wareneingänge verbucht.
                                     </div>
                                 ) : (
-                                    visibleDeliveries.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(delivery => {
+                                    visibleDeliveries.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((delivery, index) => {
                                         const isExpanded = expandedDeliveryId === delivery.id;
                                         const isCurrent = delivery.lieferscheinNr === selectedHeader.lieferscheinNr;
                                         const snapshot = deliverySnapshots[delivery.id] || {};
+                                        const isLatest = index === 0;
 
                                         return (
                                             <div 
@@ -1160,11 +1216,18 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                                         </div>
                                                         <div>
                                                             <div className="font-bold text-sm flex items-center gap-2">
-                                                                {delivery.lieferscheinNr}
-                                                                {isCurrent && <span className="bg-[#0077B5] text-white text-[10px] px-1.5 py-0.5 rounded">AKTUELLE ANSICHT</span>}
+                                                                Lieferschein: {delivery.lieferscheinNr}
+                                                                {isLatest && <span className="bg-[#0077B5] text-white text-[10px] px-1.5 py-0.5 rounded">LETZTE LIEFERUNG</span>}
                                                             </div>
-                                                            <div className="text-xs opacity-60 flex items-center gap-2 mt-0.5">
-                                                                <Calendar size={12} /> {new Date(delivery.date).toLocaleDateString()}
+                                                            <div className="text-xs opacity-60 flex flex-col gap-0.5 mt-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Calendar size={12} /> {new Date(delivery.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                                                </div>
+                                                                {linkedPO && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <FileText size={12} /> Verknüpfte Bestellung: {linkedPO.id}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1329,7 +1392,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                         <TypeButton active={commentType === 'email'} icon={<Mail size={14} />} label="Email" onClick={() => setCommentType('email')} isDark={isDark} />
                         <TypeButton active={commentType === 'call'} icon={<Phone size={14} />} label="Tel." onClick={() => setCommentType('call')} isDark={isDark} />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-start">
                     <textarea 
                         value={commentInput}
                         onChange={(e) => setCommentInput(e.target.value)}
@@ -1485,28 +1548,29 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                         })}
                     </div>
 
-                    {/* Reply Area */}
+                    {/* Reply Area - FIXED HEIGHT */}
                     {selectedTicket.status === 'Open' ? (
                         <div className={`p-4 border-t ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                            <div className="flex gap-2">
+                            <div className="flex gap-4 items-start">
                                 <textarea 
                                     value={replyText}
                                     onChange={(e) => setReplyText(e.target.value)}
                                     placeholder="Antwort schreiben..."
-                                    className={`flex-1 rounded-xl p-3 text-sm resize-none h-20 outline-none focus:ring-2 focus:ring-blue-500/20 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300'}`}
+                                    rows={4}
+                                    className={`flex-1 w-full rounded-xl p-3 text-sm h-24 resize-none outline-none focus:ring-2 focus:ring-blue-500/20 border transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'}`}
                                 />
-                                <div className="flex flex-col gap-2">
+                                <div className="flex flex-col gap-2 shrink-0">
                                     <button 
                                         onClick={() => handleReplyTicket(selectedTicket, false)}
                                         disabled={!replyText.trim()}
-                                        className="p-3 rounded-xl bg-[#0077B5] text-white hover:bg-[#00A0DC] disabled:opacity-50 disabled:bg-slate-500"
+                                        className="p-3 rounded-xl bg-[#0077B5] text-white hover:bg-[#00A0DC] disabled:opacity-50 disabled:bg-slate-500 shadow-md transition-all h-10 flex items-center justify-center"
                                         title="Senden"
                                     >
                                         <Send size={18} />
                                     </button>
                                     <button 
                                         onClick={() => handleReplyTicket(selectedTicket, true)}
-                                        className={`p-3 rounded-xl border transition-colors ${isDark ? 'bg-slate-800 border-slate-700 hover:bg-red-500/20 hover:text-red-400' : 'bg-white border-slate-200 hover:bg-red-50 hover:text-red-600'}`}
+                                        className={`p-3 rounded-xl border transition-colors h-10 flex items-center justify-center ${isDark ? 'bg-slate-800 border-slate-700 hover:bg-red-500/20 hover:text-red-400' : 'bg-white border-slate-200 hover:bg-red-50 hover:text-red-600'}`}
                                         title="Senden & Schließen"
                                     >
                                         <Lock size={18} />

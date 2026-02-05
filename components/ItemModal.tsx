@@ -50,6 +50,18 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, i
     }
   }, [isOpen, initialData]);
 
+  // Handle Escape Key to Close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -57,7 +69,6 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, i
     if (!formData.name || !formData.sku) return;
 
     // Construct the item object mapping fields to the StockItem interface
-    // (Mapping German Concepts to English Properties: "Artikel Bezeichnung" -> name, etc.)
     const item: StockItem = {
       // If editing, preserve ID. If creating, generate new.
       id: initialData ? initialData.id : crypto.randomUUID(),
@@ -84,7 +95,8 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, i
     onClose();
   };
 
-  const inputClass = "w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 transition-all bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 focus:ring-blue-500/30 dark:focus:ring-blue-500/30";
+  // Updated CSS Classes for Better Light/Dark Mode Contrast & Visibility
+  const inputClass = "w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 transition-all bg-slate-50 border-slate-300 text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-white focus:ring-blue-500/30";
   const labelClass = "block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5";
   const iconClass = "absolute left-3 top-1/2 -translate-y-1/2 text-slate-400";
 
@@ -97,7 +109,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, i
       <div className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
         
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
               {initialData ? <><Package className="text-[#0077B5]" /> Artikel bearbeiten</> : <><Package className="text-[#0077B5]" /> Neuer Artikel anlegen</>}
@@ -108,7 +120,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, i
           </div>
           <button 
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors"
+            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
           >
             <X size={20} />
           </button>
@@ -118,7 +130,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, i
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
           
           {/* Required Fields Group */}
-          <div className="space-y-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+          <div className="space-y-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
              <div className="flex items-center gap-2 text-xs font-bold text-[#0077B5] uppercase mb-2">
                 <Info size={14} /> Pflichtfelder
              </div>
@@ -142,7 +154,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, i
                    <input 
                     value={formData.sku}
                     onChange={e => setFormData({...formData, sku: e.target.value})}
-                    className={`${inputClass} pl-10 ${initialData ? 'opacity-70 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
+                    className={`${inputClass} pl-10 ${initialData ? 'opacity-70 cursor-not-allowed' : ''}`}
                     placeholder="z.B. 4000123"
                     disabled={!!initialData} // Read-only if editing
                     required
@@ -230,7 +242,7 @@ export const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, i
         </form>
 
         {/* Footer */}
-        <div className="p-5 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/50 dark:bg-slate-900/50">
+        <div className="p-5 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3 bg-slate-50 dark:bg-slate-900/50">
            <button 
              onClick={onClose}
              className="px-5 py-2.5 rounded-xl font-bold text-sm transition-colors text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800"

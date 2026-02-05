@@ -168,13 +168,34 @@ export const StockLogView: React.FC<StockLogViewProps> = ({ logs, onBack, theme 
                                         </div>
                                     </td>
                                     <td className="p-4 text-right">
-                                        <span className={`text-lg font-bold font-mono ${
-                                            log.action === 'add' 
-                                                ? (isDark ? 'text-emerald-400' : 'text-emerald-600') 
-                                                : (isDark ? 'text-amber-400' : 'text-amber-600')
-                                        }`}>
-                                            {log.action === 'add' ? '+' : '-'}{log.quantity}
-                                        </span>
+                                        {(() => {
+                                            const isProject = log.context === 'project' || log.context === 'po-project';
+                                            
+                                            if (log.action === 'add') {
+                                                if (isProject) {
+                                                    return (
+                                                        <div className="flex items-center justify-end gap-1.5" title="Direkt dem Projekt zugeordnet (Keine Lagerbuchung)">
+                                                            <Briefcase size={14} className={isDark ? 'text-blue-400' : 'text-blue-600'} />
+                                                            <span className={`text-lg font-bold font-mono ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                                                                +{log.quantity}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <span className={`text-lg font-bold font-mono ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                                                            +{log.quantity}
+                                                        </span>
+                                                    );
+                                                }
+                                            } else {
+                                                return (
+                                                    <span className={`text-lg font-bold font-mono ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                                                        -{log.quantity}
+                                                    </span>
+                                                );
+                                            }
+                                        })()}
                                     </td>
                                     <td className="p-4">
                                         {log.source ? (

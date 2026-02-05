@@ -16,10 +16,11 @@ import { GoodsReceiptFlow } from './components/GoodsReceiptFlow';
 import { ReceiptManagement } from './components/ReceiptManagement';
 import { OrderManagement } from './components/OrderManagement';
 import { CreateOrderWizard } from './components/CreateOrderWizard';
-import { SettingsPage } from './components/SettingsPage';
+import { SettingsPage, TicketConfig } from './components/SettingsPage';
 import { DocumentationPage } from './components/DocumentationPage';
 import { StockLogView } from './components/StockLogView';
 import { LogicInspector } from './components/LogicInspector';
+import { SupplierView } from './components/SupplierView';
 
 export default function App() {
   // State
@@ -43,8 +44,25 @@ export default function App() {
     }
     return 'full';
   });
+
+  // Global Configuration State
+  const [requireDeliveryDate, setRequireDeliveryDate] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+        return localStorage.getItem('requireDeliveryDate') !== 'false';
+    }
+    return true;
+  });
+
+  // Ticket Automation Config State
+  const [ticketConfig, setTicketConfig] = useState<TicketConfig>(() => {
+    if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('ticketConfig');
+        if (saved) return JSON.parse(saved);
+    }
+    return { missing: false, extra: false, damage: true, wrong: true, rejected: true };
+  });
   
-  // Data State - Renamed from 'items' to 'inventory' as requested
+  // Data State
   const [inventory, setInventory] = useState<StockItem[]>(MOCK_ITEMS);
   const [receiptHeaders, setReceiptHeaders] = useState<ReceiptHeader[]>(MOCK_RECEIPT_HEADERS);
   const [receiptItems, setReceiptItems] = useState<ReceiptItem[]>(MOCK_RECEIPT_ITEMS);
@@ -82,10 +100,21 @@ export default function App() {
     localStorage.setItem('inventoryViewMode', mode);
   };
 
+  // Configuration Handler
+  const handleSetRequireDeliveryDate = (required: boolean) => {
+    setRequireDeliveryDate(required);
+    localStorage.setItem('requireDeliveryDate', String(required));
+  };
+
+  // Ticket Config Handler
+  const handleSetTicketConfig = (newConfig: TicketConfig) => {
+    setTicketConfig(newConfig);
+    localStorage.setItem('ticketConfig', JSON.stringify(newConfig));
+  };
+
   // Navigation Handler (Resets Transient State)
   const handleNavigation = (module: ActiveModule) => {
     setActiveModule(module);
-    // Reset specific states when leaving modules
     if (module !== 'create-order') setOrderToEdit(null);
     if (module !== 'goods-receipt') setSelectedPoId(null);
   };
@@ -108,14 +137,12 @@ export default function App() {
     };
     
     setStockLogs(prev => [newLog, ...prev]);
-    console.log('Stock Log Created:', newLog);
   };
 
   const handleStockUpdate = (id: string, newLevel: number) => {
     setInventory(prev => prev.map(item => item.id === id ? { ...item, stockLevel: newLevel, lastUpdated: Date.now() } : item));
   };
 
-  // New Handlers for Editability
   const handleUpdateItem = (updatedItem: StockItem) => {
     setInventory(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
   };
@@ -145,7 +172,6 @@ export default function App() {
     setComments(prev => [newComment, ...prev]);
   };
 
-  // Ticket Handlers
   const handleAddTicket = (ticket: Ticket) => {
     setTickets(prev => [...prev, ticket]);
   };
@@ -172,7 +198,6 @@ export default function App() {
     handleNavigation('goods-receipt');
   };
 
-  // Handle Quick Receipt Creation
   const handleQuickReceipt = (poId: string) => {
     const po = purchaseOrders.find(p => p.id === poId);
     if (!po) return;
@@ -180,14 +205,13 @@ export default function App() {
     const batchId = `b-${Date.now()}`;
     const timestamp = Date.now();
 
-    // 1. Create Placeholder Receipt Header (Visible in UI)
     const newHeader: ReceiptHeader = {
       batchId,
-      lieferscheinNr: 'Ausstehend', // Localized from 'PENDING'
+      lieferscheinNr: 'Ausstehend',
       bestellNr: po.id,
       lieferdatum: new Date().toISOString().split('T')[0],
       lieferant: po.supplier,
-      status: 'In Prüfung', // Special status to indicate needs action
+      status: 'In Prüfung',
       timestamp,
       itemCount: 0,
       warehouseLocation: 'Wareneingang',
@@ -196,18 +220,15 @@ export default function App() {
 
     setReceiptHeaders(prev => [newHeader, ...prev]);
 
-    // 2. Create Receipt Master with Initial Delivery Log
     setReceiptMasters(prev => {
         const existing = prev.find(m => m.poId === poId);
-        
-        // Create initial delivery log with 0 quantities as placeholder
         const initialDelivery: DeliveryLog = {
             id: crypto.randomUUID(),
             date: new Date().toISOString(),
-            lieferscheinNr: 'Ausstehend', // Localized from 'PENDING'
+            lieferscheinNr: 'Ausstehend',
             items: po.items.map(i => ({
                 sku: i.sku,
-                receivedQty: 0, // Initialize with 0
+                receivedQty: 0,
                 damageFlag: false,
                 manualAddFlag: false,
                 orderedQty: i.quantityExpected,
@@ -232,61 +253,62 @@ export default function App() {
         }
     });
 
-    // 3. Link PO to this receipt (to indicate a receipt process started)
     setPurchaseOrders(prev => prev.map(p => p.id === poId ? { ...p, linkedReceiptId: batchId } : p));
-
-    // 4. Navigate to Receipt Management to show the new entry
     handleNavigation('receipt-management');
   };
 
   const handleReceiptSuccess = (
-    headerData: Omit<ReceiptHeader, 'batchId' | 'timestamp' | 'itemCount'>,
-    cartItems: { item: StockItem; qty: number; location: string; isDamaged?: boolean; issueNotes?: string; orderedQty?: number }[],
+    headerData: Omit<ReceiptHeader, 'timestamp' | 'itemCount'>, // Note: batchId is optional in Omit if already present, but we handle dynamic check
+    cartItems: any[], // Using any[] to accept extra properties from GoodsReceiptFlow like isRejected, previouslyReceived etc.
     newItemsCreated: StockItem[]
   ) => {
-    const batchId = `b-${Date.now()}`;
+    // If batchId was pre-generated by GoodsReceiptFlow (for tickets), use it. Otherwise generate new.
+    const batchId = (headerData as any).batchId || `b-${Date.now()}`;
     const timestamp = Date.now();
 
-    // Determine Context & Source for Logging
+    // Determine Context
     let context: 'normal' | 'project' | 'po-normal' | 'po-project' = 'normal';
     let source = headerData.lieferscheinNr;
+    let isProject = false;
     
     if (headerData.bestellNr) {
         source = `PO: ${headerData.bestellNr} / LS: ${headerData.lieferscheinNr}`;
         const linkedPO = purchaseOrders.find(p => p.id === headerData.bestellNr);
         if (linkedPO && linkedPO.status === 'Projekt') {
             context = 'po-project';
+            isProject = true;
         } else {
             context = 'po-normal';
         }
     }
 
-    // 1. Add New Items to Inventory
     if (newItemsCreated.length > 0) {
       setInventory(prev => [...prev, ...newItemsCreated]);
     }
 
-    // 2. Update Inventory Levels & Log Changes
     setInventory(prev => {
       const copy = [...prev];
       cartItems.forEach(cartItem => {
-         // LOGGING: Track addition with Source & Context
-         handleLogStock(cartItem.item.id, cartItem.item.name, 'add', cartItem.qty, source, context);
+         // Log the action (even if qty 0, though mostly qty > 0)
+         if (cartItem.qty > 0) {
+             handleLogStock(cartItem.item.id, cartItem.item.name, 'add', cartItem.qty, source, context);
+         }
 
-         const idx = copy.findIndex(i => i.id === cartItem.item.id);
-         if (idx >= 0) {
-           copy[idx] = { 
-             ...copy[idx], 
-             stockLevel: copy[idx].stockLevel + cartItem.qty,
-             lastUpdated: timestamp,
-             warehouseLocation: cartItem.location // Update location if changed
-           };
+         if (!isProject) {
+             const idx = copy.findIndex(i => i.id === cartItem.item.id);
+             if (idx >= 0) {
+               copy[idx] = { 
+                 ...copy[idx], 
+                 stockLevel: copy[idx].stockLevel + cartItem.qty,
+                 lastUpdated: timestamp,
+                 warehouseLocation: cartItem.location 
+               };
+             }
          }
       });
       return copy;
     });
 
-    // 3. Create Receipt Header
     const newHeader: ReceiptHeader = {
       ...headerData,
       batchId,
@@ -296,7 +318,6 @@ export default function App() {
     };
     setReceiptHeaders(prev => [newHeader, ...prev]);
 
-    // 4. Create Receipt Items
     const newReceiptItems: ReceiptItem[] = cartItems.map((c, idx) => ({
       id: `ri-${batchId}-${idx}`,
       batchId,
@@ -309,39 +330,15 @@ export default function App() {
     }));
     setReceiptItems(prev => [...prev, ...newReceiptItems]);
 
-    // 5. Create Ticket if Issues exist
-    cartItems.forEach(c => {
-        if (c.isDamaged || (c.issueNotes && c.issueNotes.length > 0)) {
-            const ticket: Ticket = {
-                id: crypto.randomUUID(),
-                receiptId: batchId,
-                subject: c.isDamaged ? 'Ware beschädigt' : 'Unstimmigkeit bei Wareneingang',
-                priority: c.isDamaged ? 'High' : 'Normal',
-                status: 'Open',
-                messages: [{
-                    id: crypto.randomUUID(),
-                    author: 'System',
-                    text: `Automatisch erstellt bei Wareneingang. Artikel: ${c.item.name} (${c.item.sku}). Menge: ${c.qty}. Notiz: ${c.issueNotes || 'Keine Notiz'}`,
-                    timestamp,
-                    type: 'system'
-                }]
-            };
-            setTickets(prev => [...prev, ticket]);
-        }
-    });
+    // Ticket Creation Logic has been moved to GoodsReceiptFlow.handleFinalize 
+    // to allow consolidation into a single ticket per receipt.
 
-    // 6. Update Purchase Order & Receipt Master (if linked)
     if (headerData.bestellNr) {
         const poId = headerData.bestellNr;
-        
-        // IMPORTANT: We must get the state of the PO *before* this update to calculate 'previousReceived' correctly.
-        // Since purchaseOrders in this scope is the state at render time, it is correct.
         const currentPO = purchaseOrders.find(p => p.id === poId);
 
-        // Update PO Quantities & Status
         setPurchaseOrders(prev => prev.map(po => {
             if (po.id !== poId) return po;
-
             const updatedItems = po.items.map(pItem => {
                 const receivedLine = cartItems.find(c => c.item.sku === pItem.sku);
                 if (receivedLine) {
@@ -349,34 +346,26 @@ export default function App() {
                 }
                 return pItem;
             });
-
-            // Calculate new PO Status
             const allReceived = updatedItems.every(i => i.quantityReceived >= i.quantityExpected);
             const partiallyReceived = updatedItems.some(i => i.quantityReceived > 0);
-            
             return {
                 ...po,
                 items: updatedItems,
                 status: allReceived ? 'Abgeschlossen' : partiallyReceived ? 'Teilweise geliefert' : 'Offen',
-                linkedReceiptId: batchId // Ensure link is set
+                linkedReceiptId: batchId 
             };
         }));
 
-        // Update Receipt Master Logs
         setReceiptMasters(prev => {
             const existingMaster = prev.find(m => m.poId === poId);
-            
             const newDeliveryLog: DeliveryLog = {
                 id: crypto.randomUUID(),
                 date: new Date(timestamp).toISOString(),
                 lieferscheinNr: headerData.lieferscheinNr,
                 items: cartItems.map(c => {
-                    // Find corresponding PO Item to get historical data
                     const poItem = currentPO?.items.find(pi => pi.sku === c.item.sku);
-                    
-                    // Snapshot Data Calculation
                     const ordered = poItem ? poItem.quantityExpected : 0;
-                    const previous = poItem ? poItem.quantityReceived : 0; // Value BEFORE this delivery
+                    const previous = poItem ? poItem.quantityReceived : 0;
                     const current = c.qty;
                     const total = previous + current;
                     
@@ -387,8 +376,7 @@ export default function App() {
                         sku: c.item.sku,
                         receivedQty: current,
                         damageFlag: !!c.isDamaged || !!c.issueNotes,
-                        manualAddFlag: !c.orderedQty, // If orderedQty is undefined/0 it might be manual
-                        // Store Snapshots
+                        manualAddFlag: !c.orderedQty,
                         orderedQty: ordered,
                         previousReceived: previous,
                         offen: offen,
@@ -413,14 +401,79 @@ export default function App() {
         });
     }
 
-    // Redirect to Receipt Management instead of Dashboard
     handleNavigation('receipt-management');
+  };
+
+  const handleRevertReceipt = (batchId: string) => {
+      const header = receiptHeaders.find(h => h.batchId === batchId);
+      if (!header) return;
+
+      const poId = header.bestellNr;
+      const linkedPO = purchaseOrders.find(p => p.id === poId);
+      const isProject = linkedPO?.status === 'Projekt';
+
+      const itemsToRevert = receiptItems.filter(i => i.batchId === batchId);
+      if (!isProject) {
+          setInventory(prev => {
+              const copy = [...prev];
+              itemsToRevert.forEach(rItem => {
+                  const idx = copy.findIndex(i => i.sku === rItem.sku);
+                  if (idx >= 0) {
+                      copy[idx] = {
+                          ...copy[idx],
+                          stockLevel: Math.max(0, copy[idx].stockLevel - rItem.quantity),
+                          lastUpdated: Date.now()
+                      };
+                      handleLogStock(
+                          copy[idx].id,
+                          copy[idx].name,
+                          'remove',
+                          rItem.quantity,
+                          `Storno - ${header.lieferscheinNr}`,
+                          'manual'
+                      );
+                  }
+              });
+              return copy;
+          });
+      } else {
+          itemsToRevert.forEach(rItem => {
+              handleLogStock(
+                  rItem.sku,
+                  rItem.name,
+                  'remove',
+                  rItem.quantity,
+                  `Storno (Projekt) - ${header.lieferscheinNr}`,
+                  'po-project'
+              );
+          });
+      }
+
+      setReceiptHeaders(prev => prev.map(h => h.batchId === batchId ? { ...h, status: 'In Prüfung' } : h));
+      
+      if (linkedPO) {
+           setPurchaseOrders(prev => prev.map(po => {
+               if (po.id !== linkedPO.id) return po;
+               const newItems = po.items.map(pItem => {
+                   const rItem = itemsToRevert.find(ri => ri.sku === pItem.sku);
+                   if (rItem) {
+                       return { ...pItem, quantityReceived: Math.max(0, pItem.quantityReceived - rItem.quantity) };
+                   }
+                   return pItem;
+               });
+               const anyReceived = newItems.some(i => i.quantityReceived > 0);
+               return {
+                   ...po,
+                   items: newItems,
+                   status: anyReceived ? 'Teilweise geliefert' : 'Offen'
+               };
+           }));
+      }
   };
 
   return (
     <div className={`min-h-screen flex transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0f172a] text-slate-100' : 'bg-[#f8fafc] text-slate-900'}`}>
       
-      {/* Extracted Sidebar Component */}
       <Sidebar 
         theme={theme}
         activeModule={activeModule}
@@ -430,7 +483,6 @@ export default function App() {
         mode={sidebarMode}
       />
       
-      {/* Mobile Overlay */}
       {sidebarOpen && (
         <div 
             className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
@@ -438,7 +490,6 @@ export default function App() {
         />
       )}
 
-      {/* Main Content - Dynamic Margin based on Sidebar Mode */}
       <main className={`flex-1 flex flex-col min-w-0 h-screen overflow-hidden transition-all duration-300 ${
          sidebarMode === 'slim' ? 'lg:ml-20' : 'lg:ml-64'
       }`}>
@@ -497,6 +548,8 @@ export default function App() {
                     purchaseOrders={purchaseOrders}
                     initialPoId={selectedPoId}
                     receiptMasters={receiptMasters}
+                    ticketConfig={ticketConfig}
+                    onAddTicket={handleAddTicket}
                   />
                 )}
 
@@ -515,6 +568,7 @@ export default function App() {
                     onUpdateTicket={handleUpdateTicket}
                     onReceiveGoods={handleReceiveGoods}
                     onNavigate={handleNavigation}
+                    onRevertReceipt={handleRevertReceipt}
                   />
                 )}
                 
@@ -525,6 +579,7 @@ export default function App() {
                      onNavigate={handleNavigation}
                      onCreateOrder={handleCreateOrder}
                      initialOrder={orderToEdit}
+                     requireDeliveryDate={requireDeliveryDate}
                   />
                 )}
 
@@ -538,6 +593,16 @@ export default function App() {
                      onQuickReceipt={handleQuickReceipt}
                      receiptMasters={receiptMasters}
                      onNavigate={handleNavigation}
+                     tickets={tickets}
+                  />
+                )}
+
+                {activeModule === 'suppliers' && (
+                  <SupplierView 
+                    receipts={receiptMasters}
+                    headers={receiptHeaders}
+                    orders={purchaseOrders}
+                    theme={theme}
                   />
                 )}
 
@@ -553,6 +618,10 @@ export default function App() {
                     onSetSidebarMode={handleSetSidebarMode}
                     inventoryViewMode={inventoryViewMode}
                     onSetInventoryViewMode={handleSetInventoryViewMode}
+                    requireDeliveryDate={requireDeliveryDate}
+                    onSetRequireDeliveryDate={handleSetRequireDeliveryDate}
+                    ticketConfig={ticketConfig}
+                    onSetTicketConfig={handleSetTicketConfig}
                   />
                 )}
 

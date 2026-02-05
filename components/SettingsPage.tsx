@@ -1,7 +1,15 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Theme, StockItem, RawGermanItem, ActiveModule } from '../types';
-import { Book, ChevronRight, Moon, Sun, Monitor, Shield, Info, Upload, Trash2, Database, AlertCircle, CheckCircle2, Users, Sidebar, LayoutPanelLeft, List, LayoutGrid, Bug } from 'lucide-react';
+import { Book, ChevronRight, Moon, Sun, Monitor, Shield, Info, Upload, Trash2, Database, AlertCircle, CheckCircle2, Users, Sidebar, LayoutPanelLeft, List, LayoutGrid, Bug, Calendar, Ticket, ToggleLeft, ToggleRight, Ban, AlertTriangle, PlusCircle, ChevronDown, ChevronUp } from 'lucide-react';
+
+export interface TicketConfig {
+  missing: boolean;  // Offen
+  extra: boolean;    // Zu viel
+  damage: boolean;   // Schaden
+  wrong: boolean;    // Falsch
+  rejected: boolean; // Abgelehnt
+}
 
 interface SettingsPageProps {
   theme: Theme;
@@ -14,6 +22,10 @@ interface SettingsPageProps {
   onSetSidebarMode: (mode: 'full' | 'slim') => void;
   inventoryViewMode: 'grid' | 'list';
   onSetInventoryViewMode: (mode: 'grid' | 'list') => void;
+  requireDeliveryDate: boolean;
+  onSetRequireDeliveryDate: (required: boolean) => void;
+  ticketConfig: TicketConfig;
+  onSetTicketConfig: (config: TicketConfig) => void;
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ 
@@ -26,10 +38,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   sidebarMode,
   onSetSidebarMode,
   inventoryViewMode,
-  onSetInventoryViewMode
+  onSetInventoryViewMode,
+  requireDeliveryDate,
+  onSetRequireDeliveryDate,
+  ticketConfig,
+  onSetTicketConfig
 }) => {
   const isDark = theme === 'dark';
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isTicketConfigOpen, setIsTicketConfigOpen] = useState(false);
 
   // Helper to parse ASP.NET AJAX Date format "/Date(1732871995000)/"
   const parseAspDate = (dateStr: string | null): number | undefined => {
@@ -48,7 +65,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         const jsonContent = e.target?.result as string;
         const rawData: RawGermanItem[] = JSON.parse(jsonContent);
 
-        // Basic Validation: Check if it's an array and has at least one valid item with "Artikel Nummer"
+        // Basic Validation
         if (!Array.isArray(rawData) || rawData.length === 0 || !rawData[0]["Artikel Nummer"]) {
           throw new Error("Ungültiges Format: JSON muss ein Array von Artikeln sein.");
         }
@@ -60,7 +77,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
              name: raw["Artikel Bezeichnung"] || "Unbekannter Artikel",
              sku: raw["Artikel Nummer"] || "UNKNOWN",
              system: raw["System"] || "Sonstiges",
-             category: "Material", // Default
+             category: "Material", 
              stockLevel: typeof raw["Anzahl"] === 'number' ? raw["Anzahl"] : 0,
              minStock: typeof raw["Mindestbestand"] === 'number' ? raw["Mindestbestand"] : 0,
              warehouseLocation: raw["Objekt"] || undefined,
@@ -82,9 +99,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       }
     };
     reader.readAsText(file);
-    // Reset input
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const activeTicketRulesCount = Object.values(ticketConfig).filter(Boolean).length;
 
   const SettingRow = ({ icon, label, description, action }: { icon: React.ReactNode, label: string, description: string, action: React.ReactNode }) => (
     <div className={`p-4 flex items-center justify-between border-b last:border-0 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
@@ -99,6 +117,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       </div>
       <div>{action}</div>
     </div>
+  );
+
+  const Toggle = ({ checked, onChange }: { checked: boolean, onChange: (val: boolean) => void }) => (
+      <button 
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? 'bg-[#0077B5]' : 'bg-slate-300 dark:bg-slate-700'}`}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+      </button>
   );
 
   return (
@@ -118,12 +145,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           label="Erscheinungsbild"
           description={isDark ? "Dunkler Modus aktiviert" : "Heller Modus aktiviert"}
           action={
-            <button 
-              onClick={toggleTheme}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isDark ? 'bg-[#0077B5]' : 'bg-slate-300'}`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDark ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
+            <Toggle checked={isDark} onChange={toggleTheme} />
           }
         />
 
@@ -180,6 +202,136 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         />
       </div>
 
+      {/* PROCUREMENT & AUTOMATION SETTINGS */}
+      <div className={`rounded-2xl border overflow-hidden mb-8 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+        <div className={`px-6 py-3 border-b text-xs font-bold uppercase tracking-wider ${isDark ? 'bg-slate-900 border-slate-800 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+          Einkauf & Prozesse
+        </div>
+
+        <SettingRow 
+          icon={<Calendar size={20} />}
+          label="Liefertermin als Pflichtfeld"
+          description="Muss bei neuen Bestellungen angegeben werden."
+          action={
+            <div className={`flex p-1 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                <button 
+                    onClick={() => onSetRequireDeliveryDate(true)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
+                        requireDeliveryDate 
+                        ? 'bg-white text-[#0077B5] shadow-sm border border-[#0077B5]/20 dark:bg-slate-950 dark:text-blue-400 dark:border-blue-500/50' 
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 border border-transparent'
+                    }`}
+                >
+                    Pflicht
+                </button>
+                <button 
+                    onClick={() => onSetRequireDeliveryDate(false)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
+                        !requireDeliveryDate 
+                        ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-200' 
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 border border-transparent'
+                    }`}
+                >
+                    Optional
+                </button>
+            </div>
+          }
+        />
+      </div>
+
+      {/* TICKET AUTOMATION SETTINGS - ACCORDION */}
+      <div className={`rounded-2xl border overflow-hidden mb-8 transition-all ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+        
+        {/* Header - Clickable */}
+        <button 
+            onClick={() => setIsTicketConfigOpen(!isTicketConfigOpen)}
+            className={`w-full flex items-center justify-between px-6 py-4 transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'} ${isTicketConfigOpen ? 'border-b ' + (isDark ? 'border-slate-800' : 'border-slate-100') : ''}`}
+        >
+            <div className="flex items-center gap-3">
+                 <div className={`p-2 rounded-lg ${isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-[#0077B5]'}`}>
+                    <Ticket size={20} />
+                 </div>
+                 <div className="text-left">
+                    <div className={`font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>Ticket-Automatisierung</div>
+                    <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                        {isTicketConfigOpen ? 'Einstellungen für automatische Fallerstellung' : 'Automatische Fallerstellung konfigurieren'}
+                    </div>
+                 </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+                {!isTicketConfigOpen && (
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border flex items-center gap-1.5 ${
+                        activeTicketRulesCount > 0 
+                        ? (isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border-emerald-200')
+                        : (isDark ? 'bg-slate-800 text-slate-500 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200')
+                    }`}>
+                        {activeTicketRulesCount > 0 ? <CheckCircle2 size={10} /> : <Ban size={10} />}
+                        {activeTicketRulesCount} Aktiv
+                    </span>
+                )}
+                {isTicketConfigOpen ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+            </div>
+        </button>
+        
+        {/* Expandable Content */}
+        {isTicketConfigOpen && (
+            <div className="animate-in slide-in-from-top-2 duration-200">
+                <div className={`p-4 border-b text-sm leading-relaxed ${isDark ? 'border-slate-800 text-slate-400 bg-slate-900/30' : 'border-slate-100 text-slate-600 bg-slate-50/50'}`}>
+                    <div className="flex gap-3">
+                        <Info size={18} className="shrink-0 mt-0.5 text-[#0077B5]" />
+                        <p>Wählen Sie aus, bei welchen Abweichungen im Wareneingang automatisch ein Support-Fall (Ticket) erstellt werden soll. Dies erleichtert die Nachverfolgung von Reklamationen.</p>
+                    </div>
+                </div>
+
+                <SettingRow 
+                icon={<AlertTriangle size={20} className="text-amber-500" />}
+                label="Bei Fehlmengen (Offen)"
+                description="Erstellt Ticket wenn weniger geliefert als bestellt wurde."
+                action={
+                    <Toggle checked={ticketConfig.missing} onChange={(v) => onSetTicketConfig({...ticketConfig, missing: v})} />
+                }
+                />
+
+                <SettingRow 
+                icon={<PlusCircle size={20} className="text-orange-500" />}
+                label="Bei Überlieferung (Zu viel)"
+                description="Erstellt Ticket wenn mehr geliefert als bestellt wurde."
+                action={
+                    <Toggle checked={ticketConfig.extra} onChange={(v) => onSetTicketConfig({...ticketConfig, extra: v})} />
+                }
+                />
+
+                <SettingRow 
+                icon={<AlertCircle size={20} className="text-red-500" />}
+                label="Bei Beschädigung"
+                description="Erstellt Ticket bei gemeldetem Schaden."
+                action={
+                    <Toggle checked={ticketConfig.damage} onChange={(v) => onSetTicketConfig({...ticketConfig, damage: v})} />
+                }
+                />
+
+                <SettingRow 
+                icon={<Ban size={20} className="text-red-500" />}
+                label="Bei Falschlieferung"
+                description="Erstellt Ticket wenn falscher Artikel geliefert wurde."
+                action={
+                    <Toggle checked={ticketConfig.wrong} onChange={(v) => onSetTicketConfig({...ticketConfig, wrong: v})} />
+                }
+                />
+
+                <SettingRow 
+                icon={<Ban size={20} className="text-slate-500" />}
+                label="Bei Ablehnung"
+                description="Erstellt Ticket wenn Positionen komplett abgelehnt wurden."
+                action={
+                    <Toggle checked={ticketConfig.rejected} onChange={(v) => onSetTicketConfig({...ticketConfig, rejected: v})} />
+                }
+                />
+            </div>
+        )}
+      </div>
+
       {/* DATA MANAGEMENT SECTION */}
       <div className={`rounded-2xl border overflow-hidden mb-8 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
         <div className={`px-6 py-3 border-b flex justify-between items-center ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
@@ -198,7 +350,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         <SettingRow 
           icon={<Database size={20} />}
           label="Live-Daten Importieren"
-          description="Laden Sie Ihre eigene JSON-Datei hoch, um die Testdaten zu ersetzen."
+          description="Laden Sie Ihre eigene JSON-Datei hoch."
           action={
             <div>
                <input 
@@ -275,8 +427,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         <SettingRow 
           icon={<Info size={20} />}
           label="Version"
-          description="Build 2026.02.01-v0.2.0"
-          action={<span className="text-xs font-mono text-slate-500">v0.2.0</span>}
+          description="Build 2026.02.01-v0.2.1"
+          action={<span className="text-xs font-mono text-slate-500">v0.2.1</span>}
         />
       </div>
 

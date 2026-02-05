@@ -2,7 +2,7 @@
 import React from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Truck, ClipboardList, 
-  Settings, FileText, Package, History, Box
+  Settings, FileText, Package, History, Box, Users
 } from 'lucide-react';
 import { ActiveModule, Theme } from '../types';
 
@@ -31,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'order-management', label: 'Bestellungen', icon: <FileText size={20} /> },
     { id: 'receipt-management', label: 'Wareneingang', icon: <ClipboardList size={20} /> },
     { id: 'stock-logs', label: 'Lagerprotokoll', icon: <History size={20} /> },
+    { id: 'suppliers', label: 'Lieferanten', icon: <Users size={20} /> },
   ];
 
   return (
