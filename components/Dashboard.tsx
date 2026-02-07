@@ -13,7 +13,6 @@ interface DashboardProps {
   orders: PurchaseOrder[];
   receipts: ReceiptMaster[];
   tickets: Ticket[];
-  // Legacy props are removed as they are no longer needed
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -171,64 +170,91 @@ export const Dashboard: React.FC<DashboardProps> = ({
                      <th className="p-4 font-semibold w-40">Zeitpunkt</th>
                      <th className="p-4 font-semibold w-40">Nutzer</th>
                      <th className="p-4 font-semibold">Artikel & Vorgang</th>
-                     <th className="p-4 font-semibold text-right">Menge</th>
+                     <th className="p-4 font-semibold text-right w-24">Bestand</th>
+                     <th className={`p-4 font-semibold text-right w-24 ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>Projekt</th>
                    </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-500/10">
                     {recentLogs.length === 0 ? (
                         <tr>
-                            <td colSpan={4} className="p-8 text-center text-slate-500 italic">Keine Aktivitäten verzeichnet.</td>
+                            <td colSpan={5} className="p-8 text-center text-slate-500 italic">Keine Aktivitäten verzeichnet.</td>
                         </tr>
                     ) : (
-                        recentLogs.map(log => (
-                            <tr key={log.id} className={`transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
-                                <td className="p-4">
-                                    <div className={`flex items-center gap-2 font-mono text-xs opacity-70 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                                        <Calendar size={12} />
-                                        {new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                    </div>
-                                </td>
-                                <td className="p-4">
-                                    <div className="flex items-center gap-2 text-slate-500 text-xs font-bold">
-                                        <User size={12} /> {log.userName}
-                                    </div>
-                                </td>
-                                <td className="p-4">
-                                    <div className="flex flex-col">
-                                        <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{log.itemName}</span>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            {log.context === 'project' || log.context === 'po-project' ? (
-                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-600'}`}>
-                                                    <Briefcase size={10} /> Projekt
-                                                </span>
-                                            ) : log.context === 'manual' ? (
-                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-slate-700 border-slate-600 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
-                                                    <MousePointer2 size={10} /> Manuell
+                        recentLogs.map(log => {
+                            const isProject = log.context === 'project' || log.context === 'po-project';
+                            
+                            return (
+                                <tr key={log.id} className={`transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
+                                    <td className="p-4">
+                                        <div className={`flex items-center gap-2 font-mono text-xs opacity-70 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                                            <Calendar size={12} />
+                                            {new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                        </div>
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-2 text-slate-500 text-xs font-bold">
+                                            <User size={12} /> {log.userName}
+                                        </div>
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="flex flex-col">
+                                            <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{log.itemName}</span>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                {log.context === 'project' || log.context === 'po-project' ? (
+                                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-600'}`}>
+                                                        <Briefcase size={10} /> Projekt
+                                                    </span>
+                                                ) : log.context === 'manual' ? (
+                                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-slate-700 border-slate-600 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
+                                                        <MousePointer2 size={10} /> Manuell
+                                                    </span>
+                                                ) : (
+                                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+                                                        <FileText size={10} /> Regulär
+                                                    </span>
+                                                )}
+                                                {log.source && (
+                                                    <span className="text-[10px] opacity-50 font-mono flex items-center gap-1">
+                                                        via {log.source}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    
+                                    {/* Bestand Column */}
+                                    <td className="p-4 text-right">
+                                        {!isProject ? (
+                                            log.action === 'add' ? (
+                                                <span className={`font-bold font-mono ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                                                    +{log.quantity}
                                                 </span>
                                             ) : (
-                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
-                                                    <FileText size={10} /> Regulär
+                                                <span className={`font-bold font-mono ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                                                    -{log.quantity}
                                                 </span>
-                                            )}
-                                            {log.source && (
-                                                <span className="text-[10px] opacity-50 font-mono flex items-center gap-1">
-                                                    via {log.source}
+                                            )
+                                        ) : (
+                                            <span className="opacity-30">-</span>
+                                        )}
+                                    </td>
+
+                                    {/* Projekt Column */}
+                                    <td className="p-4 text-right">
+                                        {isProject ? (
+                                            <div className="flex items-center justify-end gap-1.5" title="Projekt Verbrauch">
+                                                <Briefcase size={14} className={isDark ? 'text-blue-400' : 'text-blue-600'} />
+                                                <span className={`text-lg font-bold font-mono ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                                                    {log.quantity}
                                                 </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="p-4 text-right">
-                                    <span className={`font-bold font-mono ${
-                                        log.action === 'add' 
-                                            ? (isDark ? 'text-emerald-400' : 'text-emerald-600') 
-                                            : (isDark ? 'text-amber-400' : 'text-amber-600')
-                                    }`}>
-                                        {log.action === 'add' ? '+' : '-'}{log.quantity}
-                                    </span>
-                                </td>
-                            </tr>
-                        ))
+                                            </div>
+                                        ) : (
+                                            <span className="opacity-30">-</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })
                     )}
                  </tbody>
                </table>
