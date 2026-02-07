@@ -29,7 +29,9 @@ const ReceiptStatusBadges = ({
     const badges: React.ReactNode[] = [];
     
     // Determine effective status: Master takes precedence over Header (for grouped rows)
-    const effectiveStatus = master ? master.status : header.status;
+    // Normalize to string to prevent rendering issues
+    const rawStatus = master ? master.status : header.status;
+    const effectiveStatus = rawStatus ? String(rawStatus).trim() : '';
 
     // --- BADGE 1: IDENTITY (SOURCE) ---
     // Rule: IF linkedPO?.status === 'Projekt' -> [PROJEKT]
@@ -97,11 +99,14 @@ const ReceiptStatusBadges = ({
         );
     } else {
         // Fallback for unknown statuses
-        badges.push(
-            <span key="st-generic" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                {effectiveStatus}
-            </span>
-        );
+        // CRITICAL FIX: Do NOT render badge if status is empty, null, or just a dash
+        if (effectiveStatus && effectiveStatus !== '-' && effectiveStatus.length > 0 && effectiveStatus !== 'null' && effectiveStatus !== 'undefined') {
+            badges.push(
+                <span key="st-generic" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                    {effectiveStatus}
+                </span>
+            );
+        }
     }
 
     // --- BADGE 3: TICKETS (ISSUES) ---

@@ -279,13 +279,15 @@ export default function App() {
     const batchId = (headerData as any).batchId || `b-${Date.now()}`;
     const timestamp = Date.now();
 
-    // Determine Context
+    // Determine Context & Log Type
     let isProject = false;
+    let logContext: 'po-normal' | 'po-project' = 'po-normal';
     
     if (headerData.bestellNr) {
         const linkedPO = purchaseOrders.find(p => p.id === headerData.bestellNr);
         if (linkedPO && linkedPO.status === 'Projekt') {
             isProject = true;
+            logContext = 'po-project';
         }
     }
 
@@ -293,17 +295,33 @@ export default function App() {
       setInventory(prev => [...prev, ...newItemsCreated]);
     }
 
+    // --- 0. PERFORM LOGGING (MOVED HERE FOR CORRECT CONTEXT) ---
+    // We log for both project and normal items here. 
+    // This replaces the logging inside GoodsReceiptFlow to ensure 'po-project' context is respected.
+    cartItems.forEach(cartItem => {
+        const qtyToAdd = cartItem.qtyAccepted ?? cartItem.qty; 
+        if (qtyToAdd !== 0) {
+             const action = qtyToAdd > 0 ? 'add' : 'remove';
+             handleLogStock(
+                 cartItem.item.id,
+                 cartItem.item.name,
+                 action,
+                 Math.abs(qtyToAdd),
+                 `Wareneingang ${headerData.lieferscheinNr}`,
+                 logContext
+             );
+        }
+    });
+
     // --- 1. UPDATE STOCK INVENTORY (ACCEPTED QTY ONLY) ---
     // Note: qtyAccepted can be negative for corrections, which correctly reduces stock.
     setInventory(prev => {
       const copy = [...prev];
       cartItems.forEach(cartItem => {
-         // Logging handled by GoodsReceiptFlow via onLogStock prop
-
+         // Project items do NOT increase stock (they are consumed immediately)
          if (!isProject) {
              const idx = copy.findIndex(i => i.id === cartItem.item.id);
              if (idx >= 0) {
-               // Use quantityAccepted if available, fallback to qty (legacy safety)
                const qtyToAdd = cartItem.qtyAccepted ?? cartItem.qty; 
                copy[idx] = { 
                  ...copy[idx], 
@@ -598,7 +616,7 @@ export default function App() {
                     existingItems={inventory}
                     onClose={() => handleNavigation('dashboard')}
                     onSuccess={handleReceiptSuccess}
-                    onLogStock={handleLogStock}
+                    // onLogStock removed to prevent double logging - handled in onSuccess
                     purchaseOrders={purchaseOrders}
                     initialPoId={selectedPoId}
                     receiptMasters={receiptMasters}
