@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { 
   Search, Filter, Calendar, Truck, ChevronRight, 
   X, FileText, Pencil, ClipboardCheck, Archive, CheckSquare, Square, PackagePlus,
-  CheckCircle2, Ban, Briefcase, Lock, Plus
+  CheckCircle2, Ban, Briefcase, Lock, Plus, AlertCircle
 } from 'lucide-react';
 import { PurchaseOrder, Theme, ReceiptMaster, ActiveModule, Ticket } from '../types';
 import { LifecycleStepper } from './LifecycleStepper';
@@ -75,94 +75,127 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
       return tickets.some(t => t.receiptId === selectedOrder.linkedReceiptId && t.status === 'Open');
   }, [selectedOrder, tickets]);
 
-  // -- Cumulative Status Badge Logic --
-  const renderStatusBadges = (order: PurchaseOrder) => {
+  // -- MULTI-BADGE STATUS LOGIC --
+  const renderOrderBadges = (order: PurchaseOrder) => {
     const badges: React.ReactNode[] = [];
-    const linkedReceipt = receiptMasters.find(r => r.poId === order.id);
     
-    // 1. Archiviert
-    if (order.isArchived) {
+    // 1. Badge: Project Type (Eternal)
+    // Shows if status is 'Projekt'. Note: Ideally this should be a persistent 'type' field, 
+    // but we use status as a proxy per current data structure.
+    if (order.status === 'Projekt') {
         badges.push(
-            <span key="archived" className="px-2.5 py-1 rounded-full text-xs font-bold border border-slate-500 bg-slate-500/10 text-slate-500">
-                Archiviert
+            <span key="projekt" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 uppercase tracking-wider ${isDark ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
+                <Briefcase size={10} /> Projekt
             </span>
         );
     }
 
-    // 2. Offen (Show until closed) - GREEN
-    if (!order.isArchived && order.status !== 'Abgeschlossen') {
-         badges.push(
-            <span key="offen" className={`px-2.5 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
+    // 2. Badge: Lifecycle (Calculated)
+    const totalOrdered = order.items.reduce((sum, i) => sum + i.quantityExpected, 0);
+    const totalReceived = order.items.reduce((sum, i) => sum + i.quantityReceived, 0);
+
+    let lifecycleBadge = null;
+
+    if (order.isArchived) {
+       lifecycleBadge = (
+        <span key="archived" className="px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+          Archiviert
+        </span>
+       );
+    } else if (order.status === 'Storniert') {
+       lifecycleBadge = (
+        <span key="cancelled" className="px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider bg-red-100 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50">
+          Storniert
+        </span>
+       );
+    } else if (totalReceived === 0) {
+        lifecycleBadge = (
+            <span key="open" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${
+                isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200'
+            }`}>
                 Offen
             </span>
         );
-    }
-
-    // 3. Projekt (Permanent)
-    if (order.status === 'Projekt') {
-        badges.push(
-            <span key="projekt" className={`px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1 ${isDark ? 'bg-blue-900/30 text-blue-400 border-blue-900' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
-                <Briefcase size={12} /> Projekt
+    } else if (totalReceived > 0 && totalReceived < totalOrdered) {
+        lifecycleBadge = (
+            <span key="partial" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${
+                isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200'
+            }`}>
+                Teillieferung
+            </span>
+        );
+    } else if (totalReceived >= totalOrdered || order.status === 'Abgeschlossen') {
+        lifecycleBadge = (
+            <span key="done" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${
+                isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+            }`}>
+                Erledigt
             </span>
         );
     }
+    
+    if (lifecycleBadge) badges.push(lifecycleBadge);
 
-    // 4. In Prüfung (Updated Logic)
-    // Only show if strictly in 'In Prüfung' status and NOT yet processed into 'Teilweise geliefert' or 'Abgeschlossen'
-    // This prevents the purple pill from showing when the order has moved to a partial or closed state.
-    const isReceiptChecking = linkedReceipt && (linkedReceipt.status === 'In Prüfung' || (linkedReceipt.status as any) === 'Wartet auf Prüfung');
-    const isLinkedButWaiting = !linkedReceipt && order.linkedReceiptId;
-    const isProcessed = order.status === 'Teilweise geliefert' || order.status === 'Abgeschlossen';
+    // 3. Process & 4. Result (Linked Receipt)
+    const linkedReceipt = receiptMasters.find(r => r.poId === order.id);
+    
+    if (linkedReceipt) {
+        const s = linkedReceipt.status as string; // Cast to string to handle extended statuses
 
-    if ((isReceiptChecking || isLinkedButWaiting) && !isProcessed) {
+        // Badge 3: Process - Temporary
+        // ONLY if 'In Prüfung' (or similar pending state)
+        if (s === 'In Prüfung' || s === 'Wartet auf Prüfung') {
+             badges.push(
+                <span key="check" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${
+                    isDark ? 'bg-[#6264A7]/20 text-[#9ea0e6] border-[#6264A7]/40' : 'bg-[#6264A7]/10 text-[#6264A7] border-[#6264A7]/20'
+                }`}>
+                    In Prüfung
+                </span>
+            );
+        }
+
+        // Badge 4: Result - Issues
+        if (s === 'Schaden' || s === 'Schaden + Falsch' || s === 'Beschädigt') {
+             badges.push(
+                <span key="damage" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider flex items-center gap-1 ${
+                    isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200'
+                }`}>
+                    <AlertCircle size={10} /> Schaden
+                </span>
+            );
+        }
+        
+        if (s === 'Abgelehnt') {
+             badges.push(
+                <span key="rejected" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${
+                    isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200'
+                }`}>
+                    <Ban size={10} /> Abgelehnt
+                </span>
+            );
+        }
+
+        if (s === 'Falsch geliefert') {
+             badges.push(
+                <span key="wrong" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${
+                    isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200'
+                }`}>
+                    Falsch
+                </span>
+            );
+        }
+    } else if (order.linkedReceiptId) {
+        // Fallback for when Receipt Master hasn't synced but ID is present (e.g. freshly created)
         badges.push(
-            <span key="checking" className={`px-2.5 py-1 rounded-full text-xs font-bold border whitespace-nowrap ${isDark ? 'bg-[#6264A7]/20 text-[#9ea0e6] border-[#6264A7]/40' : 'bg-[#6264A7]/10 text-[#6264A7] border-[#6264A7]/20'}`}>
+            <span key="check-legacy" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${
+                isDark ? 'bg-[#6264A7]/20 text-[#9ea0e6] border-[#6264A7]/40' : 'bg-[#6264A7]/10 text-[#6264A7] border-[#6264A7]/20'
+            }`}>
                 In Prüfung
             </span>
         );
     }
 
-    // 5. Teilweise geliefert
-    if (order.status === 'Teilweise geliefert') {
-         badges.push(
-            <span key="partial" className={`px-2.5 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
-                Teillieferung
-            </span>
-        );
-    }
-
-    // 6. Übermenge (Zu viel > 0 AND Offen = 0 i.e. Fully Received)
-    const isFullyReceived = order.items.every(i => i.quantityReceived >= i.quantityExpected);
-    const hasOverDelivery = linkedReceipt?.deliveries.some(d => d.items.some(i => (i.zuViel || 0) > 0));
-    
-    if (hasOverDelivery && isFullyReceived) {
-         badges.push(
-            <span key="over" className={`px-2.5 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-100 text-orange-700 border-orange-200'}`}>
-                Übermenge
-            </span>
-        );
-    }
-
-    // 7. Schaden (Any Damage Flag)
-    const hasDamage = linkedReceipt?.deliveries.some(d => d.items.some(i => i.damageFlag));
-    if (hasDamage) {
-         badges.push(
-            <span key="damage" className={`px-2.5 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-100 text-red-700 border-red-200'}`}>
-                Schaden
-            </span>
-        );
-    }
-
-    // 8. Erledigt (Completed/Closed) - NEUTRAL GRAY
-    if (order.status === 'Abgeschlossen') {
-         badges.push(
-            <span key="closed" className={`px-2.5 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-gray-800 text-gray-400 border-gray-700' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                Erledigt
-            </span>
-        );
-    }
-
-    return <div className="flex flex-wrap items-center gap-2">{badges}</div>;
+    return <div className="flex flex-wrap gap-2 items-center">{badges}</div>;
   };
 
   const handleArchiveClick = (id: string, e: React.MouseEvent) => {
@@ -210,7 +243,6 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
           <FileText className="text-[#0077B5]" /> Bestellungen
         </h2>
         
-        {/* NEW BUTTON FOR CREATING ORDERS */}
         <button
             onClick={() => onNavigate('create-order')}
             className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${
@@ -272,7 +304,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                  <th className="p-4 font-semibold">Bestell Nummer</th>
                  <th className="p-4 font-semibold">Datum</th>
                  <th className="p-4 font-semibold">Lieferant</th>
-                 <th className="p-4 font-semibold">Status</th>
+                 <th className="p-4 font-semibold w-64">Status</th>
                  <th className="p-4 font-semibold text-center">Bestellbestätigung</th>
                  <th className="p-4 font-semibold text-center">Positionen</th>
                  <th className="p-4 font-semibold text-right">Aktion</th>
@@ -300,7 +332,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                         </div>
                     </td>
                     <td className="p-4">
-                      {renderStatusBadges(order)}
+                      {renderOrderBadges(order)}
                     </td>
                     <td className="p-4 text-center">
                         {order.pdfUrl ? (
@@ -319,7 +351,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                         </span>
                     </td>
                     <td className="p-4 text-right flex items-center justify-end gap-2">
-                        {/* Quick Receipt Action - Only if NOT already in check (linkedReceiptId missing) */}
+                        {/* Quick Receipt Action */}
                         {!order.isArchived && (order.status === 'Offen' || order.status === 'Projekt') && !order.linkedReceiptId && (
                              <button
                                 onClick={(e) => handleQuickReceiptClick(e, order.id)}
@@ -330,7 +362,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                              </button>
                         )}
 
-                        {/* RECEIVE BUTTON - Hidden if Closed */}
+                        {/* Receive Button */}
                         {!order.isArchived && order.status !== 'Abgeschlossen' && (
                             <button 
                                 onClick={(e) => handleReceiveClick(e, order.id)}
@@ -341,7 +373,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                             </button>
                         )}
 
-                        {/* EDIT BUTTON - Disabled/Hidden if Closed or Archived */}
+                        {/* Edit Button */}
                         {!order.isArchived && order.status !== 'Abgeschlossen' ? (
                             <button 
                                 onClick={(e) => handleEditClick(e, order)}
@@ -408,7 +440,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                         </h3>
                         <div className="flex items-center gap-3">
                             {/* Uses the same render logic as the table row for consistency */}
-                            {renderStatusBadges(selectedOrder)}
+                            {renderOrderBadges(selectedOrder)}
                             <button onClick={() => setSelectedOrder(null)} className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
                                 <X size={20} />
                             </button>

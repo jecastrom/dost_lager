@@ -6,7 +6,7 @@ import {
   AlertCircle, CheckCircle2, ChevronDown, ChevronUp, FileText, Truck,
   BarChart3, Ban, Archive, Briefcase, Info, PackagePlus,
   AlertTriangle, Layers, XCircle, ClipboardCheck,
-  Undo2, MessageSquare
+  Undo2, MessageSquare, AlertOctagon
 } from 'lucide-react';
 import { ReceiptHeader, ReceiptItem, Theme, ReceiptComment, Ticket, PurchaseOrder, ReceiptMaster, DeliveryLog, ActiveModule } from '../types';
 import { TicketSystem } from './TicketSystem';
@@ -87,13 +87,27 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
   const selectedHeader = useMemo(() => headers.find(h => h.batchId === selectedBatchId), [headers, selectedBatchId]);
   const relatedItems = useMemo(() => items.filter(i => i.batchId === selectedBatchId), [items, selectedBatchId]);
   const relatedComments = useMemo(() => comments.filter(c => c.batchId === selectedBatchId).sort((a,b) => b.timestamp - a.timestamp), [comments, selectedBatchId]);
-  const relatedTickets = useMemo(() => tickets.filter(t => t.receiptId === selectedBatchId), [tickets, selectedBatchId]);
   
-  // Linked Purchase Order Logic
+  // Ticket Context Logic (All tickets for this PO, not just this receipt)
   const linkedPO = useMemo(() => {
       if (!selectedHeader?.bestellNr) return null;
       return purchaseOrders.find(po => po.id === selectedHeader.bestellNr);
   }, [selectedHeader, purchaseOrders]);
+
+  const contextTickets = useMemo(() => {
+      if (linkedPO) {
+          // Find all tickets related to any receipt of this PO
+          return tickets.filter(t => {
+              const header = headers.find(h => h.batchId === t.receiptId);
+              return header?.bestellNr === linkedPO.id;
+          });
+      }
+      // Fallback: Tickets just for this receipt
+      return tickets.filter(t => t.receiptId === selectedBatchId);
+  }, [tickets, linkedPO, headers, selectedBatchId]);
+
+  const openTicketsCount = contextTickets.filter(t => t.status === 'Open').length;
+  const closedTicketsCount = contextTickets.filter(t => t.status === 'Closed').length;
 
   // Linked Receipt Master Logic (For Multi-Delivery View)
   const linkedMaster = useMemo(() => {
@@ -288,156 +302,99 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
 
   // --- Helper Functions for Badges & Icons ---
 
-  const statusColors = (status: string) => {
-    if (status === 'Gebucht' || status === 'Abgeschlossen') {
-        return isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    }
-    if (status === 'In Prüfung' || status === 'Wartet auf Prüfung') {
-        return isDark 
-            ? 'bg-[#6264A7]/20 text-[#9ea0e6] border-[#6264A7]/40' 
-            : 'bg-[#6264A7]/10 text-[#6264A7] border-[#6264A7]/20';
-    }
-    if (status === 'Offen') {
-        return isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    }
-    if (['Übermenge', 'Zu viel'].includes(status)) {
-        return isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-100 text-orange-700 border-orange-200';
-    }
-    if (['Teillieferung', 'Untermenge', 'Falsch geliefert'].includes(status)) {
-        return isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-700 border-amber-200';
-    }
-    if (['Quarantäne', 'Beschädigt', 'Reklamation', 'Abgelehnt', 'Rücklieferung'].includes(status)) {
-        return isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-100 text-red-700 border-red-200';
-    }
-    return isDark ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-100 text-blue-700 border-blue-200';
-  };
-
   const renderReceiptBadges = (header: ReceiptHeader, po: PurchaseOrder | undefined, master: ReceiptMaster | undefined, receiptTickets: Ticket[]) => {
       const badges: React.ReactNode[] = [];
       const status = header.status;
+      // Use master status if available (for grouped view), otherwise header status
       const effectiveStatus = (header as any).masterStatus || status; 
 
-      // -- CALCULATE PROCESSED STATES FIRST --
-      const isPartial = effectiveStatus === 'Teillieferung' || po?.status === 'Teilweise geliefert' || effectiveStatus.includes('Teil');
-      const isOver = effectiveStatus === 'Übermenge' || (master?.deliveries.some(d => d.items.some(i => (i.zuViel || 0) > 0)));
-      const isDamaged = effectiveStatus === 'Schaden' || effectiveStatus === 'Beschädigt' || (master?.deliveries.some(d => d.items.some(i => i.damageFlag)));
-      const isWrong = effectiveStatus === 'Falsch geliefert';
-      const isRejected = effectiveStatus === 'Abgelehnt' || effectiveStatus === 'Reklamation';
-      
-      const isBooked = effectiveStatus === 'Gebucht' || status === 'Gebucht';
-      const isClosed = effectiveStatus === 'Abgeschlossen';
-
-      // If any of these "Result" statuses are true, we consider the receipt processed and should HIDE "In Prüfung".
-      const hasResultStatus = isPartial || isOver || isDamaged || isWrong || isRejected || isBooked || isClosed;
-
-      // 1. Offen (Green) - Shows if PO is open OR Receipt is open (and not closed)
-      const isPOOpen = po && !po.isArchived && po.status !== 'Abgeschlossen';
-      const isReceiptOpen = !po && (effectiveStatus !== 'Abgeschlossen' && effectiveStatus !== 'Gebucht');
-      
-      if (isPOOpen || isReceiptOpen) {
-           badges.push(
-              <span key="offen" className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
-                  Offen
-              </span>
-          );
-      }
-
-      // 2. Projekt (Blue)
+      // 1. Source Badge: Project (Eternal)
       if (po?.status === 'Projekt') {
           badges.push(
-              <span key="projekt" className={`px-2 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1 ${isDark ? 'bg-blue-900/30 text-blue-400 border-blue-900' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
+              <span key="projekt" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 uppercase tracking-wider ${isDark ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
                   <Briefcase size={10} /> Projekt
               </span>
           );
       }
 
-      // 3. In Prüfung (Purple) - Logic Updated to respect Result Status
-      const isWaiting = header.lieferscheinNr === 'Ausstehend' || effectiveStatus === 'In Prüfung' || effectiveStatus === 'Wartet auf Prüfung';
-      const isMasterChecking = master && (master.status === 'Offen' || master.status === 'In Prüfung');
+      // 2. Ticket Status Badge (High Priority)
+      const hasOpenTickets = receiptTickets.some(t => t.status === 'Open');
+      const hasTickets = receiptTickets.length > 0;
+      const allTicketsClosed = hasTickets && receiptTickets.every(t => t.status === 'Closed');
 
-      if ((isWaiting || isMasterChecking) && !hasResultStatus) {
+      if (hasOpenTickets) {
+          badges.push(
+              <span key="ticket-open" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 uppercase tracking-wider animate-pulse ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                  <AlertOctagon size={10} /> Offene Reklamation
+              </span>
+          );
+      } else if (allTicketsClosed) {
+          badges.push(
+              <span key="ticket-solved" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 uppercase tracking-wider ${isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
+                  <CheckCircle2 size={10} /> Fall gelöst
+              </span>
+          );
+      }
+
+      // 3. Inspection / Result Status
+      if (effectiveStatus === 'In Prüfung' || effectiveStatus === 'Wartet auf Prüfung') {
            badges.push(
-              <span key="checking" className={`px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${isDark ? 'bg-[#6264A7]/20 text-[#9ea0e6] border-[#6264A7]/40' : 'bg-[#6264A7]/10 text-[#6264A7] border-[#6264A7]/20'}`}>
+              <span key="checking" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider whitespace-nowrap ${isDark ? 'bg-[#6264A7]/20 text-[#9ea0e6] border-[#6264A7]/40' : 'bg-[#6264A7]/10 text-[#6264A7] border-[#6264A7]/20'}`}>
                   In Prüfung
               </span>
           );
-      }
-
-      // 4. Derived Statuses
-      if (isPartial) {
+      } else if (effectiveStatus === 'Gebucht') {
            badges.push(
-              <span key="partial" className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
-                  Teillieferung
-              </span>
-          );
-      }
-
-      if (isOver) {
-           badges.push(
-              <span key="over" className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-100 text-orange-700 border-orange-200'}`}>
-                  Übermenge
-              </span>
-          );
-      }
-
-      if (isDamaged) {
-           badges.push(
-              <span key="damage" className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-100 text-red-700 border-red-200'}`}>
-                  Schaden
-              </span>
-          );
-      }
-      
-      if (isWrong) {
-           badges.push(
-              <span key="wrong" className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
-                  Falsch geliefert
-              </span>
-          );
-      }
-
-      if (isRejected) {
-           badges.push(
-              <span key="rejected" className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-100 text-red-700 border-red-200'}`}>
-                  Abgelehnt
-              </span>
-          );
-      }
-
-      if (isBooked) {
-           badges.push(
-              <span key="booked" className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
+              <span key="booked" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
                   Gebucht
               </span>
           );
-      }
-
-      // TICKET STATUS BADGE
-      if (receiptTickets.length > 0) {
-          const allClosed = receiptTickets.every(t => t.status === 'Closed');
-          if (allClosed) {
-              badges.push(
-                  <span key="tickets-closed" className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-gray-800 text-gray-400 border-gray-700' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                      Fall gelöst
+      } else if (effectiveStatus === 'Abgelehnt') {
+           badges.push(
+              <span key="rejected" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                  Abgelehnt
+              </span>
+          );
+      } else if (effectiveStatus === 'Schaden' || effectiveStatus === 'Beschädigt') {
+           badges.push(
+              <span key="damage" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                  Schaden
+              </span>
+          );
+      } else {
+          // Fallback for other statuses like 'Teillieferung', 'Übermenge' if they are set in header
+          if (effectiveStatus === 'Teillieferung' || effectiveStatus.includes('Teil')) {
+               badges.push(
+                  <span key="partial" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
+                      Teillieferung
+                  </span>
+              );
+          } else if (effectiveStatus === 'Übermenge' || effectiveStatus === 'Zu viel') {
+               badges.push(
+                  <span key="over" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
+                      Übermenge
+                  </span>
+              );
+          } else if (effectiveStatus === 'Abgeschlossen') {
+               badges.push(
+                  <span key="closed" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
+                      Abgeschlossen
+                  </span>
+              );
+          } else if (header.lieferscheinNr === 'Ausstehend') {
+               badges.push(
+                  <span key="pending" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-[#6264A7]/20 text-[#9ea0e6] border-[#6264A7]/40' : 'bg-[#6264A7]/10 text-[#6264A7] border-[#6264A7]/20'}`}>
+                      In Prüfung
+                  </span>
+              );
+          } else if (!['In Prüfung', 'Gebucht', 'Abgelehnt', 'Schaden', 'Wartet auf Prüfung'].includes(effectiveStatus)) {
+              // Generic catch-all
+               badges.push(
+                  <span key="generic" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                      {effectiveStatus}
                   </span>
               );
           }
-      }
-
-      if (isClosed) {
-           badges.push(
-              <span key="closed" className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
-                  Geschlossen
-              </span>
-          );
-      }
-
-      if (badges.length === 0) {
-           badges.push(
-              <span key="generic" className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusColors(effectiveStatus)}`}>
-                  {effectiveStatus}
-              </span>
-          );
       }
 
       return <div className="flex flex-wrap items-center gap-1.5">{badges}</div>;
@@ -788,9 +745,31 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
               >
                   <MessageSquare size={14} />
                   Reklamationen
-                  {relatedTickets.length > 0 && (
-                      <span className="bg-red-500 text-white w-4 h-4 flex items-center justify-center rounded-full text-[9px] font-bold">{relatedTickets.length}</span>
-                  )}
+                  
+                  {/* SPLIT STATUS BADGES */}
+                  <div className="flex gap-1.5 ml-1">
+                      {openTicketsCount > 0 && (
+                          <span className={`px-1.5 py-0.5 rounded-full flex items-center gap-1 border ${
+                              isDark 
+                              ? 'bg-red-500/10 text-red-400 border-red-500/20' 
+                              : 'bg-red-50 text-red-600 border-red-200'
+                          }`}>
+                              <AlertOctagon size={8} />
+                              <span className="text-[9px] font-bold">{openTicketsCount} Offen</span>
+                          </span>
+                      )}
+                      
+                      {closedTicketsCount > 0 && (
+                          <span className={`px-1.5 py-0.5 rounded-full flex items-center gap-1 border ${
+                              isDark 
+                              ? 'bg-slate-800 text-slate-400 border-slate-700' 
+                              : 'bg-slate-100 text-slate-500 border-slate-200'
+                          }`}>
+                              <CheckCircle2 size={8} />
+                              <span className="text-[9px] font-bold">{closedTicketsCount} Erledigt</span>
+                          </span>
+                      )}
+                  </div>
               </button>
           </div>
       </div>
@@ -888,7 +867,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                         {/* Right Group */}
                         <div className="flex flex-col sm:flex-row items-center gap-3">
                              <div className="flex flex-wrap justify-end gap-1.5">
-                                {renderReceiptBadges(selectedHeader, linkedPO, linkedMaster, relatedTickets)}
+                                {renderReceiptBadges(selectedHeader, linkedPO, linkedMaster, contextTickets)}
                              </div>
                              <div className="flex gap-1">
                                 {renderActions()}
@@ -1236,7 +1215,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
             <div className="flex-1 flex flex-col p-4 md:p-6 overflow-hidden min-h-0 h-full">
                 <TicketSystem 
                     receiptId={selectedBatchId}
-                    tickets={relatedTickets}
+                    tickets={contextTickets} // Use context-aware tickets
                     onAddTicket={onAddTicket}
                     onUpdateTicket={onUpdateTicket}
                     theme={theme}
