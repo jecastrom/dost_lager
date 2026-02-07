@@ -2,9 +2,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  Plus, Send, User, X, AlertCircle, CheckCircle2, ChevronRight, Unlock, Lock, MessageSquare, ArrowLeft, MoreVertical, Calendar 
+  Plus, Send, User, X, AlertCircle, CheckCircle2, Unlock, Lock, 
+  MessageSquare, MoreVertical, Calendar, Truck, FileText, Search,
+  Paperclip, Clock, ChevronDown, ChevronUp, ChevronRight
 } from 'lucide-react';
-import { Ticket, TicketPriority, Theme, TicketMessage } from '../types';
+import { Ticket, TicketPriority, Theme, TicketMessage, ReceiptHeader, PurchaseOrder } from '../types';
 
 // --- Helper: New Ticket Modal ---
 const NewTicketModal = ({ isOpen, onClose, onSave, theme }: { isOpen: boolean, onClose: () => void, onSave: (subject: string, priority: TicketPriority, description: string) => void, theme: Theme }) => {
@@ -21,12 +23,6 @@ const NewTicketModal = ({ isOpen, onClose, onSave, theme }: { isOpen: boolean, o
         setSubject('');
         setPriority('Normal');
         setDescription('');
-    };
-
-    const getPriorityStyles = (p: TicketPriority) => {
-        if (p === 'Urgent') return isDark ? 'border-red-500 bg-red-500/10 text-red-400 focus:ring-red-500/30' : 'border-red-500 bg-red-50 text-red-700 focus:ring-red-500/30';
-        if (p === 'High') return isDark ? 'border-orange-500 bg-orange-500/10 text-orange-400 focus:ring-orange-500/30' : 'border-orange-500 bg-orange-50 text-orange-700 focus:ring-orange-500/30';
-        return isDark ? 'bg-slate-950 border-slate-700 text-white focus:ring-blue-500/30' : 'bg-white border-slate-200 text-slate-900 focus:ring-blue-500/30';
     };
 
     return createPortal(
@@ -59,7 +55,7 @@ const NewTicketModal = ({ isOpen, onClose, onSave, theme }: { isOpen: boolean, o
                         <select 
                             value={priority}
                             onChange={(e) => setPriority(e.target.value as TicketPriority)}
-                            className={`w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all font-medium ${getPriorityStyles(priority)}`}
+                            className={`w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all font-medium ${isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                         >
                             <option value="Normal">Normal</option>
                             <option value="High">Hoch (High)</option>
@@ -105,6 +101,8 @@ interface TicketSystemProps {
   onAddTicket: (ticket: Ticket) => void;
   onUpdateTicket: (ticket: Ticket) => void;
   theme: Theme;
+  receiptHeader?: ReceiptHeader;
+  linkedPO?: PurchaseOrder;
 }
 
 export const TicketSystem: React.FC<TicketSystemProps> = ({ 
@@ -112,33 +110,114 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({
   tickets, 
   onAddTicket, 
   onUpdateTicket, 
-  theme 
+  theme,
+  receiptHeader,
+  linkedPO
 }) => {
   const isDark = theme === 'dark';
   const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [replyText, setReplyText] = useState('');
   
+  // Date Grouping & UI State
+  const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set());
+  const [showSendOptions, setShowSendOptions] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sendMenuRef = useRef<HTMLDivElement>(null);
 
-  // Responsive: Auto-select first ticket ONLY on desktop
+  // Responsive: Auto-select first ticket ONLY on desktop if none selected
   useEffect(() => {
     if (!expandedTicketId && tickets.length > 0 && window.innerWidth >= 768) {
         setExpandedTicketId(tickets[0].id);
     }
   }, [tickets]); 
 
-  // Reset reply text when switching tickets
+  // Reset states when switching tickets
   useEffect(() => {
       setReplyText('');
+      setCollapsedDates(new Set());
+      setShowSendOptions(false);
   }, [expandedTicketId]);
+
+  // Handle outside click for send menu
+  useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (sendMenuRef.current && !sendMenuRef.current.contains(event.target as Node)) {
+              setShowSendOptions(false);
+          }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedTicket = useMemo(() => tickets.find(t => t.id === expandedTicketId), [tickets, expandedTicketId]);
+
+  // Group messages by date
+  const groupedMessages = useMemo<Record<string, TicketMessage[]>>(() => {
+      if (!selectedTicket) return {};
+      const groups: Record<string, TicketMessage[]> = {};
+      
+      // Sort messages just in case
+      const sorted = [...selectedTicket.messages].sort((a,b) => a.timestamp - b.timestamp);
+      
+      sorted.forEach(msg => {
+          const date = new Date(msg.timestamp);
+          const key = date.toLocaleDateString('en-CA'); // YYYY-MM-DD
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(msg);
+      });
+      
+      return groups;
+  }, [selectedTicket]);
+
+  const getDateLabel = (dateStr: string) => {
+      const date = new Date(dateStr);
+      const today = new Date();
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      if (date.toDateString() === today.toDateString()) return 'Heute';
+      if (date.toDateString() === yesterday.toDateString()) return 'Gestern';
+      
+      return date.toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  };
+
+  const getStatusColor = (status: string, priority: string) => {
+      const isClosed = status === 'Closed';
+      const isUrgent = priority === 'High' || priority === 'Urgent';
+
+      if (isClosed) {
+          return isDark 
+            ? 'bg-gray-800 text-gray-300 border border-gray-700' 
+            : 'bg-gray-100 text-gray-600 border-gray-200';
+      }
+      
+      if (isUrgent) {
+          return isDark 
+            ? 'bg-red-900/30 text-red-200 border border-red-800' 
+            : 'bg-red-100 text-red-700 border-red-200';
+      }
+
+      // Normal/Open
+      return isDark 
+        ? 'bg-emerald-900/30 text-emerald-200 border border-emerald-800' 
+        : 'bg-emerald-100 text-emerald-700 border-emerald-200';
+  };
+
+  const toggleDateCollapse = (dateKey: string) => {
+      setCollapsedDates(prev => {
+          const next = new Set(prev);
+          if (next.has(dateKey)) next.delete(dateKey);
+          else next.add(dateKey);
+          return next;
+      });
+  };
 
   // Scroll to bottom on new message
   const scrollToBottom = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-
-  const selectedTicket = useMemo(() => tickets.find(t => t.id === expandedTicketId), [tickets, expandedTicketId]);
 
   useEffect(() => {
       if(selectedTicket) scrollToBottom();
@@ -172,7 +251,7 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({
           messages: [...ticket.messages, {
               id: crypto.randomUUID(),
               author: 'System',
-              text: 'Ticket wurde wiedereröffnet.',
+              text: 'Fall wurde wiedereröffnet.',
               timestamp: Date.now(),
               type: 'system'
           }]
@@ -200,7 +279,7 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({
           messages.push({
               id: crypto.randomUUID(),
               author: 'System',
-              text: 'Ticket wurde geschlossen.',
+              text: 'Fall wurde geschlossen.',
               timestamp: Date.now() + (text ? 1 : 0),
               type: 'system'
           });
@@ -214,10 +293,11 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({
 
       onUpdateTicket(updatedTicket);
       setReplyText('');
+      setShowSendOptions(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && e.shiftKey) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
           e.preventDefault();
           if (replyText.trim() && selectedTicket) {
               handleReplyTicket(selectedTicket, false);
@@ -225,259 +305,343 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({
       }
   };
 
-  const containerClass = `flex h-[600px] w-full border border-gray-700 rounded-xl overflow-hidden bg-[#0b1120] relative shadow-lg`;
+  // --- Layout Classes ---
+  const containerClass = `flex flex-col h-full ${isDark ? 'bg-[#0b1120]' : 'bg-gray-50'}`;
   
-  const listColumnClass = `w-full md:w-1/3 flex flex-col border-r border-gray-700 bg-[#0b1120] ${
-      selectedTicket ? 'hidden md:flex' : 'flex'
+  const topBarClass = `flex-none h-10 border-b flex items-center px-4 gap-4 shadow-sm z-10 ${
+      isDark ? 'bg-[#1e293b] border-slate-800' : 'bg-white border-slate-200'
   }`;
 
-  const chatColumnClass = `w-full md:w-2/3 flex flex-col bg-gray-900/50 ${
-      selectedTicket ? 'flex' : 'hidden md:flex'
-  }`;
+  const splitViewClass = `flex-1 flex overflow-hidden`;
+
+  const listColumnClass = `w-full md:w-80 flex flex-col border-r ${
+      isDark ? 'bg-[#111827] border-slate-800' : 'bg-white border-slate-200'
+  } ${selectedTicket ? 'hidden md:flex' : 'flex'}`;
+
+  const chatColumnClass = `flex-1 flex flex-col min-w-0 ${
+      isDark ? 'bg-[#0f172a]' : 'bg-gray-50'
+  } ${selectedTicket ? 'flex' : 'hidden md:flex'}`;
 
   return (
     <div className={containerClass}>
         
-        {/* 1. Left Sidebar (Ticket List) */}
-        <div className={listColumnClass}>
-            <div className={`flex-none p-4 border-b border-gray-700 flex justify-between items-center bg-[#0b1120]`}>
-                <h3 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 text-gray-300">
-                    <AlertCircle size={16} className="text-[#0077B5]" /> Fälle
-                </h3>
-                <button 
-                    onClick={() => setShowNewTicketModal(true)}
-                    className="p-1.5 rounded-lg bg-[#0077B5] text-white hover:bg-[#00A0DC] transition-colors"
-                    title="Neuer Fall"
-                >
-                    <Plus size={16} />
-                </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                {tickets.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center p-4 opacity-50">
-                        <CheckCircle2 size={32} className="mb-2 text-gray-600" />
-                        <span className="text-xs font-medium text-gray-500">Keine Fälle</span>
-                    </div>
-                ) : (
-                    tickets.map(ticket => (
-                        <button
-                            key={ticket.id}
-                            onClick={() => setExpandedTicketId(ticket.id)}
-                            className={`w-full text-left p-3 rounded-lg border transition-all ${
-                                expandedTicketId === ticket.id 
-                                ? 'bg-gray-800 border-blue-500 ring-1 ring-blue-500' 
-                                : 'bg-gray-900/50 border-gray-800 hover:border-gray-600 hover:bg-gray-800'
-                            }`}
-                        >
-                            <div className="flex justify-between items-start mb-1">
-                                <span className={`font-bold text-sm truncate pr-2 text-gray-200`}>
-                                    {ticket.subject}
-                                </span>
-                                {ticket.status === 'Closed' ? (
-                                    <span className="shrink-0 text-[10px] uppercase font-bold text-gray-500 bg-gray-500/10 px-1.5 py-0.5 rounded border border-gray-500/20">Closed</span>
-                                ) : (
-                                    <span className="shrink-0 text-[10px] uppercase font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Open</span>
-                                )}
-                            </div>
-                            <div className="flex items-center justify-between mt-2">
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded border font-bold ${
-                                    ticket.priority === 'Urgent' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 
-                                    ticket.priority === 'High' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : 
-                                    'bg-slate-500/10 text-slate-500 border-slate-500/20'
-                                }`}>
-                                    {ticket.priority}
-                                </span>
-                                <span className="text-[10px] text-gray-500 font-mono">
-                                    {new Date(ticket.messages[0].timestamp).toLocaleDateString()}
-                                </span>
-                            </div>
-                        </button>
-                    ))
-                )}
-            </div>
-        </div>
-
-        {/* 2. Right Area (Chat) */}
-        <div className={chatColumnClass}>
-            {selectedTicket ? (
+        {/* 1. Top Context Bar */}
+        <div className={topBarClass}>
+            {linkedPO ? (
                 <>
-                    {/* Header: Gmail-Style Refined Layout */}
-                    <div className="flex-none p-6 border-b border-gray-800 bg-[#111827] flex justify-between items-start gap-4">
-                        
-                        {/* Left Side: Subject & Meta */}
-                        <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-3 md:hidden mb-2">
-                                <button 
-                                    onClick={() => setExpandedTicketId(null)}
-                                    className="p-1 rounded-lg hover:bg-gray-800 text-gray-400"
-                                >
-                                    <ArrowLeft size={20} />
-                                </button>
-                            </div>
-                            
-                            <h3 className="text-xl font-semibold text-white leading-snug break-words">
-                                {selectedTicket.subject}
-                            </h3>
-                            
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2">
-                                <span className="flex items-center gap-1.5 text-xs text-gray-500 font-mono">
-                                    <span className="opacity-50">ID:</span> {selectedTicket.id.slice(0, 8)}
-                                </span>
-                                <span className="text-gray-700 text-xs">•</span>
-                                <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                                    <Calendar size={12} className="opacity-70" />
-                                    {new Date(selectedTicket.messages[0].timestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
-                                </span>
-                            </div>
-
-                            <div className="flex items-center gap-2 mt-3">
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
-                                    selectedTicket.priority === 'Urgent' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 
-                                    selectedTicket.priority === 'High' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : 
-                                    'bg-slate-500/10 text-slate-500 border-slate-500/20'
-                                }`}>
-                                    {selectedTicket.priority} Priority
-                                </span>
-                                
-                                {selectedTicket.status === 'Closed' ? (
-                                    <span className="text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider bg-gray-500/10 text-gray-500 border-gray-500/20">
-                                        Geschlossen
-                                    </span>
-                                ) : (
-                                    <span className="text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
-                                        Offen
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Right Side: Actions */}
-                        <div className="flex items-center gap-2 shrink-0">
-                            {selectedTicket.status === 'Closed' ? (
-                                <button 
-                                    onClick={() => handleReopenTicket(selectedTicket)}
-                                    className="px-4 py-2 rounded-lg text-sm font-bold border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors flex items-center gap-2"
-                                >
-                                    <Unlock size={16} /> <span className="hidden sm:inline">Wiedereröffnen</span>
-                                </button>
-                            ) : (
-                                <button 
-                                    onClick={() => handleReplyTicket(selectedTicket, true)}
-                                    className="px-4 py-2 rounded-lg text-sm font-bold border border-gray-600 text-gray-400 hover:bg-gray-800 hover:text-red-400 transition-colors flex items-center gap-2"
-                                    title="Ticket schließen"
-                                >
-                                    <Lock size={16} /> <span className="hidden sm:inline">Schließen</span>
-                                </button>
-                            )}
-                            <button className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800 transition-colors">
-                                <MoreVertical size={20} />
-                            </button>
-                        </div>
+                    <div className="flex items-center gap-2">
+                        <FileText size={14} className={isDark ? 'text-slate-400' : 'text-slate-500'} />
+                        <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                            PO: {linkedPO.id}
+                        </span>
                     </div>
-
-                    {/* Message List */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 bg-[#0f172a]">
-                        {selectedTicket.messages.map((msg, index) => {
-                            const isSystem = msg.type === 'system' || msg.author === 'System';
-                            const isMe = msg.type === 'user' && msg.author !== 'System';
-                            
-                            // Specific styling for the very first message (Automatic/Description)
-                            const isFirstMessage = index === 0;
-
-                            if (isSystem) {
-                                return (
-                                    <div key={msg.id} className="flex flex-col items-center my-6 space-y-2">
-                                        <div className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider border ${
-                                            isFirstMessage 
-                                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' 
-                                            : 'bg-slate-800 text-slate-500 border-slate-700'
-                                        }`}>
-                                            {isFirstMessage ? 'Automatische Nachricht' : 'System Status'}
-                                        </div>
-                                        <div className={`text-center max-w-[80%] text-sm ${isFirstMessage ? 'text-slate-300' : 'text-slate-500'}`}>
-                                            {msg.text}
-                                        </div>
-                                        <div className="text-[10px] text-slate-600 font-mono">
-                                            {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                        </div>
-                                    </div>
-                                );
-                            }
-
-                            return (
-                                <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                                    <div className="flex items-end gap-2 max-w-[85%]">
-                                        {!isMe && (
-                                            <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 shrink-0 border border-slate-700">
-                                                <User size={14} />
-                                            </div>
-                                        )}
-                                        
-                                        <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                                            isMe 
-                                            ? 'bg-[#0077B5] text-white rounded-tr-sm' 
-                                            : 'bg-gray-800 text-gray-200 rounded-tl-sm border border-gray-700'
-                                        }`}>
-                                            <div className="whitespace-pre-wrap">{msg.text}</div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className={`text-[10px] text-gray-500 mt-1.5 px-1 flex items-center gap-1 ${isMe ? 'mr-1' : 'ml-11'}`}>
-                                        <span className="font-bold">{msg.author}</span>
-                                        <span>•</span>
-                                        <span>{new Date(msg.timestamp).toLocaleString()}</span>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                        <div ref={messagesEndRef} />
+                    <div className={`w-px h-3 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`}></div>
+                    <div className="flex items-center gap-2">
+                        <Truck size={14} className={isDark ? 'text-slate-400' : 'text-slate-500'} />
+                        <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {linkedPO.supplier}
+                        </span>
                     </div>
-
-                    {/* Footer (Input Area) */}
-                    {selectedTicket.status === 'Open' ? (
-                        <div className="flex-none p-4 border-t border-gray-800 bg-[#111827]">
-                            <textarea 
-                                value={replyText}
-                                onChange={(e) => setReplyText(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                placeholder="Nachricht schreiben... (Shift+Enter zum Senden)"
-                                className="w-full h-32 rounded-xl p-4 text-sm resize-none outline-none focus:ring-2 focus:ring-blue-500/50 transition-all bg-gray-800 border border-gray-700 text-white placeholder:text-gray-500"
-                            />
-                            <div className="flex justify-end gap-3 mt-3">
-                                <button 
-                                    onClick={() => handleReplyTicket(selectedTicket, false)}
-                                    disabled={!replyText.trim()}
-                                    className="px-6 py-2.5 rounded-xl bg-[#0077B5] hover:bg-[#00A0DC] text-white text-sm font-bold shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2"
-                                >
-                                    <Send size={16} /> Senden
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex-none p-8 border-t border-gray-800 bg-[#111827] text-center">
-                            <div className="inline-flex p-3 rounded-full bg-slate-800/50 text-slate-500 mb-3">
-                                <Lock size={24} />
-                            </div>
-                            <p className="text-sm font-medium text-gray-400">Dieser Fall ist geschlossen. Sie können nicht mehr antworten.</p>
-                            <button 
-                                onClick={() => handleReopenTicket(selectedTicket)}
-                                className="mt-4 text-[#0077B5] text-sm font-bold hover:underline"
-                            >
-                                Fall wiedereröffnen
-                            </button>
-                        </div>
-                    )}
                 </>
+            ) : receiptHeader ? (
+                <div className="flex items-center gap-2">
+                    <Truck size={14} className={isDark ? 'text-slate-400' : 'text-slate-500'} />
+                    <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        Lieferung: {receiptHeader.lieferscheinNr}
+                    </span>
+                </div>
             ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-50 p-8">
-                    <div className="p-6 rounded-full bg-slate-800/50 mb-4">
-                        <MessageSquare size={48} className="text-slate-500" />
-                    </div>
-                    <h3 className="font-bold text-xl text-gray-300">Kein Fall ausgewählt</h3>
-                    <p className="text-sm text-gray-500 mt-2 max-w-sm">Wählen Sie einen Fall aus der linken Liste aus oder erstellen Sie einen neuen, um die Details zu sehen.</p>
+                <span className="text-xs italic opacity-50">Keine Kontextdaten verfügbar</span>
+            )}
+
+            {receiptHeader && (
+                <div className="ml-auto flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                        receiptHeader.status === 'Offen' ? (isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-700') :
+                        receiptHeader.status === 'Teillieferung' ? (isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700') :
+                        (isDark ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-600')
+                    }`}>
+                        {receiptHeader.status}
+                    </span>
                 </div>
             )}
+        </div>
+
+        {/* 2. Split View Area */}
+        <div className={splitViewClass}>
+            
+            {/* Left Column: Ticket List */}
+            <div className={listColumnClass}>
+                <div className={`p-3 border-b flex justify-between items-center ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                    <h3 className={`font-bold text-xs uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Tickets ({tickets.length})
+                    </h3>
+                    <button 
+                        onClick={() => setShowNewTicketModal(true)}
+                        className={`p-1.5 rounded-lg transition-all ${
+                            isDark 
+                            ? 'bg-[#0077B5]/10 text-[#0077B5] hover:bg-[#0077B5]/20' 
+                            : 'bg-[#0077B5] text-white hover:bg-[#00A0DC] shadow-sm'
+                        }`}
+                        title="Neues Ticket"
+                    >
+                        <Plus size={16} />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                    {tickets.length === 0 ? (
+                        <div className="h-40 flex flex-col items-center justify-center text-center opacity-50 p-4">
+                            <MessageSquare size={24} className="mb-2 text-gray-400" />
+                            <span className="text-xs font-medium text-gray-500">Keine Tickets vorhanden</span>
+                        </div>
+                    ) : (
+                        tickets.map(ticket => {
+                            const isActive = expandedTicketId === ticket.id;
+                            const lastMsg = ticket.messages[ticket.messages.length - 1];
+                            return (
+                                <button
+                                    key={ticket.id}
+                                    onClick={() => setExpandedTicketId(ticket.id)}
+                                    className={`w-full text-left p-3 rounded-xl border transition-all relative overflow-hidden group ${
+                                        isActive
+                                        ? (isDark ? 'bg-blue-900/20 border-blue-500/50' : 'bg-blue-50 border-blue-200')
+                                        : (isDark ? 'bg-transparent border-transparent hover:bg-slate-800' : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-200')
+                                    }`}
+                                >
+                                    {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#0077B5]" />}
+                                    
+                                    <div className="flex justify-between items-start mb-1 pl-1">
+                                        <span className={`font-bold text-sm truncate pr-2 ${
+                                            isActive 
+                                            ? (isDark ? 'text-blue-400' : 'text-[#0077B5]') 
+                                            : (isDark ? 'text-slate-200' : 'text-slate-900')
+                                        }`}>
+                                            {ticket.subject}
+                                        </span>
+                                        <span className={`text-[10px] whitespace-nowrap ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                            {new Date(lastMsg?.timestamp || Date.now()).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                    
+                                    <p className={`text-xs truncate pl-1 mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        {lastMsg ? lastMsg.text : 'Keine Nachrichten'}
+                                    </p>
+
+                                    <div className="flex items-center gap-2 pl-1">
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${getStatusColor(ticket.status, ticket.priority)}`}>
+                                            {ticket.status === 'Closed' ? 'Erledigt' : ticket.priority === 'High' || ticket.priority === 'Urgent' ? 'Priorität' : 'Offen'}
+                                        </span>
+                                    </div>
+                                </button>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
+
+            {/* Right Column: Chat Detail */}
+            <div className={chatColumnClass}>
+                {selectedTicket ? (
+                    <>
+                        {/* Chat Header - Compact Row Layout */}
+                        <div className={`flex-none p-3 border-b flex items-center justify-between gap-3 ${isDark ? 'bg-[#1e293b] border-slate-800' : 'bg-white border-slate-200'}`}>
+                            <div className="flex items-center gap-3 min-w-0">
+                                <h2 className={`text-base font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    {selectedTicket.subject}
+                                </h2>
+                            </div>
+
+                            <div className="flex items-center gap-3 shrink-0">
+                                <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                    {new Date(selectedTicket.messages[0].timestamp).toLocaleDateString()}
+                                </span>
+                                
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${getStatusColor(selectedTicket.status, selectedTicket.priority)}`}>
+                                    {selectedTicket.status === 'Closed' ? 'Erledigt' : 'Offen'}
+                                </span>
+
+                                <button 
+                                    className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}
+                                    onClick={() => {
+                                        if (selectedTicket.status === 'Closed') {
+                                            handleReopenTicket(selectedTicket);
+                                        } else {
+                                            // Handle menu logic here if needed
+                                        }
+                                    }}
+                                    title={selectedTicket.status === 'Closed' ? "Wiedereröffnen" : "Aktionen"}
+                                >
+                                    <MoreVertical size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Chat Messages */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                            {Object.entries(groupedMessages).map(([dateKey, messages]) => {
+                                const isCollapsed = collapsedDates.has(dateKey);
+                                
+                                return (
+                                    <div key={dateKey} className="relative">
+                                        
+                                        {/* Sticky Date Header */}
+                                        <div 
+                                            className="sticky top-0 z-10 my-4 flex items-center gap-4 cursor-pointer group select-none"
+                                            onClick={() => toggleDateCollapse(dateKey)}
+                                        >
+                                            <div className={`h-px flex-1 transition-colors ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
+                                            <div className={`text-[10px] font-bold px-3 py-1 rounded-full border shadow-sm flex items-center gap-2 transition-all ${
+                                                isDark 
+                                                ? 'bg-[#1e293b] border-slate-700 text-slate-400' 
+                                                : 'bg-white border-slate-200 text-slate-500'
+                                            }`}>
+                                                {getDateLabel(dateKey)}
+                                                {isCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                                            </div>
+                                            <div className={`h-px flex-1 transition-colors ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
+                                        </div>
+
+                                        {/* Messages Group */}
+                                        {!isCollapsed && (
+                                            <div className="space-y-4 pb-2">
+                                                {messages.map((msg, index) => {
+                                                    const isSystem = msg.type === 'system' || msg.author === 'System';
+                                                    const isMe = msg.type === 'user' && msg.author !== 'System';
+                                                    const isFirst = index === 0;
+
+                                                    if (isSystem) {
+                                                        return (
+                                                            <div key={msg.id} className="flex flex-col items-center my-2">
+                                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                                                                    isFirst 
+                                                                    ? (isDark ? 'bg-blue-900/20 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200')
+                                                                    : (isDark ? 'bg-slate-800 text-slate-500 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200')
+                                                                }`}>
+                                                                    {isFirst ? 'Automatische Nachricht' : 'System'}
+                                                                </span>
+                                                                <p className={`mt-2 text-xs text-center max-w-md ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                    {msg.text}
+                                                                </p>
+                                                                <span className={`mt-1 text-[10px] font-mono opacity-50 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                                    {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    return (
+                                                        <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                                            <div className="flex items-end gap-2 max-w-[85%]">
+                                                                {!isMe && (
+                                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ${isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`}>
+                                                                        <User size={14} />
+                                                                    </div>
+                                                                )}
+                                                                
+                                                                <div className={`p-3 rounded-2xl text-sm shadow-sm leading-relaxed whitespace-pre-wrap ${
+                                                                    isMe 
+                                                                    ? 'bg-[#0077B5] text-white rounded-tr-none' 
+                                                                    : (isDark ? 'bg-slate-800 text-slate-200 border border-slate-700 rounded-tl-none' : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none')
+                                                                }`}>
+                                                                    {msg.text}
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className={`flex items-center gap-1 mt-1 text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'} ${isMe ? 'mr-1' : 'ml-11'}`}>
+                                                                <span className="font-bold">{msg.author}</span>
+                                                                <span>•</span>
+                                                                <span className="font-mono">{new Date(msg.timestamp).toLocaleString(undefined, { hour: '2-digit', minute:'2-digit' })}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        {/* Chat Input */}
+                        {selectedTicket.status === 'Open' ? (
+                            <div className={`flex-none p-4 border-t ${isDark ? 'bg-[#1e293b] border-slate-800' : 'bg-white border-slate-200'}`}>
+                                <div className={`flex flex-col rounded-xl border focus-within:ring-2 focus-within:ring-[#0077B5]/30 transition-all ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                                    <textarea 
+                                        value={replyText}
+                                        onChange={(e) => setReplyText(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder="Schreiben Sie eine Antwort... (Ctrl+Enter zum Senden)"
+                                        className={`w-full p-4 bg-transparent outline-none text-sm resize-none h-20 ${isDark ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'}`}
+                                    />
+                                    <div className={`flex justify-between items-center px-2 pb-2`}>
+                                        <button className={`p-2 rounded-lg transition-colors ${isDark ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200'}`}>
+                                            <Paperclip size={18} />
+                                        </button>
+                                        
+                                        {/* SPLIT SEND BUTTON */}
+                                        <div className="relative" ref={sendMenuRef}>
+                                            <div className="flex shadow-md shadow-blue-500/20">
+                                                <button 
+                                                    onClick={() => handleReplyTicket(selectedTicket, false)}
+                                                    disabled={!replyText.trim()}
+                                                    className="px-4 py-2 rounded-l-full bg-[#0077B5] hover:bg-[#00A0DC] text-white text-xs font-bold disabled:opacity-50 disabled:bg-slate-500 transition-colors flex items-center gap-2 border-r border-blue-400/30"
+                                                >
+                                                    <Send size={14} /> Senden
+                                                </button>
+                                                <button 
+                                                    onClick={() => setShowSendOptions(!showSendOptions)}
+                                                    disabled={!replyText.trim()}
+                                                    className="px-2 py-2 rounded-r-full bg-[#0077B5] hover:bg-[#00A0DC] text-white disabled:opacity-50 disabled:bg-slate-500 transition-colors"
+                                                >
+                                                    <ChevronDown size={14} />
+                                                </button>
+                                            </div>
+
+                                            {showSendOptions && (
+                                                <div className={`absolute bottom-full right-0 mb-2 w-48 rounded-xl border shadow-xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-2 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+                                                    <button
+                                                        onClick={() => handleReplyTicket(selectedTicket, true)}
+                                                        className={`w-full text-left px-4 py-3 text-xs font-bold flex items-center gap-2 transition-colors ${
+                                                            isDark ? 'text-slate-200 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-50'
+                                                        }`}
+                                                    >
+                                                        <Lock size={14} /> Senden & Abschließen
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className={`flex-none p-4 border-t text-center ${isDark ? 'bg-[#1e293b] border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                                <Lock size={20} className={`mx-auto mb-2 ${isDark ? 'text-slate-600' : 'text-slate-400'}`} />
+                                <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    Dieser Fall ist geschlossen.
+                                </p>
+                                <button 
+                                    onClick={() => handleReopenTicket(selectedTicket)}
+                                    className="mt-1 text-[#0077B5] text-xs font-bold hover:underline"
+                                >
+                                    Fall wiedereröffnen
+                                </button>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-50">
+                        <div className={`p-6 rounded-full mb-4 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                            <MessageSquare size={48} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                        </div>
+                        <h3 className={`font-bold text-xl ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Kein Fall ausgewählt</h3>
+                        <p className={`text-sm mt-2 max-w-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                            Wählen Sie einen Fall aus der Liste links aus, um den Verlauf zu sehen.
+                        </p>
+                    </div>
+                )}
+            </div>
         </div>
 
         <NewTicketModal 
