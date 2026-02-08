@@ -6,7 +6,7 @@ import {
   Hash, Info, CheckCircle2, AlertCircle, ChevronDown, Check,
   ArrowRight, ArrowLeft, Trash2, MapPin, FileText, Building2,
   AlertTriangle, Loader2, Home, ClipboardList, Ban, LogOut, 
-  PlusCircle, Clock, Box, ChevronUp, Briefcase, Minus
+  PlusCircle, Clock, Box, ChevronUp, Briefcase, Minus, XCircle
 } from 'lucide-react';
 import { StockItem, Theme, ReceiptHeader, PurchaseOrder, ReceiptMaster, Ticket } from '../types';
 import { MOCK_PURCHASE_ORDERS } from '../data';
@@ -92,11 +92,12 @@ const POSelectionModal = ({
   const [term, setTerm] = useState('');
 
   // STRICT FILTERING LOGIC:
-  // 1. Exclude Archived & Cancelled
+  // 1. Exclude Archived, Cancelled, & Force Closed
   // 2. Math Check: Total Received (Accepted) must be LESS than Total Ordered.
   const filtered = orders.filter(o => {
     // 1. Status Check
     if (o.isArchived || o.status === 'Storniert') return false;
+    if (o.isForceClosed) return false; // Force Closed orders are hidden from picker
 
     // 2. Math Check
     const totalOrdered = o.items.reduce((sum, i) => sum + i.quantityExpected, 0);
@@ -150,9 +151,20 @@ const POSelectionModal = ({
                           <div className="flex items-center gap-3">
                               <span className={`font-mono font-bold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>{po.id}</span>
                               <div className="flex gap-2">
+                                  {/* Identity Badge */}
                                   {isProject ? <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider flex items-center gap-1 ${isDark ? 'bg-blue-900/30 text-blue-400 border-blue-900' : 'bg-blue-100 text-blue-700 border-blue-200'}`}><Briefcase size={10} /> Projekt</span> : <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider flex items-center gap-1 ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}><Box size={10} /> Lager</span>}
-                                  {totalReceived === 0 && <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>Offen</span>}
-                                  {totalReceived > 0 && totalReceived < totalOrdered && <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>Teillieferung</span>}
+                                  
+                                  {/* Lifecycle Badge */}
+                                  {po.isForceClosed ? (
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>Erledigt</span>
+                                  ) : (
+                                      <>
+                                        {totalReceived === 0 && <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>Offen</span>}
+                                        {totalReceived > 0 && totalReceived < totalOrdered && <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>Teillieferung</span>}
+                                      </>
+                                  )}
+
+                                  {/* Process Badge */}
                                   {isInCheck && <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-[#6264A7]/20 text-[#9ea0e6] border-[#6264A7]/40' : 'bg-[#6264A7]/10 text-[#6264A7] border-[#6264A7]/20'}`}>In Prüfung</span>}
                               </div>
                           </div>
@@ -180,7 +192,8 @@ interface GoodsReceiptFlowProps {
   onSuccess: (
     header: Omit<ReceiptHeader, 'timestamp' | 'itemCount'>, 
     cartItems: any[], // Passing full split-math objects
-    newItemsCreated: StockItem[]
+    newItemsCreated: StockItem[],
+    forceClose?: boolean // New: Allows "Short Close"
   ) => void;
   onLogStock?: (itemId: string, itemName: string, action: 'add' | 'remove', quantity: number, source?: string, context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project') => void;
   purchaseOrders?: PurchaseOrder[];
@@ -220,6 +233,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
   const [linkedPoId, setLinkedPoId] = useState<string | null>(null);
   const [showPoModal, setShowPoModal] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [forceClose, setForceClose] = useState(false); // New State: Short Close
 
   // -- Portals State --
   const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
@@ -242,6 +256,18 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [newItemData, setNewItemData] = useState<Partial<StockItem>>({ name: '', sku: '', category: 'Material', minStock: 0, system: '' });
+
+  // --- LOGIC: CHECK FOR PARTIAL ---
+  const isPartialDelivery = useMemo(() => {
+      if (!linkedPoId) return false;
+      return cart.some(c => {
+          const ordered = c.orderedQty || 0;
+          const previous = c.previouslyReceived || 0;
+          const current = c.qtyAccepted || 0;
+          // Returns true if Total Received (Prev + Current) is still less than Ordered
+          return (previous + current) < ordered;
+      });
+  }, [cart, linkedPoId]);
 
   // --- LOGIC: STATUS CALCULATOR ---
   const calculateReceiptStatus = (currentCart: CartItem[], poId: string | null) => {
@@ -470,7 +496,9 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
 
     const newItemsCreated = cart.filter(c => c.qtyAccepted > 0).map(c => c.item).filter(i => !existingItems.find(ex => ex.id === i.id));
     const finalHeader = { ...headerData, batchId, status: finalResultStatus };
-    onSuccess(finalHeader, cleanCartItems, newItemsCreated);
+    
+    // Pass forceClose to success handler
+    onSuccess(finalHeader, cleanCartItems, newItemsCreated, forceClose);
   };
 
   // --- UI HELPERS ---
@@ -748,6 +776,29 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                     <div className="p-4 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20 max-w-md mx-auto text-sm">
                         <strong className="block mb-1">Hinweis:</strong>
                         Es wurden {cart.reduce((a,c) => a + c.qtyRejected, 0)} Artikel abgelehnt. Dafür wird automatisch ein Ticket erstellt.
+                    </div>
+                )}
+
+                {/* FORCE CLOSE OPTION FOR PARTIAL DELIVERIES */}
+                {isPartialDelivery && (
+                    <div className={`max-w-md mx-auto p-4 rounded-xl border flex items-center gap-4 text-left transition-colors cursor-pointer group ${
+                        forceClose 
+                        ? (isDark ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200') 
+                        : (isDark ? 'bg-slate-800/50 border-slate-700 hover:border-slate-600' : 'bg-white border-slate-200 hover:border-slate-300')
+                    }`} onClick={() => setForceClose(!forceClose)}>
+                        <div className="relative flex items-center">
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${forceClose ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-400 bg-transparent'}`}>
+                                {forceClose && <Check size={14} strokeWidth={3} />}
+                            </div>
+                        </div>
+                        <div className="flex-1">
+                            <div className={`font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                                Bestellung abschließen (Restmenge stornieren)
+                            </div>
+                            <div className="text-xs text-slate-500">
+                                Setzt den Status der Bestellung auf "Abgeschlossen", auch wenn Artikel fehlen.
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

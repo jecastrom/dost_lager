@@ -13,6 +13,8 @@ import { MOCK_ITEMS } from '../data'; // Import Mock Data for System Lookup
 // --- HELPER: MATH LOGIC FOR COMPLETION ---
 const isOrderComplete = (order: PurchaseOrder) => {
     if (order.status === 'Storniert') return true;
+    if (order.isForceClosed) return true; // Force Close = Complete
+    
     const totalOrdered = order.items.reduce((sum, i) => sum + i.quantityExpected, 0);
     const totalReceived = order.items.reduce((sum, i) => sum + i.quantityReceived, 0);
     
@@ -27,6 +29,7 @@ const isOrderComplete = (order: PurchaseOrder) => {
 // Translates math state into legacy status strings that LifecycleStepper understands
 const getVisualLifecycleStatus = (order: PurchaseOrder) => {
     if (order.status === 'Storniert') return 'Storniert';
+    if (order.isForceClosed) return 'Abgeschlossen'; // Visual override
     if (isOrderComplete(order)) return 'Abgeschlossen';
     
     const totalReceived = order.items.reduce((sum, i) => sum + i.quantityReceived, 0);
@@ -74,6 +77,15 @@ const OrderStatusBadges = ({ order, linkedReceipt, theme }: { order: PurchaseOrd
         badges.push(
             <span key="life-cancelled" className="px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider bg-red-100 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50">
                 Storniert
+            </span>
+        );
+    } else if (order.isForceClosed) {
+        // FORCE CLOSED override
+        badges.push(
+            <span key="life-force-closed" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${
+                isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+            }`}>
+                Erledigt
             </span>
         );
     } else if (totalReceived === 0) {

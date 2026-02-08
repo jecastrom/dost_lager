@@ -29,9 +29,18 @@ const ReceiptStatusBadges = ({
     const badges: React.ReactNode[] = [];
     
     // Determine effective status: Master takes precedence over Header (for grouped rows)
-    // Normalize to string to prevent rendering issues
-    const rawStatus = master ? master.status : header.status;
-    const effectiveStatus = rawStatus ? String(rawStatus).trim() : '';
+    let rawStatus = (master && master.status) ? master.status : header.status;
+
+    // CRITICAL FIX: Default to 'Gebucht' if status is missing, empty, or a dash.
+    // If a receipt exists here, it is booked by definition unless flagged otherwise.
+    if (!rawStatus || String(rawStatus).trim() === '' || String(rawStatus).trim() === '-') {
+        rawStatus = 'Gebucht';
+    }
+
+    const effectiveStatus = String(rawStatus).trim();
+    
+    // Normalize for robust comparison (Case Insensitive)
+    const statusLower = effectiveStatus.toLowerCase();
 
     // --- BADGE 1: IDENTITY (SOURCE) ---
     // Rule: IF linkedPO?.status === 'Projekt' -> [PROJEKT]
@@ -55,54 +64,56 @@ const ReceiptStatusBadges = ({
     // --- BADGE 2: THE STATUS (MANDATORY) ---
     // Maps the 'effectiveStatus' string to a colored badge.
     
-    if (effectiveStatus === 'Gebucht' || effectiveStatus === 'Abgeschlossen') {
+    if (statusLower === 'gebucht' || statusLower === 'abgeschlossen' || statusLower === 'in bearbeitung') {
+        // Handle 'Gebucht' (Standard), 'Abgeschlossen' (Legacy), and 'In Bearbeitung' (Default) as Green Booked Badge
         badges.push(
             <span key="st-booked" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
                 Gebucht
             </span>
         );
-    } else if (effectiveStatus === 'In Prüfung' || effectiveStatus === 'Wartet auf Prüfung' || header.lieferscheinNr === 'Ausstehend') {
+    } else if (statusLower === 'in prüfung' || statusLower === 'wartet auf prüfung' || header.lieferscheinNr === 'Ausstehend') {
         badges.push(
             <span key="st-check" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider whitespace-nowrap ${isDark ? 'bg-[#6264A7]/20 text-[#9ea0e6] border-[#6264A7]/40' : 'bg-[#6264A7]/10 text-[#6264A7] border-[#6264A7]/20'}`}>
                 In Prüfung
             </span>
         );
-    } else if (effectiveStatus === 'Schaden' || effectiveStatus === 'Beschädigt' || effectiveStatus.includes('Schaden')) {
+    } else if (statusLower === 'schaden' || statusLower === 'beschädigt' || statusLower.includes('schaden')) {
         badges.push(
             <span key="st-damage" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200'}`}>
                 Schaden
             </span>
         );
-    } else if (effectiveStatus === 'Abgelehnt') {
+    } else if (statusLower === 'abgelehnt') {
         badges.push(
             <span key="st-rejected" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200'}`}>
                 Abgelehnt
             </span>
         );
-    } else if (effectiveStatus === 'Teillieferung' || effectiveStatus.includes('Teil')) {
+    } else if (statusLower === 'teillieferung' || statusLower.includes('teil')) {
         badges.push(
             <span key="st-partial" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
                 Teillieferung
             </span>
         );
-    } else if (effectiveStatus === 'Übermenge' || effectiveStatus === 'Zu viel') {
+    } else if (statusLower === 'übermenge' || statusLower === 'zu viel') {
         badges.push(
             <span key="st-over" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
                 Übermenge
             </span>
         );
-    } else if (effectiveStatus === 'Falsch geliefert') {
+    } else if (statusLower === 'falsch geliefert') {
         badges.push(
             <span key="st-wrong" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
                 Falsch
             </span>
         );
     } else {
-        // Fallback for unknown statuses
-        // CRITICAL FIX: Do NOT render badge if status is empty, null, or just a dash
-        if (effectiveStatus && effectiveStatus !== '-' && effectiveStatus.length > 0 && effectiveStatus !== 'null' && effectiveStatus !== 'undefined') {
+        // CATCH-ALL DEFAULT:
+        // If status doesn't match any known case, display it as a generic gray badge.
+        // This ensures NO status is ever invisible.
+        if (effectiveStatus && effectiveStatus !== '-' && effectiveStatus !== 'null' && effectiveStatus !== 'undefined') {
             badges.push(
-                <span key="st-generic" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                <span key="st-generic" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                     {effectiveStatus}
                 </span>
             );
