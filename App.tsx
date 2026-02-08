@@ -208,7 +208,15 @@ export default function App() {
   };
 
   const handleCancelOrder = (id: string) => {
-    setPurchaseOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'Storniert' } : o));
+    // Debug Alert
+    // alert(`Cancelling Order ID: ${id}`); // Optional: Comment out for production
+    
+    setPurchaseOrders(prev => prev.map(o => {
+      if (o.id === id) {
+        return { ...o, status: 'Storniert' }; 
+      }
+      return o;
+    }));
   };
 
   const handleEditOrder = (order: PurchaseOrder) => {
