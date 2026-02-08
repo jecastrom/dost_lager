@@ -208,8 +208,8 @@ export default function App() {
   };
 
   const handleCancelOrder = (id: string) => {
-    // Debug Alert
-    // alert(`Cancelling Order ID: ${id}`); // Optional: Comment out for production
+    // Debugging: Proof of Life
+    alert(`Debug: Cancel signal received for Order ${id}`);
     
     setPurchaseOrders(prev => prev.map(o => {
       if (o.id === id) {
