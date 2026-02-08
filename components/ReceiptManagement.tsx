@@ -490,13 +490,14 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
 
   const handleForceClose = () => {
      if (!selectedBatchId) return;
-     if (window.confirm("Möchten Sie diesen Wareneingang wirklich abschließen?")) {
-         onUpdateStatus(selectedBatchId, 'Abgeschlossen');
-     }
+     // Removed window.confirm to fix sandbox compatibility issue
+     onUpdateStatus(selectedBatchId, 'Abgeschlossen');
   };
 
   const handleRevert = () => {
       if (!selectedBatchId) return;
+      // Revert still uses confirm as it's a destructive action (removing stock).
+      // Assuming sandbox issue was specific to 'Force Close' context, but safe to keep for now.
       if (window.confirm("Möchten Sie die Buchung stornieren? Der Lagerbestand wird entsprechend reduziert.")) {
           onRevertReceipt(selectedBatchId);
       }
@@ -653,7 +654,14 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
     return items.find(i => i.batchId === header.batchId && i.sku === sku);
   };
 
-  const renderItemStatusIconForPO = (ordered: number, received: number, hasIssues: boolean, isForceClosed?: boolean) => {
+  const renderItemStatusIconForPO = (
+      ordered: number, 
+      received: number, 
+      hasIssues: boolean, 
+      isForceClosed?: boolean,
+      isProject?: boolean,
+      isMasterClosed?: boolean
+  ) => {
       // Priority 1: Issues (Damage, etc.)
       if (hasIssues) {
            return (<div className="flex justify-center" title="Probleme gemeldet"><AlertTriangle size={18} className="text-red-500" /></div>);
@@ -663,10 +671,12 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
       const isOver = received > ordered;
       const isPerfect = ordered === received;
 
-      // Scenario A: Force Closed & Short -> Gray Check
-      if (isForceClosed && isShort) {
+      // NEW LOGIC: Implicit Close via Project or Master Status (Gray Check)
+      const isImplicitlyClosed = isProject || isMasterClosed || isForceClosed;
+
+      if (isImplicitlyClosed && isShort) {
           return (
-            <div className="flex justify-center" title="Manuell abgeschlossen (Unterlieferung)">
+            <div className="flex justify-center" title="Abgeschlossen (Unterlieferung akzeptiert)">
                 <CheckCircle2 size={18} className="text-slate-400" />
             </div>
           );
@@ -1214,6 +1224,9 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                                     const pending = Math.max(0, ordered - received);
                                                     const over = Math.max(0, received - ordered);
                                                     const hasIssues = linkedMaster.deliveries.some(d => d.items.some(di => di.sku === poItem.sku && di.damageFlag));
+                                                    
+                                                    const isProject = linkedPO.status === 'Projekt';
+                                                    const isMasterClosed = linkedMaster?.status === 'Gebucht' || linkedMaster?.status === 'Abgeschlossen';
 
                                                     return (
                                                         <tr key={poItem.sku} className={isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}>
@@ -1236,7 +1249,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                                                 {over > 0 ? over : <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}
                                                             </td>
                                                             <td className="px-4 py-2 text-center">
-                                                                {renderItemStatusIconForPO(ordered, received, hasIssues, linkedPO.isForceClosed)}
+                                                                {renderItemStatusIconForPO(ordered, received, hasIssues, linkedPO.isForceClosed, isProject, isMasterClosed)}
                                                             </td>
                                                         </tr>
                                                     );
@@ -1356,6 +1369,17 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                                                                         {dItem.manualAddFlag && (
                                                                                             <div className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
                                                                                                 <AlertTriangle size={8} /> Manuell
+                                                                                            </div>
+                                                                                        )}
+                                                                                        {/* RETURN DATA DISPLAY */}
+                                                                                        {(dItem.returnCarrier || dItem.returnTrackingId) && (
+                                                                                            <div className={`mt-1.5 text-[10px] p-1.5 rounded border flex flex-col gap-0.5 ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-600'}`}>
+                                                                                                <div className="font-bold flex items-center gap-1 text-orange-500"><Truck size={10}/> Rücksendung:</div>
+                                                                                                <div>
+                                                                                                    {dItem.returnCarrier && <span className="font-bold">{dItem.returnCarrier} </span>}
+                                                                                                    {dItem.returnTrackingId && <span className="font-mono">#{dItem.returnTrackingId}</span>}
+                                                                                                </div>
+                                                                                                {dItem.rejectionReason && <div className="italic opacity-70">{dItem.rejectionReason}</div>}
                                                                                             </div>
                                                                                         )}
                                                                                     </td>

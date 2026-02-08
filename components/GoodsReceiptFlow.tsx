@@ -444,7 +444,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
             if (initialMode === 'return') {
                  // Auto-Fill for Return Mode
                  const datePart = new Date().toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'}).replace(/\./g, '');
-                 const retLsNr = `RET-${datePart}`;
+                 const retLsNr = `RÜK-${datePart}`; // UPDATED PREFIX TO RÜK
                  
                  // Smart Location Lookup (from Inventory)
                  let loc = headerData.warehouseLocation || 'Wareneingang';
@@ -783,10 +783,10 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                                 {linkedPoId ? (
                                                     rawRemaining < 0 ? (
                                                         <span className="text-orange-500 font-bold">+{Math.abs(rawRemaining)} Zu viel</span>
-                                                    ) : rawRemaining === 0 ? (
-                                                        <span className="text-emerald-500 font-bold flex items-center gap-1"><Check size={14}/> Voll</span>
+                                                    ) : rawRemaining > 0 ? (
+                                                        <span className={isDark ? 'text-amber-400 font-bold' : 'text-amber-600 font-bold'}>+{rawRemaining} Zu wenig</span>
                                                     ) : (
-                                                        <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{rawRemaining}</span>
+                                                        <span className="text-emerald-500 font-bold">0</span>
                                                     )
                                                 ) : (
                                                     '-'

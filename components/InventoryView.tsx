@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Search, PlusCircle, Filter, MapPin, PackagePlus, 
-  Minus, Plus, Hash, Pencil, AlertTriangle, CheckCircle2, AlertOctagon, MoreHorizontal, Copy, CopyPlus
+  Minus, Plus, Hash, Pencil, AlertTriangle, CheckCircle2, AlertOctagon, MoreHorizontal, Copy, CopyPlus, Download
 } from 'lucide-react';
 import { StockItem, Theme, ViewMode } from '../types';
 import { ItemModal } from './ItemModal';
@@ -363,6 +363,45 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setIsCloning(false);
   };
 
+  const handleExport = () => {
+    // 1. Define Headers
+    const headers = [
+      "Artikel Bezeichnung",
+      "Artikel Nummer",
+      "Kapazität in Ah",
+      "Anzahl",
+      "Mindestbestand",
+      "System",
+      "Hersteller/Lieferant"
+    ].join(";");
+
+    // 2. Map Rows with CSV escaping for quotes
+    const rows = inventory.map(item => {
+      return [
+        `"${item.name.replace(/"/g, '""')}"`, 
+        `"${item.sku.replace(/"/g, '""')}"`,
+        item.capacityAh !== undefined ? item.capacityAh : "",
+        item.stockLevel,
+        item.minStock,
+        `"${(item.system || "").replace(/"/g, '""')}"`,
+        `"${(item.manufacturer || "").replace(/"/g, '""')}"`
+      ].join(";");
+    });
+
+    // 3. Combine with BOM for Excel UTF-8 support
+    const csvContent = "\uFEFF" + [headers, ...rows].join("\n");
+
+    // 4. Trigger Download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "Lagerbestand_Export.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="h-full flex flex-col animate-in fade-in slide-in-from-right-8 duration-300">
       
@@ -373,6 +412,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
            <p className="text-slate-500 text-sm">Verwalten Sie Ihr gesamtes Inventar an einem Ort.</p>
         </div>
         <div className="flex items-center gap-2">
+            <button
+                onClick={handleExport}
+                className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all border shadow-sm ${
+                    isDark 
+                        ? 'border-slate-700 text-slate-300 hover:bg-slate-800' 
+                        : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                }`}
+            >
+                <Download size={20} /> Exportieren
+            </button>
             <button
                 onClick={handleOpenNewItem}
                 className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${
