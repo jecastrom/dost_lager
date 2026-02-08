@@ -46,20 +46,24 @@ export default function App() {
   });
 
   // Global Configuration State
+  // UPDATED: Default is now FALSE (Optional)
   const [requireDeliveryDate, setRequireDeliveryDate] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-        return localStorage.getItem('requireDeliveryDate') !== 'false';
+        const saved = localStorage.getItem('requireDeliveryDate');
+        // Only return true if explicitly saved as 'true'. Default (null) becomes false.
+        return saved === 'true';
     }
-    return true;
+    return false;
   });
 
   // Ticket Automation Config State
+  // UPDATED: All defaults set to TRUE for maximum coverage
   const [ticketConfig, setTicketConfig] = useState<TicketConfig>(() => {
     if (typeof window !== 'undefined') {
         const saved = localStorage.getItem('ticketConfig');
         if (saved) return JSON.parse(saved);
     }
-    return { missing: false, extra: false, damage: true, wrong: true, rejected: true };
+    return { missing: true, extra: true, damage: true, wrong: true, rejected: true };
   });
   
   // Data State

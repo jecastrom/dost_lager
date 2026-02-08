@@ -1,7 +1,7 @@
 
 import React, { useRef, useState } from 'react';
 import { Theme, StockItem, RawGermanItem, ActiveModule } from '../types';
-import { Book, ChevronRight, Moon, Sun, Monitor, Shield, Info, Upload, Trash2, Database, AlertCircle, CheckCircle2, Users, Sidebar, LayoutPanelLeft, List, LayoutGrid, Bug, Calendar, Ticket, ToggleLeft, ToggleRight, Ban, AlertTriangle, PlusCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Book, ChevronRight, Moon, Sun, Monitor, Shield, Info, Upload, Trash2, Database, AlertCircle, CheckCircle2, Users, Sidebar, LayoutPanelLeft, List, LayoutGrid, Bug, Calendar, Ticket, ToggleLeft, ToggleRight, Ban, AlertTriangle, PlusCircle, ChevronDown, ChevronUp, Globe } from 'lucide-react';
 
 export interface TicketConfig {
   missing: boolean;  // Offen
@@ -135,6 +135,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         <p className="text-slate-500">Verwalten Sie Ihre App-Präferenzen und Systeminformationen.</p>
       </div>
 
+      {/* VIEW & GENERAL SETTINGS (LOCAL) */}
       <div className={`rounded-2xl border overflow-hidden mb-8 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
         <div className={`px-6 py-3 border-b text-xs font-bold uppercase tracking-wider ${isDark ? 'bg-slate-900 border-slate-800 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
           Ansicht & Allgemein
@@ -157,13 +158,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             <div className={`flex p-1 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
                 <button 
                     onClick={() => onSetSidebarMode('slim')}
-                    className={`px-3 py-1 text-xs font-bold rounded transition-all ${sidebarMode === 'slim' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-3 py-1 text-xs font-bold rounded transition-all ${
+                        sidebarMode === 'slim' 
+                        ? 'bg-[#0077B5] text-white shadow-sm' 
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
                 >
                     Kompakt
                 </button>
                 <button 
                     onClick={() => onSetSidebarMode('full')}
-                    className={`px-3 py-1 text-xs font-bold rounded transition-all ${sidebarMode === 'full' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-3 py-1 text-xs font-bold rounded transition-all ${
+                        sidebarMode === 'full' 
+                        ? 'bg-[#0077B5] text-white shadow-sm' 
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
                 >
                     Voll
                 </button>
@@ -181,8 +190,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     onClick={() => onSetInventoryViewMode('grid')}
                     className={`px-3 py-1.5 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all ${
                         inventoryViewMode === 'grid' 
-                        ? 'bg-white text-[#0077B5] shadow-sm border border-[#0077B5]/20 dark:bg-slate-950 dark:text-blue-400 dark:border-blue-500/50' 
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 border border-transparent'
+                        ? 'bg-[#0077B5] text-white shadow-sm' 
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                     }`}
                 >
                     <LayoutGrid size={14} /> Grid
@@ -191,8 +200,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     onClick={() => onSetInventoryViewMode('list')}
                     className={`px-3 py-1.5 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all ${
                         inventoryViewMode === 'list' 
-                        ? 'bg-white text-[#0077B5] shadow-sm border border-[#0077B5]/20 dark:bg-slate-950 dark:text-blue-400 dark:border-blue-500/50' 
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 border border-transparent'
+                        ? 'bg-[#0077B5] text-white shadow-sm' 
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                     }`}
                 >
                     <List size={14} /> List
@@ -202,24 +211,37 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         />
       </div>
 
-      {/* PROCUREMENT & AUTOMATION SETTINGS */}
-      <div className={`rounded-2xl border overflow-hidden mb-8 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-        <div className={`px-6 py-3 border-b text-xs font-bold uppercase tracking-wider ${isDark ? 'bg-slate-900 border-slate-800 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-          Einkauf & Prozesse
+      {/* PROCUREMENT SETTINGS (GLOBAL) */}
+      <div className={`rounded-2xl border overflow-hidden mb-8 border-l-4 border-l-[#0077B5] ${
+          isDark 
+          ? 'bg-blue-900/10 border-blue-900/30' 
+          : 'bg-blue-50/50 border-blue-100 shadow-sm'
+      }`}>
+        <div className={`px-6 py-3 border-b flex items-center gap-3 ${
+            isDark 
+            ? 'bg-blue-900/20 border-blue-900/30' 
+            : 'bg-blue-100/30 border-blue-100'
+        }`}>
+          <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
+            Einkauf & Prozesse
+          </span>
+          <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase text-[#0077B5] ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
+             <Globe size={10} /> Global
+          </span>
         </div>
 
         <SettingRow 
-          icon={<Calendar size={20} />}
+          icon={<Calendar size={20} className={isDark ? 'text-blue-400' : 'text-[#0077B5]'} />}
           label="Liefertermin als Pflichtfeld"
           description="Muss bei neuen Bestellungen angegeben werden."
           action={
-            <div className={`flex p-1 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+            <div className={`flex p-1 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-white border border-blue-100'}`}>
                 <button 
                     onClick={() => onSetRequireDeliveryDate(true)}
                     className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
                         requireDeliveryDate 
-                        ? 'bg-white text-[#0077B5] shadow-sm border border-[#0077B5]/20 dark:bg-slate-950 dark:text-blue-400 dark:border-blue-500/50' 
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 border border-transparent'
+                        ? 'bg-[#0077B5] text-white shadow-sm' 
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                     }`}
                 >
                     Pflicht
@@ -228,8 +250,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     onClick={() => onSetRequireDeliveryDate(false)}
                     className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
                         !requireDeliveryDate 
-                        ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-200' 
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 border border-transparent'
+                        ? 'bg-[#0077B5] text-white shadow-sm' 
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                     }`}
                 >
                     Optional
@@ -239,21 +261,34 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         />
       </div>
 
-      {/* TICKET AUTOMATION SETTINGS - ACCORDION */}
-      <div className={`rounded-2xl border overflow-hidden mb-8 transition-all ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+      {/* TICKET AUTOMATION SETTINGS (GLOBAL) */}
+      <div className={`rounded-2xl border overflow-hidden mb-8 border-l-4 border-l-[#0077B5] transition-all ${
+          isDark 
+          ? 'bg-blue-900/10 border-blue-900/30' 
+          : 'bg-blue-50/50 border-blue-100 shadow-sm'
+      }`}>
         
         {/* Header - Clickable */}
         <button 
             onClick={() => setIsTicketConfigOpen(!isTicketConfigOpen)}
-            className={`w-full flex items-center justify-between px-6 py-4 transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'} ${isTicketConfigOpen ? 'border-b ' + (isDark ? 'border-slate-800' : 'border-slate-100') : ''}`}
+            className={`w-full flex items-center justify-between px-6 py-4 transition-colors ${
+                isDark 
+                ? 'hover:bg-blue-900/20' 
+                : 'hover:bg-blue-50'
+            } ${isTicketConfigOpen ? 'border-b ' + (isDark ? 'border-blue-900/30' : 'border-blue-100') : ''}`}
         >
             <div className="flex items-center gap-3">
-                 <div className={`p-2 rounded-lg ${isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-[#0077B5]'}`}>
+                 <div className={`p-2 rounded-lg ${isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-[#0077B5]'}`}>
                     <Ticket size={20} />
                  </div>
                  <div className="text-left">
-                    <div className={`font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>Ticket-Automatisierung</div>
-                    <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                    <div className="flex items-center gap-2 mb-0.5">
+                        <span className={`font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>Ticket-Automatisierung</span>
+                        <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase text-[#0077B5] ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
+                            <Globe size={10} /> Global
+                        </span>
+                    </div>
+                    <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         {isTicketConfigOpen ? 'Einstellungen für automatische Fallerstellung' : 'Automatische Fallerstellung konfigurieren'}
                     </div>
                  </div>
@@ -277,7 +312,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         {/* Expandable Content */}
         {isTicketConfigOpen && (
             <div className="animate-in slide-in-from-top-2 duration-200">
-                <div className={`p-4 border-b text-sm leading-relaxed ${isDark ? 'border-slate-800 text-slate-400 bg-slate-900/30' : 'border-slate-100 text-slate-600 bg-slate-50/50'}`}>
+                <div className={`p-4 border-b text-sm leading-relaxed ${isDark ? 'border-blue-900/30 text-blue-200 bg-blue-900/20' : 'border-blue-100 text-blue-800 bg-blue-50'}`}>
                     <div className="flex gap-3">
                         <Info size={18} className="shrink-0 mt-0.5 text-[#0077B5]" />
                         <p>Wählen Sie aus, bei welchen Abweichungen im Wareneingang automatisch ein Support-Fall (Ticket) erstellt werden soll. Dies erleichtert die Nachverfolgung von Reklamationen.</p>

@@ -176,7 +176,7 @@ const getInspectionState = (header: ReceiptHeader, po?: PurchaseOrder, master?: 
              totalReceived = po.items.reduce((sum, i) => sum + i.quantityReceived, 0);
         }
         
-        // Only allow "Next Delivery" if there are items pending
+        // Only allow "Next Delivery" if there is pending quantity
         if (totalReceived < totalOrdered) {
             return { canInspect: true, label: 'Nachlieferung erfassen', style: 'secondary' };
         }
@@ -211,6 +211,9 @@ type ReceiptListRow = ReceiptHeader & {
     subHeaders?: ReceiptHeader[]; // For search reference
 };
 
+// Filter Types
+type FilterStatus = 'all' | 'pending' | 'issues' | 'completed';
+
 export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
   headers,
   items,
@@ -233,7 +236,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
   
   // -- Overview State --
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'booked'>('all');
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
   
   // Advanced Filters
   const [showFilters, setShowFilters] = useState(false);
@@ -335,10 +338,60 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
       return result.sort((a, b) => b.timestamp - a.timestamp);
   }, [headers, receiptMasters]);
 
+  // --- FILTER HELPERS ---
+  const getCategory = (row: ReceiptListRow): FilterStatus => {
+      // Determine relevant tickets for this Row (Context-Aware)
+      let rowTickets: Ticket[] = [];
+      if (row.bestellNr) {
+          // If part of a PO, check ALL tickets for that PO
+          rowTickets = tickets.filter(t => {
+               const h = headers.find(header => header.batchId === t.receiptId);
+               return h?.bestellNr === row.bestellNr;
+          });
+      } else {
+          // Single receipt
+          rowTickets = tickets.filter(t => t.receiptId === row.batchId);
+      }
+
+      const hasOpenTickets = rowTickets.some(t => t.status === 'Open');
+      const statusRaw = row.masterStatus || row.status || '';
+      const s = statusRaw.toLowerCase().trim();
+
+      // 1. ISSUES (Highest Priority)
+      // Matches damage, rejection, wrong delivery, or open tickets
+      if (hasOpenTickets) return 'issues';
+      if (['schaden', 'abgelehnt', 'falsch', 'beschädigt'].some(k => s.includes(k))) return 'issues';
+
+      // 2. COMPLETED
+      // Matches Booked, Closed, or "In Bearbeitung" (Legacy Default)
+      if (['gebucht', 'abgeschlossen', 'in bearbeitung', 'erledigt'].includes(s)) return 'completed';
+
+      // 3. PENDING (Default Workload)
+      // Matches In Prüfung, Partial, Overdelivery, Waiting, or Empty
+      return 'pending';
+  };
+
+  // --- COUNTERS CALCULATION ---
+  const categoryCounts = useMemo(() => {
+      const counts = { all: 0, pending: 0, issues: 0, completed: 0 };
+      groupedRows.forEach(row => {
+          counts.all++;
+          const cat = getCategory(row);
+          if (counts[cat] !== undefined) counts[cat]++;
+      });
+      return counts;
+  }, [groupedRows, tickets, headers]);
+
   // 2. Filter Logic
   const filteredRows = useMemo(() => {
     return groupedRows.filter(row => {
-      const displayStatus = row.masterStatus || row.status;
+      // 1. Status Filter (Smart Categories)
+      if (statusFilter !== 'all') {
+          const category = getCategory(row);
+          if (category !== statusFilter) return false;
+      }
+
+      // 2. Search Filter
       const term = searchTerm.toLowerCase();
       let matchesSearch = false;
 
@@ -356,13 +409,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
       
       if (!matchesSearch) return false;
 
-      if (statusFilter === 'booked') {
-          if (displayStatus !== 'Gebucht' && displayStatus !== 'Abgeschlossen') return false;
-      }
-      if (statusFilter === 'open') {
-          if (displayStatus === 'Gebucht' || displayStatus === 'Abgeschlossen') return false;
-      }
-
+      // 3. Date Filters
       if (dateFrom || dateTo) {
           const entryDate = new Date(row.timestamp).setHours(0,0,0,0);
           if (dateFrom) {
@@ -375,6 +422,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
           }
       }
 
+      // 4. User Filter
       if (filterUser) {
           const user = (row.createdByName || '').toLowerCase();
           if (!user.includes(filterUser.toLowerCase())) return false;
@@ -382,9 +430,9 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
 
       return true;
     });
-  }, [groupedRows, searchTerm, statusFilter, dateFrom, dateTo, filterUser]);
+  }, [groupedRows, searchTerm, statusFilter, dateFrom, dateTo, filterUser, tickets, headers]);
 
-  // Snapshot Logic
+  // ... (Snapshot Logic Omitted - Same as before)
   const deliverySnapshots = useMemo(() => {
       if (!linkedMaster) return {};
       const snaps: Record<string, Record<string, { pre: number, current: number, post: number }>> = {};
@@ -407,7 +455,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
   const canReceiveMore = useMemo(() => {
       if (!linkedPO) return false;
       if (linkedPO.status === 'Abgeschlossen' || linkedPO.status === 'Storniert') return false;
-      if (linkedPO.isForceClosed) return false; // Ensure force closed orders cannot receive more
+      if (linkedPO.isForceClosed) return false; 
       const hasRemaining = linkedPO.items.some(i => i.quantityReceived < i.quantityExpected);
       return hasRemaining;
   }, [linkedPO]);
@@ -462,7 +510,6 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
       setShowDeliveryList(false);
       setExpandedDeliveryId(deliveryId);
       
-      // Allow state update to render content before scrolling
       setTimeout(() => {
           const el = document.getElementById(`delivery-${deliveryId}`);
           if (el) {
@@ -475,6 +522,53 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
       if (!selectedBatchId || !commentInput.trim()) return;
       onAddComment(selectedBatchId, commentType, commentInput);
       setCommentInput('');
+  };
+
+  // --- UI Components ---
+
+  const FilterChip = ({ 
+      label, 
+      count, 
+      active, 
+      onClick, 
+      type 
+  }: { 
+      label: string, 
+      count: number, 
+      active: boolean, 
+      onClick: () => void, 
+      type: 'neutral' | 'pending' | 'issue' | 'success' 
+  }) => {
+      // Define styles based on type and active state
+      let activeClass = '';
+      if (active) {
+          switch (type) {
+              case 'neutral': activeClass = 'bg-[#0077B5] text-white border-transparent shadow-md'; break;
+              case 'pending': activeClass = 'bg-amber-500 text-white border-transparent shadow-md'; break;
+              case 'issue': activeClass = 'bg-red-500 text-white border-transparent shadow-md'; break;
+              case 'success': activeClass = 'bg-[#0077B5] text-white border-transparent shadow-md'; break;
+          }
+      } else {
+          activeClass = isDark 
+            ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-blue-400' 
+            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400';
+      }
+
+      return (
+          <button
+              onClick={onClick}
+              className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all border flex items-center gap-2 ${activeClass}`}
+          >
+              {label}
+              {count > 0 && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] min-w-[20px] text-center ${
+                      active ? 'bg-white/20 text-white' : (isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-500')
+                  }`}>
+                      {count}
+                  </span>
+              )}
+          </button>
+      );
   };
 
   // --- Helper Functions for Badges & Icons ---
@@ -559,10 +653,36 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
     return items.find(i => i.batchId === header.batchId && i.sku === sku);
   };
 
-  const renderItemStatusIconForPO = (ordered: number, received: number, hasIssues: boolean) => {
-      const isPerfect = !hasIssues && ordered === received;
-      if (isPerfect) return (<div className="flex justify-center"><CheckCircle2 size={18} className="text-emerald-500" /></div>);
-      return (<div className="flex justify-center" title={hasIssues ? "Probleme gemeldet" : ordered !== received ? "Mengenabweichung" : ""}><AlertTriangle size={18} className="text-amber-500" /></div>);
+  const renderItemStatusIconForPO = (ordered: number, received: number, hasIssues: boolean, isForceClosed?: boolean) => {
+      // Priority 1: Issues (Damage, etc.)
+      if (hasIssues) {
+           return (<div className="flex justify-center" title="Probleme gemeldet"><AlertTriangle size={18} className="text-red-500" /></div>);
+      }
+
+      const isShort = received < ordered;
+      const isOver = received > ordered;
+      const isPerfect = ordered === received;
+
+      // Scenario A: Force Closed & Short -> Gray Check
+      if (isForceClosed && isShort) {
+          return (
+            <div className="flex justify-center" title="Manuell abgeschlossen (Unterlieferung)">
+                <CheckCircle2 size={18} className="text-slate-400" />
+            </div>
+          );
+      }
+
+      // Scenario C: Perfect -> Green Check
+      if (isPerfect) {
+          return (<div className="flex justify-center"><CheckCircle2 size={18} className="text-emerald-500" /></div>);
+      }
+      
+      if (isOver) {
+           return (<div className="flex justify-center" title="Überlieferung"><Info size={18} className="text-orange-500" /></div>);
+      }
+
+      // Scenario B: Active Short -> Warning
+      return (<div className="flex justify-center" title="Mengenabweichung"><AlertTriangle size={18} className="text-amber-500" /></div>);
   };
 
   // --- ACTIONS RENDERER (Shared for both layouts) ---
@@ -648,20 +768,36 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
               />
             </div>
             
-            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto no-scrollbar max-w-full">
-                {(['all', 'open', 'booked'] as const).map(f => (
-                <button
-                    key={f}
-                    onClick={() => setStatusFilter(f)}
-                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
-                    statusFilter === f 
-                        ? 'bg-white dark:bg-slate-700 shadow-sm text-[#0077B5]' 
-                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                    }`}
-                >
-                    {f === 'all' ? 'Alle' : f === 'open' ? 'Offen' : 'Gebucht'}
-                </button>
-                ))}
+            {/* SMART CHIP FILTERS */}
+            <div className={`flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar p-1 rounded-xl max-w-full ${isDark ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
+                <FilterChip 
+                    label="Alle" 
+                    count={categoryCounts.all} 
+                    active={statusFilter === 'all'} 
+                    onClick={() => setStatusFilter('all')} 
+                    type="neutral" 
+                />
+                <FilterChip 
+                    label="In Arbeit" 
+                    count={categoryCounts.pending} 
+                    active={statusFilter === 'pending'} 
+                    onClick={() => setStatusFilter('pending')} 
+                    type="pending" 
+                />
+                <FilterChip 
+                    label="Probleme" 
+                    count={categoryCounts.issues} 
+                    active={statusFilter === 'issues'} 
+                    onClick={() => setStatusFilter('issues')} 
+                    type="issue" 
+                />
+                <FilterChip 
+                    label="Gebucht" 
+                    count={categoryCounts.completed} 
+                    active={statusFilter === 'completed'} 
+                    onClick={() => setStatusFilter('completed')} 
+                    type="success" 
+                />
             </div>
 
             <button 
@@ -1071,14 +1207,20 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                                             </td>
                                                             <td className="px-4 py-2 text-center font-mono opacity-70 text-sm">{ordered}</td>
                                                             <td className="px-4 py-2 text-center font-bold text-sm">{received}</td>
-                                                            <td className={`px-4 py-2 text-center font-bold text-sm ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-                                                                {pending > 0 ? pending : <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}
+                                                            <td className={`px-4 py-2 text-center font-bold text-sm`}>
+                                                                {linkedPO.isForceClosed && pending > 0 ? (
+                                                                    <span className="text-slate-400 line-through decoration-slate-400" title="Restmenge storniert">{pending}</span>
+                                                                ) : pending > 0 ? (
+                                                                    <span className={isDark ? 'text-amber-400' : 'text-amber-600'}>{pending}</span>
+                                                                ) : (
+                                                                    <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>
+                                                                )}
                                                             </td>
                                                             <td className={`px-4 py-2 text-center font-bold text-sm ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>
                                                                 {over > 0 ? over : <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>}
                                                             </td>
                                                             <td className="px-4 py-2 text-center">
-                                                                {renderItemStatusIconForPO(ordered, received, hasIssues)}
+                                                                {renderItemStatusIconForPO(ordered, received, hasIssues, linkedPO.isForceClosed)}
                                                             </td>
                                                         </tr>
                                                     );

@@ -7,7 +7,7 @@ import {
   ArrowRight, ArrowLeft, Trash2, MapPin, FileText, Building2,
   AlertTriangle, Loader2, Home, ClipboardList, Ban, LogOut, 
   PlusCircle, Clock, Box, ChevronUp, Briefcase, Minus, XCircle,
-  ShieldBan
+  ShieldBan, Layers
 } from 'lucide-react';
 import { StockItem, Theme, ReceiptHeader, PurchaseOrder, ReceiptMaster, Ticket } from '../types';
 import { MOCK_PURCHASE_ORDERS } from '../data';
@@ -678,6 +678,11 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                     {cart.map((line, idx) => {
                         const hasRejection = line.qtyRejected > 0;
                         const isOk = line.qtyReceived > 0 && !hasRejection;
+                        const ordered = line.orderedQty || 0;
+                        const prev = line.previouslyReceived || 0;
+                        const current = line.qtyReceived;
+                        const totalPhys = prev + current;
+                        const rawRemaining = ordered - totalPhys;
                         
                         return (
                             <div key={idx} className={`rounded-xl border overflow-hidden transition-all ${
@@ -685,47 +690,81 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                     ? (isDark ? 'bg-amber-900/10 border-amber-500/30' : 'bg-amber-50 border-amber-200') 
                                     : (isOk ? (isDark ? 'bg-emerald-900/5 border-emerald-500/20' : 'bg-emerald-50/50 border-emerald-200') : (isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200'))
                             }`}>
-                                {/* MAIN ROW */}
-                                <div className="p-4 flex flex-col md:flex-row gap-4 items-center">
-                                    {/* Info */}
-                                    <div className="flex-1 min-w-0 text-center md:text-left">
-                                        <div className="font-bold text-sm truncate">{line.item.name}</div>
-                                        <div className="text-xs opacity-60 font-mono">{line.item.sku}</div>
-                                        {line.orderedQty !== undefined && (
-                                            <div className="text-[10px] font-bold uppercase tracking-wider mt-1 text-slate-500">
-                                                Bestellt: {line.orderedQty} | Offen: {Math.max(0, line.orderedQty - (line.previouslyReceived || 0))}
+                                <div className="p-4 space-y-4">
+                                    {/* Header Row: Info & System */}
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-bold text-base truncate">{line.item.name}</div>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="font-mono text-xs opacity-60">{line.item.sku}</span>
+                                                <span className={`w-px h-3 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`}></span>
+                                                <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${isDark ? 'bg-indigo-900/30 text-indigo-300 border border-indigo-500/30' : 'bg-indigo-50 text-indigo-600 border border-indigo-200'}`}>
+                                                    {line.item.system || 'Sonstiges'}
+                                                </span>
                                             </div>
-                                        )}
+                                        </div>
+                                        
+                                        {/* Toggle Issue Panel Button */}
+                                        <button 
+                                            onClick={() => updateCartItem(idx, 'showIssuePanel', !line.showIssuePanel)}
+                                            className={`p-2 rounded-lg transition-colors flex items-center gap-2 ${
+                                                hasRejection 
+                                                    ? 'bg-amber-500 text-white shadow-md' 
+                                                    : (line.showIssuePanel ? 'bg-slate-200 dark:bg-slate-700' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800')
+                                            }`}
+                                            title="Problem melden / Details"
+                                        >
+                                            {hasRejection ? <AlertTriangle size={18} /> : <AlertCircle size={18} />}
+                                            {hasRejection && <span className="text-xs font-bold hidden sm:inline">{line.qtyRejected} Abw.</span>}
+                                        </button>
                                     </div>
 
-                                    {/* SPLIT MATH CONTROLS */}
-                                    <div className="flex items-center gap-4">
-                                        {/* 1. Total Physical Input */}
-                                        <div className="flex flex-col items-center">
-                                            <label className="text-[9px] font-bold uppercase mb-1 opacity-70">Erhalten (Total)</label>
-                                            <div className="relative">
-                                                <input 
-                                                    type="number" 
-                                                    min="0"
-                                                    value={line.qtyReceived}
-                                                    onChange={e => updateCartItem(idx, 'qtyReceived', parseInt(e.target.value) || 0)}
-                                                    className={`w-20 text-center font-bold p-2 rounded-lg border outline-none focus:ring-2 ${isDark ? 'bg-slate-950 border-slate-700 focus:ring-blue-500/30' : 'bg-white border-slate-300 focus:ring-blue-500/20'} ${isAdminClose ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                    disabled={isAdminClose}
-                                                />
+                                    {/* 4-Column Metric Grid */}
+                                    <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                                        
+                                        {/* 1. Bestellt (Read Only) */}
+                                        <div className="flex flex-col justify-center">
+                                            <span className="text-[10px] uppercase font-bold opacity-50 mb-1">Bestellt</span>
+                                            <div className="font-mono text-sm font-bold opacity-70">
+                                                {linkedPoId ? ordered : '-'}
                                             </div>
                                         </div>
 
-                                        <ArrowRight size={16} className="opacity-30 hidden md:block" />
+                                        {/* 2. Offen (Dynamic Calc) */}
+                                        <div className="flex flex-col justify-center">
+                                            <span className="text-[10px] uppercase font-bold opacity-50 mb-1">Offen</span>
+                                            <div className="font-mono text-sm">
+                                                {linkedPoId ? (
+                                                    rawRemaining < 0 ? (
+                                                        <span className="text-orange-500 font-bold">+{Math.abs(rawRemaining)} Zu viel</span>
+                                                    ) : rawRemaining === 0 ? (
+                                                        <span className="text-emerald-500 font-bold flex items-center gap-1"><Check size={14}/> Voll</span>
+                                                    ) : (
+                                                        <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{rawRemaining}</span>
+                                                    )
+                                                ) : (
+                                                    '-'
+                                                )}
+                                            </div>
+                                        </div>
 
-                                        {/* 2. Accepted Display (Computed with Result Logic) */}
-                                        <div className="flex flex-col items-center">
-                                            <label className={`text-[9px] font-bold uppercase mb-1 opacity-70 ${
-                                                line.qtyAccepted < 0 ? 'text-orange-500' : 
-                                                line.qtyAccepted > 0 ? 'text-emerald-500' : 'text-slate-500'
-                                            }`}>
-                                                {line.qtyAccepted < 0 ? 'Rücksendung' : 'Ins Lager'}
-                                            </label>
-                                            <div className={`min-w-[5rem] px-2 py-2 text-center font-bold text-sm rounded-lg border flex items-center justify-center gap-2 ${
+                                        {/* 3. Erhalten (Input) */}
+                                        <div className="flex flex-col justify-center relative">
+                                            <span className="text-[10px] uppercase font-bold opacity-50 mb-1">Erhalten</span>
+                                            <input 
+                                                type="number" 
+                                                min="0"
+                                                value={line.qtyReceived}
+                                                onChange={e => updateCartItem(idx, 'qtyReceived', parseInt(e.target.value) || 0)}
+                                                className={`w-full p-2 text-center font-bold border rounded-lg outline-none focus:ring-2 transition-all ${isDark ? 'bg-slate-900 border-slate-700 focus:ring-blue-500/30' : 'bg-white border-slate-300 focus:ring-blue-500/20'} ${isAdminClose ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                disabled={isAdminClose}
+                                            />
+                                        </div>
+
+                                        {/* 4. Result / Buchung (Badge) */}
+                                        <div className="flex flex-col justify-center items-start md:items-end">
+                                            <span className="text-[10px] uppercase font-bold opacity-50 mb-1">Buchung</span>
+                                            <div className={`min-w-[4rem] px-3 py-1.5 text-center font-bold text-xs rounded-lg border flex items-center justify-center gap-2 ${
                                                 line.qtyAccepted < 0 
                                                     ? (isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-50 text-orange-700 border-orange-200')
                                                     : line.qtyAccepted > 0 
@@ -736,21 +775,8 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                                 {Math.abs(line.qtyAccepted)}
                                             </div>
                                         </div>
-                                    </div>
 
-                                    {/* Toggle Issue Panel */}
-                                    <button 
-                                        onClick={() => updateCartItem(idx, 'showIssuePanel', !line.showIssuePanel)}
-                                        className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all flex items-center gap-2 ${
-                                            hasRejection 
-                                                ? 'bg-amber-500 text-white border-amber-600 shadow-md shadow-amber-500/20' 
-                                                : (line.showIssuePanel ? 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800')
-                                        }`}
-                                    >
-                                        {hasRejection ? <AlertTriangle size={14} /> : <AlertCircle size={14} />}
-                                        {hasRejection ? `${line.qtyRejected} Abweichung` : 'Problem melden'}
-                                        {line.showIssuePanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                                    </button>
+                                    </div>
                                 </div>
 
                                 {/* ISSUE SUB-PANEL */}

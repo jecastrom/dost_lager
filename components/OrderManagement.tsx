@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { 
   Search, Filter, Calendar, Truck, ChevronRight, 
   X, FileText, Pencil, ClipboardCheck, Archive, CheckSquare, Square, PackagePlus,
-  CheckCircle2, Ban, Briefcase, Lock, Plus, AlertCircle, Box, AlertTriangle, Info
+  CheckCircle2, Ban, Briefcase, Lock, Plus, AlertCircle, Box, AlertTriangle, Info, Clock
 } from 'lucide-react';
 import { PurchaseOrder, Theme, ReceiptMaster, ActiveModule, Ticket } from '../types';
 import { LifecycleStepper } from './LifecycleStepper';
@@ -178,6 +178,9 @@ const OrderStatusBadges = ({ order, linkedReceipt, theme }: { order: PurchaseOrd
     return <div className="flex flex-wrap gap-2 items-center">{badges}</div>;
 };
 
+// Filter Types
+type FilterStatus = 'all' | 'open' | 'late' | 'completed';
+
 interface OrderManagementProps {
   orders: PurchaseOrder[]; // Required prop for Single Source of Truth
   theme: Theme;
@@ -194,6 +197,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
   const isDark = theme === 'dark';
   const [searchTerm, setSearchTerm] = useState('');
   const [showArchived, setShowArchived] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
 
@@ -223,19 +227,71 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
     };
   }, [selectedOrder, confirmModalOpen]);
 
-  // -- Computed --
+  // -- Helper Logic --
+  const isOrderLate = (o: PurchaseOrder) => {
+      // Logic: received < ordered AND !forceClosed AND date < today
+      if (o.isForceClosed) return false;
+      const totalOrdered = o.items.reduce((s, i) => s + i.quantityExpected, 0);
+      const totalReceived = o.items.reduce((s, i) => s + i.quantityReceived, 0);
+      if (totalReceived >= totalOrdered) return false; // Is complete
+      
+      if (!o.expectedDeliveryDate) return false;
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const target = new Date(o.expectedDeliveryDate);
+      target.setHours(0,0,0,0);
+      
+      return target < today;
+  };
+
+  const isOrderOpen = (o: PurchaseOrder) => {
+      if (o.isForceClosed) return false;
+      const totalOrdered = o.items.reduce((s, i) => s + i.quantityExpected, 0);
+      const totalReceived = o.items.reduce((s, i) => s + i.quantityReceived, 0);
+      // Includes 'Late' orders because Late orders are also Open
+      return totalReceived < totalOrdered;
+  };
+
+  const isOrderCompleted = (o: PurchaseOrder) => {
+      if (o.isForceClosed) return true;
+      const totalOrdered = o.items.reduce((s, i) => s + i.quantityExpected, 0);
+      const totalReceived = o.items.reduce((s, i) => s + i.quantityReceived, 0);
+      return totalReceived >= totalOrdered;
+  };
+
+  // -- Computed Counts --
+  const counts = useMemo(() => {
+      const c = { all: 0, open: 0, late: 0, completed: 0 };
+      orders.forEach(o => {
+          if (!showArchived && o.isArchived) return; // Respect archive view
+          
+          c.all++;
+          if (isOrderOpen(o)) c.open++;
+          if (isOrderLate(o)) c.late++;
+          if (isOrderCompleted(o)) c.completed++;
+      });
+      return c;
+  }, [orders, showArchived]);
+
+  // -- Computed Filtered Orders --
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
       // Archive Filter Logic
       if (!showArchived && o.isArchived) return false;
       
+      // Search Logic
       const term = searchTerm.toLowerCase();
-      return (
-        o.id.toLowerCase().includes(term) ||
-        o.supplier.toLowerCase().includes(term)
-      );
+      const matchesSearch = o.id.toLowerCase().includes(term) || o.supplier.toLowerCase().includes(term);
+      if (!matchesSearch) return false;
+
+      // Smart Chip Logic
+      if (filterStatus === 'open') return isOrderOpen(o);
+      if (filterStatus === 'late') return isOrderLate(o);
+      if (filterStatus === 'completed') return isOrderCompleted(o);
+
+      return true; // 'all'
     }).sort((a, b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime());
-  }, [orders, searchTerm, showArchived]);
+  }, [orders, searchTerm, showArchived, filterStatus]);
 
   // -- Lifecycle Logic for Stepper --
   const hasOpenTickets = useMemo(() => {
@@ -279,6 +335,51 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
     setSelectedOrderForReceipt(null);
   };
 
+  // --- UI Component: Filter Chip ---
+  const FilterChip = ({ 
+      label, 
+      count, 
+      active, 
+      onClick, 
+      type 
+  }: { 
+      label: string, 
+      count: number, 
+      active: boolean, 
+      onClick: () => void, 
+      type: 'neutral' | 'pending' | 'issue' | 'success' 
+  }) => {
+      let activeClass = '';
+      if (active) {
+          switch (type) {
+              case 'neutral': activeClass = 'bg-[#0077B5] text-white border-transparent shadow-md'; break;
+              case 'pending': activeClass = 'bg-amber-500 text-white border-transparent shadow-md'; break;
+              case 'issue': activeClass = 'bg-red-500 text-white border-transparent shadow-md'; break;
+              case 'success': activeClass = 'bg-emerald-600 text-white border-transparent shadow-md'; break; // Green for Done
+          }
+      } else {
+          activeClass = isDark 
+            ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-blue-400' 
+            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400';
+      }
+
+      return (
+          <button
+              onClick={onClick}
+              className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all border flex items-center gap-2 ${activeClass}`}
+          >
+              {label}
+              {count > 0 && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] min-w-[20px] text-center ${
+                      active ? 'bg-white/20 text-white' : (isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-500')
+                  }`}>
+                      {count}
+                  </span>
+              )}
+          </button>
+      );
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       
@@ -300,9 +401,11 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
         </button>
       </div>
 
-      {/* Controls */}
+      {/* Controls: Search + Chips + Archive */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-col md:flex-row gap-4">
+          
+          {/* Search Bar */}
           <div className="relative flex-1 group">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
@@ -318,9 +421,42 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
             />
           </div>
           
+          {/* Smart Chip Filters */}
+          <div className={`flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar p-1 rounded-xl max-w-full ${isDark ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
+                <FilterChip 
+                    label="Alle" 
+                    count={counts.all} 
+                    active={filterStatus === 'all'} 
+                    onClick={() => setFilterStatus('all')} 
+                    type="neutral" 
+                />
+                <FilterChip 
+                    label="Offen" 
+                    count={counts.open} 
+                    active={filterStatus === 'open'} 
+                    onClick={() => setFilterStatus('open')} 
+                    type="pending" 
+                />
+                <FilterChip 
+                    label="Verspätet" 
+                    count={counts.late} 
+                    active={filterStatus === 'late'} 
+                    onClick={() => setFilterStatus('late')} 
+                    type="issue" 
+                />
+                <FilterChip 
+                    label="Erledigt" 
+                    count={counts.completed} 
+                    active={filterStatus === 'completed'} 
+                    onClick={() => setFilterStatus('completed')} 
+                    type="success" 
+                />
+          </div>
+
+          {/* Archive Toggle */}
           <button 
              onClick={() => setShowArchived(!showArchived)}
-             className={`px-4 py-3 md:py-0 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all ${
+             className={`px-4 py-3 md:py-0 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all whitespace-nowrap ${
                isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'
              } ${showArchived ? 'text-[#0077B5] border-[#0077B5]/30' : (isDark ? 'text-slate-400' : 'text-slate-500')}`}
           >
@@ -328,15 +464,6 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
              <span>Archivierte anzeigen</span>
           </button>
 
-          <button 
-            disabled
-            className={`hidden md:flex px-4 py-3 md:py-0 rounded-xl border items-center justify-center gap-2 font-bold transition-all opacity-50 cursor-not-allowed ${
-              isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'
-            }`}
-          >
-            <Filter size={18} />
-            <span>Filter</span>
-          </button>
         </div>
       </div>
 
@@ -371,9 +498,11 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ orders, theme,
                     }`}
                   >
                     <td className="p-4 font-mono font-bold text-[#0077B5]">{order.id}</td>
-                    <td className="p-4 flex items-center gap-2 text-slate-500">
-                        <Calendar size={14} /> 
-                        {new Date(order.dateCreated).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    <td className="p-4 flex flex-col text-slate-500 text-xs">
+                        <span className="flex items-center gap-2 font-bold mb-0.5"><Calendar size={12} /> {new Date(order.dateCreated).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                        {order.expectedDeliveryDate && isOrderLate(order) && (
+                            <span className="text-red-500 font-bold flex items-center gap-1"><Clock size={10} /> Fällig: {new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
+                        )}
                     </td>
                     <td className="p-4 font-medium">
                         <div className="flex items-center gap-2">
