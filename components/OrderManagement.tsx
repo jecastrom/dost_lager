@@ -455,7 +455,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                  <th className="px-4 py-3 font-semibold text-right">Aktion</th>
                </tr>
              </thead>
-             <tbody className="divide-y divide-slate-500/10">
+             <tbody className={`divide-y ${isDark ? 'divide-slate-800' : 'divide-slate-100'}`}>
                 {filteredOrders.map(order => {
                   const linkedReceipt = receiptMasters.find(r => r.poId === order.id);
                   const isDone = isOrderComplete(order);
@@ -465,7 +465,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                   const isMenuOpen = activeMenuId === order.id;
 
                   return (
-                  <tr key={order.id} onClick={() => setSelectedOrder(order)} className={`cursor-pointer transition-colors border-b last:border-0 ${order.isArchived ? (isDark ? 'bg-slate-900/50 text-slate-500 hover:bg-slate-800/50' : 'bg-slate-50 text-slate-400 hover:bg-slate-100') : (isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50')}`}>
+                  <tr key={order.id} onClick={() => setSelectedOrder(order)} className={`cursor-pointer transition-colors ${order.isArchived ? (isDark ? 'bg-slate-900/50 text-slate-500 hover:bg-slate-800/50' : 'bg-slate-50 text-slate-400 hover:bg-slate-100') : (isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50')}`}>
                     <td className="px-4 py-3 align-middle font-mono font-bold text-[#0077B5]">{order.id}</td>
                     <td className="px-4 py-3 align-middle">
                         <div className="flex flex-col text-slate-500 text-xs">
