@@ -235,7 +235,7 @@ Write-Info "This may take 3-5 minutes..."
 az cosmosdb create `
     --name $config.CosmosAccount `
     --resource-group $config.ResourceGroup `
-    --locations regionName=$config.Location failoverPriority=0 `
+    --locations regionName=westeurope failoverPriority=0 `
     --default-consistency-level Session `
     --enable-free-tier true `
     --tags project=procureflow `
