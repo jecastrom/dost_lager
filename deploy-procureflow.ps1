@@ -273,13 +273,19 @@ foreach ($container in $config.CosmosContainers) {
 # ============================================================================
 Write-Step "7/9" "Creating Key Vault"
 
-az keyvault create `
-    --name $config.KeyVaultName `
-    --resource-group $config.ResourceGroup `
-    --location $config.Location `
-    --tags project=procureflow `
-    --output none
-Test-CommandSuccess
+$kvExists = az keyvault show --name $config.KeyVaultName --resource-group $config.ResourceGroup 2>$null
+if ($kvExists) {
+    Write-Success "Key Vault '$($config.KeyVaultName)' already exists, skipping"
+}
+else {
+    az keyvault create `
+        --name $config.KeyVaultName `
+        --resource-group $config.ResourceGroup `
+        --location westeurope `
+        --tags project=procureflow `
+        --output none
+    Test-CommandSuccess
+}
 Write-Success "Key Vault '$($config.KeyVaultName)' created"
 
 # Store Cosmos DB connection string in Key Vault
