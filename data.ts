@@ -21,43 +21,9 @@ interface RawStockItem {
 // DATA INTEGRATION
 // ------------------------------------------------------------------
 
-const FULL_INVENTORY: RawStockItem[] = [
-    { 
-        "Artikel Bezeichnung": "Polkappe für Bleiakku M5/M6 Rot", 
-        "Artikel Nummer": "4000069", 
-        "System": "Service", 
-        "Hersteller/Lieferant": "Battery Kutter",
-        "Kapazität in Ah": 0, "Anzahl": 100, "Mindestbestand": 10, "Geändert": null, "Geändert von": null, "Objekt": null, "Bemerkungen": null, "Elementtyp": "Item", "Pfad": ""
-    },
-    { 
-        "Artikel Bezeichnung": "SB12-45V0", 
-        "Artikel Nummer": "2030855", 
-        "System": "Service", 
-        "Hersteller/Lieferant": "SUN / Battery Kutter",
-        "Kapazität in Ah": 45, "Anzahl": 20, "Mindestbestand": 5, "Geändert": null, "Geändert von": null, "Objekt": null, "Bemerkungen": null, "Elementtyp": "Item", "Pfad": ""
-    },
-    { 
-        "Artikel Bezeichnung": "SB12-2.3V0", 
-        "Artikel Nummer": "2037507", 
-        "System": "Service", 
-        "Hersteller/Lieferant": "SUN / Battery-Kutter",
-        "Kapazität in Ah": 2.3, "Anzahl": 50, "Mindestbestand": 10, "Geändert": null, "Geändert von": null, "Objekt": null, "Bemerkungen": null, "Elementtyp": "Item", "Pfad": ""
-    },
-    { 
-        "Artikel Bezeichnung": "Brandmeldeleitung JY-(st)Y ", 
-        "Artikel Nummer": "UnBEKANNT", 
-        "System": "Material", 
-        "Hersteller/Lieferant": "Unbekannt",
-        "Kapazität in Ah": 0, "Anzahl": 200, "Mindestbestand": 50, "Geändert": null, "Geändert von": null, "Objekt": null, "Bemerkungen": null, "Elementtyp": "Item", "Pfad": ""
-    },
-    { 
-        "Artikel Bezeichnung": "Transport Box Batterien Rot", 
-        "Artikel Nummer": "Unbekannt", 
-        "System": "Material", 
-        "Hersteller/Lieferant": "Würth",
-        "Kapazität in Ah": 0, "Anzahl": 15, "Mindestbestand": 2, "Geändert": null, "Geändert von": null, "Objekt": null, "Bemerkungen": null, "Elementtyp": "Item", "Pfad": ""
-    }
-];
+import FULL_INVENTORY_RAW from './data/warehouse-inventory.json';
+
+const FULL_INVENTORY: RawStockItem[] = FULL_INVENTORY_RAW as RawStockItem[];
 
 // Helper to parse ASP.NET AJAX Date format "/Date(1732871995000)/"
 const parseAspDate = (dateStr: string | null): number | undefined => {
