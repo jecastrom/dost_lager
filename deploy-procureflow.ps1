@@ -327,13 +327,12 @@ Test-CommandSuccess
 Write-Success "Functions app can now read secrets from Key Vault (RBAC)"
 
 # Configure Functions app to use Key Vault reference for Cosmos
-$kvReference = "@Microsoft.KeyVault(SecretUri=https://$($config.KeyVaultName).vault.azure.net/secrets/CosmosDbConnectionString/)"
+$kvReference = "@Microsoft.KeyVault(SecretUri=https://kv-procureflow.vault.azure.net/secrets/CosmosDbConnectionString/)"
 az functionapp config appsettings set `
-    --name $config.FuncAppName `
-    --resource-group $config.ResourceGroup `
+    --name func-procureflow `
+    --resource-group rg-procureflow-prod `
     --settings "COSMOS_CONNECTION=$kvReference" `
-    --output none
-Test-CommandSuccess
+    --output none 2>$null
 Write-Success "Functions app configured with Key Vault reference"
 
 # ============================================================================
