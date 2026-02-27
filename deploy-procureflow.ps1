@@ -317,13 +317,14 @@ $funcPrincipalId = az functionapp identity show `
     --resource-group $config.ResourceGroup `
     --query "principalId" --output tsv
 
-az keyvault set-policy `
-    --name $config.KeyVaultName `
-    --object-id $funcPrincipalId `
-    --secret-permissions get list `
+az role assignment create `
+    --role "Key Vault Secrets User" `
+    --assignee-object-id $funcPrincipalId `
+    --assignee-principal-type ServicePrincipal `
+    --scope /subscriptions/20fb7306-d8e2-4ffb-bb7e-e80744d0a078/resourcegroups/rg-procureflow-prod/providers/Microsoft.KeyVault/vaults/kv-procureflow `
     --output none
 Test-CommandSuccess
-Write-Success "Functions app can now read secrets from Key Vault"
+Write-Success "Functions app can now read secrets from Key Vault (RBAC)"
 
 # Configure Functions app to use Key Vault reference for Cosmos
 $kvReference = "@Microsoft.KeyVault(SecretUri=https://$($config.KeyVaultName).vault.azure.net/secrets/CosmosDbConnectionString/)"
