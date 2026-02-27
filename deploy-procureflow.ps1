@@ -120,8 +120,15 @@ else {
 Write-Step "1/9" "Logging in to Azure"
 Write-Info "A browser window will open for authentication..."
 
-az login
-Test-CommandSuccess
+# Check if already logged in, if not use device code flow
+$currentAccount = az account show 2>$null | ConvertFrom-Json
+if (-not $currentAccount) {
+    az login --use-device-code
+    Test-CommandSuccess
+}
+else {
+    Write-Success "Already logged in as $($currentAccount.user.name)"
+}
 Write-Success "Logged in to Azure"
 
 # Show current subscription
