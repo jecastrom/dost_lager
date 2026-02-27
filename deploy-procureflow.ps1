@@ -28,13 +28,13 @@ $config = @{
     CosmosAccount    = "cosmos-procureflow"
     CosmosDb         = "procureflow-db"
     CosmosContainers = @(
-        @{ Name = "purchase-orders";  PartitionKey = "/id" }
-        @{ Name = "receipts";         PartitionKey = "/poId" }
-        @{ Name = "delivery-logs";    PartitionKey = "/receiptId" }
-        @{ Name = "stock";            PartitionKey = "/sku" }
-        @{ Name = "suppliers";        PartitionKey = "/id" }
-        @{ Name = "tickets";          PartitionKey = "/poId" }
-        @{ Name = "notifications";    PartitionKey = "/userId" }
+        @{ Name = "purchase-orders"; PartitionKey = "/id" }
+        @{ Name = "receipts"; PartitionKey = "/poId" }
+        @{ Name = "delivery-logs"; PartitionKey = "/receiptId" }
+        @{ Name = "stock"; PartitionKey = "/sku" }
+        @{ Name = "suppliers"; PartitionKey = "/id" }
+        @{ Name = "tickets"; PartitionKey = "/poId" }
+        @{ Name = "notifications"; PartitionKey = "/userId" }
     )
     
     # Key Vault
@@ -56,7 +56,7 @@ function Write-Step {
     param([string]$Step, [string]$Message)
     Write-Host ""
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-    Write-Host "  STEP $Step: $Message" -ForegroundColor Cyan
+    Write-Host "  STEP ${Step}: $Message" -ForegroundColor Cyan
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 }
 
@@ -109,7 +109,8 @@ $ghVersion = gh --version 2>$null
 if ($ghVersion) {
     $ghInstalled = $true
     Write-Success "GitHub CLI found"
-} else {
+}
+else {
     Write-Info "GitHub CLI not found (optional). Install from: https://cli.github.com"
 }
 
