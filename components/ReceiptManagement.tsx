@@ -1,0 +1,2219 @@
+import React, { useState, useMemo, useEffect } from 'react';
+import { 
+  Search, Filter, Calendar, MapPin, Package, ChevronRight, 
+  ArrowLeft, Mail, Phone, StickyNote, Send, Clock, User, X,
+  AlertCircle, CheckCircle2, ChevronDown, ChevronUp, FileText, Truck,
+  BarChart3, Ban, Archive, Briefcase, Info, PackagePlus,
+  AlertTriangle, Layers, XCircle, ClipboardCheck,
+  Undo2, MessageSquare, AlertOctagon, Box, Lock, LogOut, ChevronsDown, ChevronsUp, RotateCcw, MoreVertical, CheckSquare, Square
+} from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ReceiptHeader, ReceiptItem, Theme, ReceiptComment, Ticket, PurchaseOrder, ReceiptMaster, DeliveryLog, ActiveModule, StockItem } from '../types';
+import { TicketSystem } from './TicketSystem';
+import { ReceiptStatusBadges } from './ReceiptStatusBadges';
+import { StatusDescription } from './StatusDescription';
+
+interface ReceiptManagementProps {
+  headers: ReceiptHeader[];
+  items: ReceiptItem[];
+  comments: ReceiptComment[];
+  tickets: Ticket[];
+  purchaseOrders: PurchaseOrder[];
+  receiptMasters: ReceiptMaster[];
+  stockItems: StockItem[];
+  theme: Theme;
+  onUpdateStatus: (batchId: string, newStatus: string) => void;
+  onAddComment: (batchId: string, type: 'note' | 'email' | 'call', message: string) => void;
+  onAddTicket: (ticket: Ticket) => void;
+  onUpdateTicket: (ticket: Ticket) => void;
+  onReceiveGoods: (poId: string) => void;
+  onNavigate: (module: ActiveModule) => void;
+  onRevertReceipt: (batchId: string) => void;
+  onInspect: (po: PurchaseOrder, mode?: 'standard' | 'return' | 'problem') => void;
+  onProcessReturn: (poId: string, data: { quantity: number; reason: string; carrier: string; trackingId: string }) => void;
+  statusColumnFirst?: boolean;
+}
+
+// Extended Type for Grouped Rows
+type ReceiptListRow = ReceiptHeader & {
+    isGroup?: boolean;
+    deliveryCount?: number;
+    masterStatus?: string;
+    subHeaders?: ReceiptHeader[];
+    isArchived?: boolean;
+};
+
+// Filter Types
+type FilterStatus = 'all' | 'pending' | 'issues' | 'completed';
+
+export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
+  headers,
+  items,
+  comments,
+  tickets,
+  purchaseOrders,
+  receiptMasters,
+  stockItems,
+  theme,
+  onUpdateStatus,
+  onAddComment,
+  onAddTicket,
+  onUpdateTicket,
+  onReceiveGoods,
+  onNavigate,
+  onRevertReceipt,
+  onInspect,
+  onProcessReturn,
+  statusColumnFirst = false
+}) => {
+  const isDark = theme === 'dark';
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  
+  // -- Overview State --
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
+  
+  // Advanced Filters
+  const [showFilters, setShowFilters] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [filterUser, setFilterUser] = useState('');
+
+  // -- Detail State --
+  const [commentInput, setCommentInput] = useState('');
+  const [commentType, setCommentType] = useState<'note' | 'email' | 'call'>('note');
+  
+  // Phase 4: Tabs & Tickets & Delivery History
+  const [activeTab, setActiveTab] = useState<'items' | 'tickets'>('items');
+  
+  // Expanded Delivery Logs State
+  const [expandedDeliveryId, setExpandedDeliveryId] = useState<string | null>(null);
+
+  // Mobile action menu state
+  const [showMobileActionMenu, setShowMobileActionMenu] = useState<string | null>(null);
+  const [showCloseConfirm, setShowCloseConfirm] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false)
+  const [archivedReceiptGroups, setArchivedReceiptGroups] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('archivedReceiptGroups');
+      if (saved) return new Set(JSON.parse(saved));
+    }
+    return new Set();
+  });
+
+  // Sync from localStorage on every focus (catches writes from App.tsx cancel/archive cascades)
+  useEffect(() => {
+    const syncFromStorage = () => {
+      const saved = localStorage.getItem('archivedReceiptGroups');
+      if (saved) setArchivedReceiptGroups(new Set(JSON.parse(saved)));
+    };
+    window.addEventListener('focus', syncFromStorage);
+    // Also sync immediately on mount/update from navigation
+    syncFromStorage();
+    return () => window.removeEventListener('focus', syncFromStorage);
+  }, []);
+  const [problemConfirmPO, setProblemConfirmPO] = useState<PurchaseOrder | null>(null);
+  const [returnPickerPO, setReturnPickerPO] = useState<PurchaseOrder | null>(null);
+  // New State: Delivery List Popover
+  const [showDeliveryList, setShowDeliveryList] = useState(false);
+
+  // Mobile: Historie & Notizen collapse state
+  const [historieExpanded, setHistorieExpanded] = useState(false);
+  // Track which auto-comments have been "read" (dismissed)
+  const [dismissedAutoIds, setDismissedAutoIds] = useState<Set<string>>(new Set());
+  const [statusHistoryExpanded, setStatusHistoryExpanded] = useState(false);
+
+  // Return Modal State
+  const [returnModal, setReturnModal] = useState<{ poId: string; quantity: number; reason: string; carrier: string; trackingId: string } | null>(null);
+  const [showGrundOptions, setShowGrundOptions] = useState(false);
+
+  // Reset dropdown when changing selection
+  useEffect(() => {
+      setShowDeliveryList(false);
+      setStatusHistoryExpanded(false);
+  }, [selectedBatchId]);
+
+  // -- Detail View Hooks --
+  const selectedHeader = useMemo(() => headers.find(h => h.batchId === selectedBatchId), [headers, selectedBatchId]);
+  const relatedItems = useMemo(() => items.filter(i => i.batchId === selectedBatchId), [items, selectedBatchId]);
+  const relatedComments = useMemo(() => comments.filter(c => c.batchId === selectedBatchId).sort((a,b) => b.timestamp - a.timestamp), [comments, selectedBatchId]);
+  
+  // Unread auto-comments count (userName === 'System' and not dismissed)
+  const unreadAutoComments = useMemo(() => 
+    relatedComments.filter(c => c.userName === 'System' && !dismissedAutoIds.has(c.id)),
+    [relatedComments, dismissedAutoIds]
+  );
+  const dismissAutoComments = () => {
+    const systemIds = relatedComments.filter(c => c.userName === 'System').map(c => c.id);
+    if (systemIds.length > 0) {
+      setDismissedAutoIds(prev => { const next = new Set(prev); systemIds.forEach(id => next.add(id)); return next; });
+    }
+  };
+
+  // Format date as DD.MM.YYYY HH:MM
+  const formatDateDE = (ts: number) => {
+    const d = new Date(ts);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}.${mm}.${yyyy} ${hh}:${min}`;
+  };
+  
+  // Ticket Context Logic (All tickets for this PO, not just this receipt)
+  const linkedPO = useMemo(() => {
+      if (!selectedHeader?.bestellNr) return null;
+      return purchaseOrders.find(po => po.id === selectedHeader.bestellNr);
+  }, [selectedHeader, purchaseOrders]);
+
+  const contextTickets = useMemo(() => {
+      if (linkedPO) {
+          // Find all tickets related to any receipt of this PO
+          return tickets.filter(t => {
+              const header = headers.find(h => h.batchId === t.receiptId);
+              return header?.bestellNr === linkedPO.id;
+          });
+      }
+      // Fallback: Tickets just for this receipt
+      return tickets.filter(t => t.receiptId === selectedBatchId);
+  }, [tickets, linkedPO, headers, selectedBatchId]);
+
+  const openTicketsCount = contextTickets.filter(t => t.status === 'Open').length;
+  const closedTicketsCount = contextTickets.filter(t => t.status === 'Closed').length;
+
+  // Linked Receipt Master Logic (For Multi-Delivery View)
+  const linkedMaster = useMemo(() => {
+      if (!selectedHeader?.bestellNr) return null;
+      return receiptMasters.find(m => m.poId === selectedHeader.bestellNr);
+  }, [selectedHeader, receiptMasters]);
+
+  // Zu viel total for return modal pre-fill
+  const zuVielTotal = useMemo(() => {
+      if (!linkedPO || !linkedMaster) return 0;
+      let total = 0;
+      linkedPO.items.forEach(poItem => {
+          let received = 0;
+          linkedMaster.deliveries.forEach(d => {
+              const di = d.items.find(x => x.sku === poItem.sku);
+              if (di) received += di.quantityAccepted;
+          });
+          total += Math.max(0, received - poItem.quantityExpected);
+      });
+      return total;
+  }, [linkedPO, linkedMaster]);
+
+  // 1. Group Data Logic
+  const groupedRows = useMemo(() => {
+      const groups: Record<string, ReceiptHeader[]> = {};
+      const singles: ReceiptHeader[] = [];
+
+      const sortedHeaders = [...headers].sort((a, b) => b.timestamp - a.timestamp);
+
+      sortedHeaders.forEach(h => {
+          if (h.bestellNr) {
+              if (!groups[h.bestellNr]) groups[h.bestellNr] = [];
+              groups[h.bestellNr].push(h);
+          } else {
+              singles.push(h);
+          }
+      });
+
+      const result: ReceiptListRow[] = [];
+
+      Object.entries(groups).forEach(([poId, groupHeaders]) => {
+          const latest = groupHeaders[0];
+          const master = receiptMasters.find(m => m.poId === poId);
+          const deliveryCount = groupHeaders.length;
+
+          result.push({
+              ...latest,
+              isGroup: true,
+              deliveryCount: deliveryCount,
+              masterStatus: master ? master.status : latest.status,
+              subHeaders: groupHeaders,
+              isArchived: archivedReceiptGroups.has(poId) || master?.status === 'Abgeschlossen' && groupHeaders.some(h => h.status === 'Storniert')
+          });
+      });
+
+      singles.forEach(h => {
+          result.push({
+              ...h,
+              isGroup: false,
+              deliveryCount: 1,
+              masterStatus: h.status,
+              isArchived: archivedReceiptGroups.has(h.batchId) || h.status === 'Storniert'
+          });
+      });
+
+      return result.sort((a, b) => b.timestamp - a.timestamp);
+  }, [headers, receiptMasters, archivedReceiptGroups]);
+
+  // --- FILTER HELPERS ---
+  const getCategory = (row: ReceiptListRow): FilterStatus => {
+      // Determine relevant tickets for this Row (Context-Aware)
+      let rowTickets: Ticket[] = [];
+      if (row.bestellNr) {
+          // If part of a PO, check ALL tickets for that PO
+          rowTickets = tickets.filter(t => {
+               const h = headers.find(header => header.batchId === t.receiptId);
+               return h?.bestellNr === row.bestellNr;
+          });
+      } else {
+          // Single receipt
+          rowTickets = tickets.filter(t => t.receiptId === row.batchId);
+      }
+
+      const hasOpenTickets = rowTickets.some(t => t.status === 'Open');
+      const statusRaw = row.masterStatus || row.status || '';
+      const s = statusRaw.toLowerCase().trim();
+
+      // 1. ISSUES (Highest Priority)
+      // Matches damage, rejection, wrong delivery, or open tickets
+      if (hasOpenTickets) return 'issues';
+      if (['schaden', 'abgelehnt', 'falsch', 'beschädigt'].some(k => s.includes(k))) return 'issues';
+
+      // 2. COMPLETED
+      // Matches Booked, Closed, or "In Bearbeitung" (Legacy Default)
+      if (['gebucht', 'abgeschlossen', 'in bearbeitung', 'erledigt'].includes(s)) return 'completed';
+
+      // 3. PENDING (Default Workload)
+      // Matches In Prüfung, Partial, Overdelivery, Waiting, or Empty
+      return 'pending';
+  };
+
+  // --- COUNTERS CALCULATION ---
+  const categoryCounts = useMemo(() => {
+      const counts = { all: 0, pending: 0, issues: 0, completed: 0 };
+      groupedRows.forEach(row => {
+          if (row.isArchived) return;
+          counts.all++;
+          const cat = getCategory(row);
+          if (counts[cat] !== undefined) counts[cat]++;
+      });
+      return counts;
+  }, [groupedRows, tickets, headers]);
+
+  // 2. Filter Logic
+  const filteredRows = useMemo(() => {
+    return groupedRows.filter(row => {
+      // 0. Archive Filter
+      if (row.isArchived && !showArchived) return false;
+
+      // 1. Status Filter (Smart Categories)
+      if (statusFilter !== 'all') {
+          const category = getCategory(row);
+          if (category !== statusFilter) return false;
+      }
+
+      // 2. Search Filter
+      const term = searchTerm.toLowerCase();
+      let matchesSearch = false;
+
+      if (
+          row.lieferscheinNr.toLowerCase().includes(term) ||
+          row.lieferant.toLowerCase().includes(term) ||
+          (row.bestellNr ? row.bestellNr.toLowerCase().includes(term) : false)
+      ) {
+          matchesSearch = true;
+      }
+
+      if (!matchesSearch && row.isGroup && row.subHeaders) {
+          matchesSearch = row.subHeaders.some(sub => sub.lieferscheinNr.toLowerCase().includes(term));
+      }
+      
+      if (!matchesSearch) return false;
+
+      // 3. Date Filters
+      if (dateFrom || dateTo) {
+          const entryDate = new Date(row.timestamp).setHours(0,0,0,0);
+          if (dateFrom) {
+            const from = new Date(dateFrom).setHours(0,0,0,0);
+            if (entryDate < from) return false;
+          }
+          if (dateTo) {
+            const to = new Date(dateTo).setHours(0,0,0,0);
+            if (entryDate > to) return false;
+          }
+      }
+
+      // 4. User Filter
+      if (filterUser) {
+          const user = (row.createdByName || '').toLowerCase();
+          if (!user.includes(filterUser.toLowerCase())) return false;
+      }
+
+      return true;
+    });
+  }, [groupedRows, searchTerm, statusFilter, dateFrom, dateTo, filterUser, tickets, headers, showArchived]);
+
+  // ... (Snapshot Logic Omitted - Same as before)
+  const deliverySnapshots = useMemo(() => {
+      if (!linkedMaster) return {};
+      const snaps: Record<string, Record<string, { pre: number, current: number, post: number }>> = {};
+      const running: Record<string, number> = {};
+      const sortedDeliveries = [...linkedMaster.deliveries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      sortedDeliveries.forEach(d => {
+          snaps[d.id] = {};
+          d.items.forEach(item => {
+              const pre = running[item.sku] || 0;
+              const current = item.receivedQty;
+              const post = pre + current;
+              running[item.sku] = post;
+              snaps[d.id][item.sku] = { pre, current, post };
+          });
+      });
+      return snaps;
+  }, [linkedMaster]);
+
+  const canReceiveMore = useMemo(() => {
+      if (!linkedPO) return false;
+      if (linkedPO.status === 'Abgeschlossen' || linkedPO.status === 'Storniert') return false;
+      if (linkedPO.isForceClosed) return false; 
+      const hasRemaining = linkedPO.items.some(i => i.quantityReceived < i.quantityExpected);
+      return hasRemaining;
+  }, [linkedPO]);
+
+  const statusHistory = useMemo(() => {
+      if (!linkedMaster) return [];
+      const sorted = [...linkedMaster.deliveries]
+          .filter(d => d.lieferscheinNr && d.lieferscheinNr !== 'Ausstehend' && d.lieferscheinNr !== 'Pending')
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      if (sorted.length === 0) return [];
+      const entries: Array<{ date: string; from: string; to: string; by: string; reason: string }> = [];
+      let prevStatus = 'Erstellt';
+      sorted.forEach(del => {
+          let newStatus: string;
+          if (del.isStorniert) {
+              newStatus = 'Storniert';
+          } else {
+              const hasDamage = del.items.some(i => i.damageFlag);
+              const hasRejected = del.items.some(i => (i.quantityRejected || 0) > 0 && (i.rejectionReason === 'Wrong'));
+              const hasZuViel = del.items.some(i => (i.zuViel || 0) > 0);
+              const hasOffen = del.items.some(i => (i.offen || 0) > 0);
+              if (hasDamage && hasRejected) newStatus = 'Schaden + Falsch';
+              else if (hasDamage) newStatus = 'Schaden';
+              else if (hasRejected) newStatus = 'Falsch geliefert';
+              else if (hasZuViel) newStatus = 'Übermenge';
+              else if (hasOffen) newStatus = 'Teillieferung';
+              else newStatus = 'Gebucht';
+          }
+          const header = headers.find(h => h.lieferscheinNr === del.lieferscheinNr && h.bestellNr === linkedMaster.poId);
+          entries.push({
+              date: del.date,
+              from: prevStatus,
+              to: newStatus,
+              by: header?.createdByName || 'System',
+              reason: del.isStorniert ? 'Buchung storniert' : `LS: ${del.lieferscheinNr}`
+          });
+          prevStatus = newStatus;
+      });
+      const masterStatus = String(linkedMaster.status || '');
+      if (entries.length > 0 && masterStatus && masterStatus !== entries[entries.length - 1].to && masterStatus !== '-') {
+          entries.push({ date: new Date().toISOString(), from: entries[entries.length - 1].to, to: masterStatus, by: 'System', reason: 'Statusaktualisierung' });
+      }
+      return entries.reverse();
+  }, [linkedMaster, headers]);
+
+  const visibleDeliveries = useMemo(() => {
+      return linkedMaster ? linkedMaster.deliveries.filter(d => d.lieferscheinNr !== 'Ausstehend') : [];
+  }, [linkedMaster]);
+
+  useEffect(() => {
+      if (visibleDeliveries.length === 1) {
+          setExpandedDeliveryId(visibleDeliveries[0].id);
+      }
+  }, [visibleDeliveries, selectedBatchId]);
+
+  // --- Handlers ---
+  
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setDateFrom('');
+    setDateTo('');
+    setFilterUser('');
+  };
+
+  const handleOpenDetail = (row: ReceiptListRow) => {
+    setSelectedBatchId(row.batchId);
+  };
+
+  const handleBack = () => {
+    setSelectedBatchId(null);
+  };
+
+  const handleArchiveReceipt = (row: ReceiptListRow) => {
+    const key = row.isGroup && row.bestellNr ? row.bestellNr : row.batchId;
+    setArchivedReceiptGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      localStorage.setItem('archivedReceiptGroups', JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const handleForceClose = () => {
+     const targetId = showCloseConfirm || selectedBatchId;
+     if (!targetId) return;
+     onUpdateStatus(targetId, 'Abgeschlossen');
+     setShowCloseConfirm(null);
+  };
+
+  const handleRevert = () => {
+      if (!selectedBatchId) return;
+      // Revert still uses confirm as it's a destructive action (removing stock).
+      // Assuming sandbox issue was specific to 'Force Close' context, but safe to keep for now.
+      if (window.confirm("Möchten Sie die Buchung stornieren? Der Lagerbestand wird entsprechend reduziert.")) {
+          onRevertReceipt(selectedBatchId);
+      }
+  };
+
+  const toggleDeliveryExpand = (id: string) => {
+      setExpandedDeliveryId(prev => prev === id ? null : id);
+  };
+
+  const handleScrollToDelivery = (deliveryId: string) => {
+      setShowDeliveryList(false);
+      setExpandedDeliveryId(deliveryId);
+      
+      setTimeout(() => {
+          const el = document.getElementById(`delivery-${deliveryId}`);
+          if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+      }, 100);
+  };
+
+  const handlePostComment = () => {
+      if (!selectedBatchId || !commentInput.trim()) return;
+      onAddComment(selectedBatchId, commentType, commentInput);
+      setCommentInput('');
+  };
+
+  // --- UI Components ---
+
+  const FilterChip = ({ 
+      label, 
+      count, 
+      active, 
+      onClick, 
+      type 
+  }: { 
+      label: string, 
+      count: number, 
+      active: boolean, 
+      onClick: () => void, 
+      type: 'neutral' | 'pending' | 'issue' | 'success' 
+  }) => {
+      // Define styles based on type and active state
+      let activeClass = '';
+      if (active) {
+          switch (type) {
+              case 'neutral': activeClass = 'bg-[#0077B5] text-white border-transparent shadow-md'; break;
+              case 'pending': activeClass = 'bg-amber-500 text-white border-transparent shadow-md'; break;
+              case 'issue': activeClass = 'bg-red-500 text-white border-transparent shadow-md'; break;
+              case 'success': activeClass = 'bg-[#0077B5] text-white border-transparent shadow-md'; break;
+          }
+      } else {
+          activeClass = isDark 
+            ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-blue-400' 
+            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400';
+      }
+
+      return (
+          <button
+              onClick={onClick}
+              className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all border flex items-center gap-2 ${activeClass}`}
+          >
+              {label}
+              {count > 0 && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] min-w-[20px] text-center ${
+                      active ? 'bg-white/20 text-white' : (isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-500')
+                  }`}>
+                      {count}
+                  </span>
+              )}
+          </button>
+      );
+  };
+
+  // --- Helper Functions for Badges & Icons ---
+
+  const getItemIssues = (item: ReceiptItem) => {
+    const notes = item.issueNotes || '';
+    const isWrong = notes.includes('FALSCH');
+    const isRejected = notes.includes('ABGELEHNT') || notes.includes('abgewiesen');
+    const isDamaged = !!item.isDamaged; 
+    const wrongReason = isWrong ? notes.match(/FALSCH: (.*?)(?: \| |$)/)?.[1] : null;
+    return { isDamaged, isWrong, isRejected, wrongReason };
+  };
+
+  const ItemStatusBadge = ({ item, quantityInfo }: { item?: ReceiptItem, quantityInfo?: { ordered: number, received: number } }) => {
+    if (!item) return <span className="text-slate-400">-</span>;
+    
+    const { isDamaged, isWrong, isRejected, wrongReason } = getItemIssues(item);
+    
+    if (isDamaged && isWrong) {
+        return (
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                <AlertTriangle size={10} /> Schaden + Falsch
+            </span>
+        );
+    }
+    if (isDamaged) {
+        return (
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                <AlertTriangle size={10} /> Schaden
+            </span>
+        );
+    }
+    if (isWrong) {
+        return (
+            <span 
+                title={wrongReason || 'Falsch geliefert'}
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-amber-50 text-amber-700 border-amber-200'}`}
+            >
+                <XCircle size={10} /> Falsch geliefert
+            </span>
+        );
+    }
+    if (isRejected) {
+        return (
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                <Ban size={10} /> Abgelehnt
+            </span>
+        );
+    }
+    
+    if (quantityInfo) {
+        const { ordered, received } = quantityInfo;
+        if (received > ordered) {
+             return (
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                    <Info size={10} /> Überlieferung
+                </span>
+            );
+        }
+        if (received < ordered) {
+             return (
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                    <AlertTriangle size={10} /> Teillieferung
+                </span>
+            );
+        }
+    }
+    
+    return (
+        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
+            <CheckCircle2 size={10} /> OK
+        </span>
+    );
+  };
+
+  const findReceiptItemForLog = (delivery: DeliveryLog, sku: string) => {
+    const header = headers.find(h => 
+        h.lieferscheinNr === delivery.lieferscheinNr && 
+        (linkedMaster?.poId ? h.bestellNr === linkedMaster.poId : true)
+    );
+    if (!header) return undefined;
+    return items.find(i => i.batchId === header.batchId && i.sku === sku);
+  };
+
+  const findStockItemBySku = (sku: string) => {
+    return stockItems.find(item => item.sku === sku);
+  };
+
+  const renderItemStatusIconForPO = (
+      ordered: number, 
+      received: number, 
+      hasIssues: boolean, 
+      isForceClosed?: boolean,
+      isProject?: boolean,
+      isMasterClosed?: boolean
+  ) => {
+      // Priority 1: Issues (Damage, etc.)
+      if (hasIssues) {
+           return (<div className="flex justify-center" title="Probleme gemeldet"><AlertTriangle size={18} className="text-red-500" /></div>);
+      }
+
+      const isShort = received < ordered;
+      const isOver = received > ordered;
+      const isPerfect = ordered === received;
+
+      // NEW LOGIC: Implicit Close via Project or Master Status (Gray Check)
+      const isImplicitlyClosed = isProject || isMasterClosed || isForceClosed;
+
+      if (isImplicitlyClosed && isShort) {
+          return (
+            <div className="flex justify-center" title="Abgeschlossen (Unterlieferung akzeptiert)">
+                <CheckCircle2 size={18} className="text-slate-400" />
+            </div>
+          );
+      }
+
+      if (isImplicitlyClosed && isOver) {
+          return (
+            <div className="flex justify-center" title="Abgeschlossen (Übermenge akzeptiert)">
+                <CheckCircle2 size={18} className="text-slate-400" />
+            </div>
+          );
+      }
+
+      // Scenario C: Perfect -> Green Check
+      if (isPerfect) {
+          return (<div className="flex justify-center"><CheckCircle2 size={18} className="text-emerald-500" /></div>);
+      }
+      
+      if (isOver) {
+           return (<div className="flex justify-center" title="Überlieferung"><Info size={18} className="text-orange-500" /></div>);
+      }
+
+      // Scenario B: Active Short -> Warning
+      return (<div className="flex justify-center" title="Mengenabweichung"><AlertTriangle size={18} className="text-amber-500" /></div>);
+  };
+
+  // --- INSPECTION STATE HELPER ---
+  const getInspectionState = (row?: ReceiptListRow | ReceiptHeader, po?: PurchaseOrder, master?: ReceiptMaster) => {
+    if (!row || !po || !master) return { canInspect: false, label: '', style: '' };
+    
+    const isForceClosed = po.isForceClosed || false;
+    const totalReceived = master.deliveries.reduce((sum, delivery) => {
+      return sum + delivery.items.reduce((itemSum, item) => itemSum + item.quantityAccepted, 0);
+    }, 0);
+    const totalOrdered = po.items.reduce((sum, item) => sum + item.quantityExpected, 0);
+    const remainingQty = totalOrdered - totalReceived;
+    
+    // Can't inspect if force closed
+    if (isForceClosed) {
+      return { canInspect: false, label: '', style: '' };
+    }
+    
+    // Can inspect if there's remaining quantity
+    if (remainingQty > 0) {
+      return {
+        canInspect: true,
+        label: 'Lieferung prüfen',
+        style: 'primary' // Blue primary button
+      };
+    }
+    
+    // Overage scenario - can still inspect to document it
+    if (remainingQty < 0) {
+      return {
+        canInspect: true,
+        label: 'Übermenge prüfen',
+        style: 'warning' // Warning style
+      };
+    }
+    
+    // Fully received - allow problem reporting
+    return { canInspect: false, label: 'Problem melden', style: 'problem' };
+  };
+
+  // --- ACTIONS RENDERER (Shared for both layouts) ---
+  const renderActions = (inspectionState?: { canInspect: boolean, label: string, style: string }, po?: PurchaseOrder, rowHeader?: ReceiptHeader | ReceiptListRow, rowMaster?: ReceiptMaster | null, menuKey?: string) => {
+    const activeHeader = rowHeader || selectedHeader;
+    const activeMaster = rowMaster !== undefined ? rowMaster : linkedMaster;
+    const thisMenuKey = menuKey || 'detail';
+    const actions = [];
+
+    // If PO is cancelled, only show Problem button
+    const isCancelled = po?.status === 'Storniert';
+
+    // SMART INSPECT BUTTON (Standard / Replacement) - Hidden when manually closed
+    if (inspectionState?.canInspect && po && !po.isForceClosed && !isCancelled) {
+      actions.push({
+        key: 'inspect',
+        label: inspectionState.label === 'Prüfung fortsetzen' ? 'Prüfen' : 'Nachlieferung',
+        icon: ClipboardCheck,
+        onClick: (e: React.MouseEvent) => { e.stopPropagation(); onInspect(po, 'standard'); },
+        variant: inspectionState.style === 'primary' ? 'primary' : 'secondary',
+        tooltip: inspectionState.label
+      });
+    }
+
+    // RETURN BUTTON (For ANY Issue or Overdelivery) - Hidden when manually closed or cancelled
+    const effectiveReturnStatus = activeMaster?.status || activeHeader?.status || '';
+    if (!po?.isForceClosed && !isCancelled && activeHeader && ['Übermenge', 'Zu viel', 'Schaden', 'Beschädigt', 'Falsch geliefert', 'Abgelehnt', 'Sonstiges'].some(s => effectiveReturnStatus.includes(s)) && po) {
+      actions.push({
+        key: 'return',
+        label: 'Rücksendung',
+        icon: LogOut,
+        onClick: (e: React.MouseEvent) => {
+          e.stopPropagation();
+          const defaultReason = effectiveReturnStatus.includes('Schaden') || effectiveReturnStatus.includes('Beschädigt') ? 'Schaden'
+            : effectiveReturnStatus.includes('Falsch') ? 'Falsch geliefert'
+            : effectiveReturnStatus.includes('Abgelehnt') ? 'Abgelehnt'
+            : 'Übermenge';
+          setReturnPickerPO(po);
+        },
+        variant: 'warning',
+        tooltip: 'Rücksendung erfassen (Korrektur)'
+      });
+    }
+
+    // PROBLEM BUTTON (Re-inspect: cancel old, create fresh) - ALWAYS available
+    if (po && activeHeader) {
+      actions.push({
+        key: 'problem',
+        label: 'Problem',
+        icon: AlertCircle,
+        onClick: (e: React.MouseEvent) => { e.stopPropagation(); setProblemConfirmPO(po); },
+        variant: 'danger',
+        tooltip: 'Nachträgliches Problem melden — Alte Buchung wird storniert'
+      });
+    }
+
+    // CLOSE BUTTON - Hidden when already closed, force closed, or cancelled
+    if (activeHeader && activeHeader.status !== 'Abgeschlossen' && activeHeader.status !== 'Storniert' && !po?.isForceClosed && !isCancelled) {
+      actions.push({
+        key: 'close',
+        label: 'Schließen',
+        icon: Archive,
+        onClick: (e: React.MouseEvent) => { e.stopPropagation(); setShowCloseConfirm(activeHeader.batchId); },
+        variant: 'ghost',
+        tooltip: 'Abschließen'
+      });
+    }
+
+    
+    if (actions.length === 0) return null;
+
+    // UNIFIED: Single three-dot menu for both mobile and desktop
+    return (
+      <div className="relative">
+        <button
+          data-receipt-actions-menu={thisMenuKey}
+          onClick={(e) => { e.stopPropagation(); setShowMobileActionMenu(showMobileActionMenu === thisMenuKey ? null : thisMenuKey); }}
+          className={`px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all border ${
+            showMobileActionMenu
+              ? (isDark ? 'bg-slate-700 border-slate-600' : 'bg-slate-100 border-slate-300')
+              : (isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-300 hover:bg-slate-50')
+          }`}
+        >
+          <MoreVertical size={18} />
+          <span className="hidden sm:inline">Weitere Aktionen</span>
+        </button>
+
+        {showMobileActionMenu === thisMenuKey && createPortal(
+          <>
+            <div className="fixed inset-0 z-[9998]" onClick={() => setShowMobileActionMenu(null)} />
+            <div
+              className={`fixed z-[9999] w-64 rounded-xl shadow-2xl border p-1.5 animate-in fade-in zoom-in-95 duration-150 origin-top-right ${
+                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
+              }`}
+              style={(() => {
+                const btn = document.querySelector(`[data-receipt-actions-menu="${thisMenuKey}"]`);
+                if (btn) {
+                  const rect = btn.getBoundingClientRect();
+                  const vw = document.documentElement.clientWidth;
+                  const vh = window.innerHeight;
+                  const menuH = actions.length * 52 + 12;
+                  const top = rect.bottom + menuH > vh ? rect.top - menuH : rect.bottom + 4;
+                  return { top, right: Math.max(8, vw - rect.right) };
+                }
+                return { top: 100, right: 16 };
+              })()}
+            >
+              <div className="flex flex-col gap-0.5">
+                {actions.map(action => {
+                  const Icon = action.icon;
+                  return (
+                    <button
+                      key={action.key}
+                      onClick={(e) => { action.onClick(e); setShowMobileActionMenu(null); }}
+                      className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-3 transition-colors rounded-lg ${
+                        action.variant === 'warning'
+                          ? (isDark ? 'text-orange-400 hover:bg-orange-500/10' : 'text-orange-600 hover:bg-orange-50')
+                          : action.variant === 'danger'
+                          ? (isDark ? 'text-red-400 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50')
+                          : (isDark ? 'text-slate-200 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-50')
+                      }`}
+                    >
+                      <Icon size={16} />
+                      <span>{action.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>,
+          document.body
+        )}
+      </div>
+    );
+  };
+
+  
+  // --- RETURN MODAL HANDLER ---
+  const handleReturnConfirm = () => {
+      if (!returnModal || returnModal.quantity <= 0) return;
+      onProcessReturn(returnModal.poId, {
+          quantity: returnModal.quantity,
+          reason: returnModal.reason,
+          carrier: returnModal.carrier,
+          trackingId: returnModal.trackingId
+      });
+      setReturnModal(null);
+      setShowGrundOptions(false);
+  };
+
+  const RETURN_REASONS = ['Übermenge', 'Schaden', 'Falsch geliefert', 'Abgelehnt'];
+
+  const returnModalInputClass = `w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-slate-100 focus:ring-orange-500/30' : 'bg-white border-slate-200 text-slate-800 focus:ring-orange-500/20'}`;
+// --- RETURN PICKER PORTAL ---
+  const returnPickerPortal = returnPickerPO && linkedMaster && createPortal(
+    <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setReturnPickerPO(null)}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className={`relative w-full max-w-lg rounded-2xl border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`} onClick={e => e.stopPropagation()}>
+        <div className={`p-5 border-b flex items-center justify-between ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+          <div className="flex items-center gap-3">
+            <RotateCcw size={20} className="text-orange-500" />
+            <h3 className="text-lg font-bold">Artikel für Rücksendung wählen</h3>
+          </div>
+          <button onClick={() => setReturnPickerPO(null)} className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}><X size={18} /></button>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto">
+          {(() => {
+            const lines: Array<{ sku: string; name: string; zuViel: number; damaged: number; wrong: number }> = [];
+            returnPickerPO.items.forEach(poItem => {
+              let totalAccepted = 0;
+              let totalDamaged = 0;
+              let totalWrong = 0;
+              linkedMaster.deliveries.filter(d => !d.isStorniert).forEach(d => {
+                const di = d.items.find(x => x.sku === poItem.sku);
+                if (di) {
+                  totalAccepted += di.quantityAccepted;
+                  if (di.damageFlag) totalDamaged += di.quantityRejected;
+                  else if (di.rejectionReason === 'Wrong') totalWrong += di.quantityRejected;
+                }
+              });
+              const zuViel = Math.max(0, totalAccepted - poItem.quantityExpected);
+              if (zuViel > 0 || totalDamaged > 0 || totalWrong > 0) {
+                lines.push({ sku: poItem.sku, name: poItem.name, zuViel, damaged: totalDamaged, wrong: totalWrong });
+              }
+            });
+            if (lines.length === 0) return (
+              <div className={`p-8 text-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                <Package size={32} className="mx-auto mb-3 opacity-30" />
+                <p className="font-bold">Keine Positionen mit Problemen</p>
+              </div>
+            );
+            return lines.map(line => {
+              const totalQty = line.zuViel + line.damaged + line.wrong;
+              const reason = line.damaged > 0 ? 'Schaden' : line.wrong > 0 ? 'Falsch geliefert' : 'Übermenge';
+              return (
+                <button key={line.sku} onClick={() => {
+                  setReturnPickerPO(null);
+                  setReturnModal({ poId: returnPickerPO.id, quantity: totalQty, reason, carrier: '', trackingId: '' });
+                }} className={`w-full text-left px-5 py-4 border-b last:border-0 transition-colors ${isDark ? 'border-slate-800 hover:bg-slate-800' : 'border-slate-100 hover:bg-slate-50'}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-sm">{line.name}</div>
+                      <div className="text-[10px] font-mono opacity-50 mt-0.5">{line.sku}</div>
+                    </div>
+                    <ChevronRight size={16} className="opacity-30" />
+                  </div>
+                  <div className="flex gap-3 mt-2">
+                    {line.zuViel > 0 && <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-50 text-orange-600 border-orange-200'}`}><Info size={10} /> Zu viel: {line.zuViel}</span>}
+                    {line.damaged > 0 && <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200'}`}><AlertTriangle size={10} /> Beschädigt: {line.damaged}</span>}
+                    {line.wrong > 0 && <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-600 border-amber-200'}`}><XCircle size={10} /> Falsch: {line.wrong}</span>}
+                  </div>
+                </button>
+              );
+            });
+          })()}
+        </div>
+      </div>
+    </div>, document.body
+  );
+
+  // --- PROBLEM CONFIRMATION PORTAL ---
+  const problemConfirmPortal = problemConfirmPO && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={() => setProblemConfirmPO(null)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className={`relative w-full max-w-md rounded-2xl border p-6 space-y-4 shadow-2xl ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className={`p-3 rounded-xl ${isDark ? 'bg-red-500/20' : 'bg-red-50'}`}>
+                <AlertCircle size={24} className="text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold">Nachträgliche Korrektur?</h3>
+                <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Die bestehende Buchung wird storniert.</p>
+              </div>
+            </div>
+            <div className={`p-3 rounded-lg text-sm space-y-1 ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-50 text-slate-600'}`}>
+              <p>• Der alte Wareneingang wird als <strong>Storniert</strong> markiert</p>
+              <p>• Der Lagerbestand wird entsprechend <strong>zurückgebucht</strong></p>
+              <p>• Eine neue Prüfung wird geöffnet — Sie erfassen alles neu</p>
+              <p>• Nur die neue Buchung zählt</p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setProblemConfirmPO(null)} className={`flex-1 px-4 py-3 rounded-xl font-bold ${isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>Abbrechen</button>
+              <button onClick={() => { onInspect(problemConfirmPO, 'problem'); setProblemConfirmPO(null); }} className="flex-1 px-4 py-3 rounded-xl font-bold bg-red-600 text-white hover:bg-red-500">Ja, korrigieren</button>
+            </div>
+          </div>
+        </div>, document.body
+      );
+
+  // --- CLOSE CONFIRMATION PORTAL ---
+  const closeConfirmPortal = showCloseConfirm && createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={() => setShowCloseConfirm(null)}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className={`relative w-full max-w-md rounded-2xl border p-6 space-y-4 shadow-2xl ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3">
+          <div className={`p-3 rounded-xl ${isDark ? 'bg-red-500/20' : 'bg-red-50'}`}>
+            <Archive size={24} className="text-red-500" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold">Vorgang abschließen?</h3>
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Diese Aktion kann nicht rückgängig gemacht werden.</p>
+          </div>
+        </div>
+        <div className={`p-3 rounded-lg text-sm space-y-1 ${isDark ? 'bg-red-500/10 border border-red-500/20 text-slate-300' : 'bg-red-50 border border-red-200 text-slate-600'}`}>
+          <p>• Es gibt möglicherweise <strong>offene Restmengen</strong>, die nicht geliefert wurden</p>
+          <p>• Nach dem Abschluss sind <strong>keine weiteren Buchungen</strong> möglich</p>
+          <p>• Offene Mengen werden als <strong>storniert</strong> betrachtet</p>
+          <p>• Bei Bedarf können Sie über <strong>„Problem"</strong> eine Korrektur einleiten</p>
+        </div>
+        <div className="flex gap-3 pt-2">
+          <button onClick={() => setShowCloseConfirm(null)} className={`flex-1 px-4 py-3 rounded-xl font-bold ${isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>Abbrechen</button>
+          <button onClick={() => { handleForceClose(); setShowCloseConfirm(null); }} className="flex-1 px-4 py-3 rounded-xl font-bold bg-red-600 text-white hover:bg-red-500">Ja, abschließen</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+
+  // --- RETURN MODAL PORTAL ---
+  const returnModalPortal = returnModal && createPortal(
+    <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => { setReturnModal(null); setShowGrundOptions(false); }}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className={`relative w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-300 ${isDark ? 'bg-slate-900 border border-slate-700' : 'bg-white'}`}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-3 pb-4 border-b border-slate-200 dark:border-slate-700">
+          <RotateCcw size={24} className="text-orange-500" />
+          <h3 className="text-lg font-bold">Rücksendung erfassen</h3>
+        </div>
+
+        {/* Menge */}
+        <div>
+          <label className="text-xs font-bold uppercase mb-2 block opacity-60">Menge</label>
+          <input
+            type="number"
+            min="1"
+            value={returnModal.quantity}
+            onChange={e => setReturnModal(prev => prev ? { ...prev, quantity: parseInt(e.target.value) || 1 } : null)}
+            className={returnModalInputClass}
+          />
+        </div>
+
+        {/* Grund (combobox: input + quick-pick chips) */}
+        <div>
+          <label className="text-xs font-bold uppercase mb-2 block opacity-60">Grund</label>
+          <div className="relative">
+            <input
+              value={returnModal.reason}
+              onChange={e => { setReturnModal(prev => prev ? { ...prev, reason: e.target.value } : null); setShowGrundOptions(true); }}
+              onFocus={() => setShowGrundOptions(true)}
+              placeholder="Grund wählen oder eingeben…"
+              className={returnModalInputClass}
+            />
+            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-40 pointer-events-none" />
+          </div>
+          {showGrundOptions && (
+            <div className={`mt-1 rounded-xl border shadow-xl overflow-hidden z-50 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+              {RETURN_REASONS.filter(r => !returnModal.reason || r.toLowerCase().includes(returnModal.reason.toLowerCase())).map(r => (
+                <button
+                  key={r}
+                  onClick={() => { setReturnModal(prev => prev ? { ...prev, reason: r } : null); setShowGrundOptions(false); }}
+                  className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors border-b last:border-0 ${
+                    returnModal.reason === r
+                      ? (isDark ? 'bg-orange-500/10 text-orange-400 border-slate-700' : 'bg-orange-50 text-orange-600 border-slate-100')
+                      : (isDark ? 'hover:bg-slate-700 text-slate-300 border-slate-700' : 'hover:bg-slate-50 text-slate-700 border-slate-100')
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Versandart */}
+        <div>
+          <label className="text-xs font-bold uppercase mb-2 block opacity-60">Versandart</label>
+          <input
+            value={returnModal.carrier}
+            onChange={e => setReturnModal(prev => prev ? { ...prev, carrier: e.target.value } : null)}
+            placeholder="DHL, Hermes..."
+            className={returnModalInputClass}
+          />
+        </div>
+
+        {/* Tracking-ID */}
+        <div>
+          <label className="text-xs font-bold uppercase mb-2 block opacity-60">Tracking-ID</label>
+          <input
+            value={returnModal.trackingId}
+            onChange={e => setReturnModal(prev => prev ? { ...prev, trackingId: e.target.value } : null)}
+            placeholder="Optional"
+            className={returnModalInputClass}
+          />
+        </div>
+
+        {/* Buttons */}
+        <div className="flex gap-3 pt-2">
+          <button
+            onClick={() => { setReturnModal(null); setShowGrundOptions(false); }}
+            className={`flex-1 px-4 py-3 rounded-xl font-bold transition-colors ${isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
+          >
+            Abbrechen
+          </button>
+          <button
+            onClick={handleReturnConfirm}
+            disabled={!returnModal.reason.trim() || returnModal.quantity <= 0}
+            className="flex-1 px-4 py-3 rounded-xl font-bold bg-orange-600 text-white hover:bg-orange-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Bestätigen
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+
+  if (!selectedBatchId) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        {returnModalPortal}
+        {returnPickerPortal}
+        {problemConfirmPortal}
+        {closeConfirmPortal}
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+          <h2 className="text-2xl font-bold">Wareneingang Verwaltung</h2>
+          <button
+            onClick={() => onNavigate('goods-receipt')}
+            className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${
+                isDark 
+                 ? 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20' 
+                 : 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'
+            }`}
+          >
+            <ClipboardCheck size={20} /> Lieferung prüfen
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1 group">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="text"
+                placeholder="Suche nach Lieferschein, Lieferant oder Bestell Nr..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`w-full border rounded-xl pl-11 pr-4 py-3 text-base md:text-sm transition-all focus:outline-none focus:ring-2 ${
+                  isDark 
+                    ? 'bg-slate-900 border-slate-800 text-slate-100 focus:ring-blue-500/30' 
+                    : 'bg-white border-slate-200 text-[#313335] focus:ring-[#0077B5]/20'
+                }`}
+              />
+            </div>
+            
+            {/* SMART CHIP FILTERS */}
+            <div className={`flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar p-1 rounded-xl max-w-full ${isDark ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
+                <FilterChip 
+                    label="Alle" 
+                    count={categoryCounts.all} 
+                    active={statusFilter === 'all'} 
+                    onClick={() => setStatusFilter('all')} 
+                    type="neutral" 
+                />
+                <FilterChip 
+                    label="In Arbeit" 
+                    count={categoryCounts.pending} 
+                    active={statusFilter === 'pending'} 
+                    onClick={() => setStatusFilter('pending')} 
+                    type="pending" 
+                />
+                <FilterChip 
+                    label="Probleme" 
+                    count={categoryCounts.issues} 
+                    active={statusFilter === 'issues'} 
+                    onClick={() => setStatusFilter('issues')} 
+                    type="issue" 
+                />
+                <FilterChip 
+                    label="Gebucht" 
+                    count={categoryCounts.completed} 
+                    active={statusFilter === 'completed'} 
+                    onClick={() => setStatusFilter('completed')} 
+                    type="success" 
+                />
+            </div>
+
+            {/* COMPACT TOOLBAR — Archive & Filter as icon buttons */}
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setShowArchived(!showArchived)}
+                title={showArchived ? 'Archivierte ausblenden' : 'Archivierte einblenden'}
+                className={`relative p-2.5 md:px-4 md:py-0 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all ${
+                  isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'
+                } ${showArchived ? 'text-[#0077B5] border-[#0077B5]/30' : (isDark ? 'text-slate-400' : 'text-slate-500')}`}
+              >
+                {showArchived ? <Archive size={18} /> : <Archive size={18} />}
+                <span className="hidden md:inline">Archivierte</span>
+                {showArchived && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#0077B5] ring-2 ring-white dark:ring-slate-950" />}
+              </button>
+
+              <button 
+                onClick={() => setShowFilters(!showFilters)}
+                title="Erweiterte Filter"
+                className={`relative p-2.5 md:px-4 md:py-0 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all ${
+                  showFilters 
+                     ? 'bg-[#0077B5] border-[#0077B5] text-white' 
+                     : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <Filter size={18} />
+                <span className="hidden md:inline">Filter</span>
+                {(dateFrom || dateTo || filterUser) && !showFilters && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-950" />}
+              </button>
+            </div>
+          </div>
+
+          {showFilters && (
+            <div className={`p-5 rounded-2xl border animate-in slide-in-from-top-2 duration-200 ${
+              isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Erweiterte Suche</h3>
+                  {(dateFrom || dateTo || filterUser) && (
+                    <button onClick={clearFilters} className="text-xs text-[#0077B5] font-bold hover:underline flex items-center gap-1">
+                       Filter zurÃ¼cksetzen <X size={12}/>
+                    </button>
+                  )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                   <label className="text-[10px] uppercase font-bold text-slate-500">Zeitraum Von</label>
+                   <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={`w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 ${isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'}`} />
+                </div>
+                <div className="space-y-1.5">
+                   <label className="text-[10px] uppercase font-bold text-slate-500">Zeitraum Bis</label>
+                   <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={`w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 ${isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'}`} />
+                </div>
+                <div className="space-y-1.5">
+                   <label className="text-[10px] uppercase font-bold text-slate-500">Erfasst von (Benutzer)</label>
+                   <div className="relative">
+                      <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input 
+                        type="text" 
+                        value={filterUser} 
+                        onChange={e => setFilterUser(e.target.value)} 
+                        placeholder="Benutzername..." 
+                        className={`w-full border rounded-xl pl-9 px-3 py-2 text-sm outline-none focus:ring-2 ${isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'}`} 
+                      />
+                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+           {/* MOBILE CARD VIEW */}
+           <div className="md:hidden divide-y divide-slate-500/10">
+             {filteredRows.length === 0 ? (
+               <div className="p-8 text-center text-slate-500">
+                 <Package size={32} className="mx-auto mb-3 opacity-30" />
+                 <p>Keine Einträge gefunden</p>
+               </div>
+             ) : (
+               filteredRows.map(row => {
+                 const linkedPO = purchaseOrders.find(po => po.id === row.bestellNr);
+                 const linkedMaster = receiptMasters.find(m => m.poId === row.bestellNr);
+                 const deliveryCount = row.deliveryCount || 1;
+                 const rowTickets = row.isGroup && row.bestellNr
+  ? tickets.filter(t => {
+      const h = headers.find(hdr => hdr.batchId === t.receiptId);
+      return h?.bestellNr === row.bestellNr;
+    })
+  : tickets.filter(t => t.receiptId === row.batchId);
+                 const inspectionState = getInspectionState(row, linkedPO, linkedMaster);
+
+                 return (
+                   <div
+                     key={row.batchId}
+                     onClick={() => handleOpenDetail(row)}
+                     className={`p-4 cursor-pointer transition-colors ${row.isArchived ? (isDark ? 'bg-slate-900/50 opacity-60 hover:bg-slate-800/50' : 'bg-slate-50 opacity-60 hover:bg-slate-100') : (isDark ? 'hover:bg-slate-800 active:bg-slate-700' : 'hover:bg-slate-50 active:bg-slate-100')}`}
+                   >
+                     <div className="flex items-start gap-3 mb-3">
+                       <div className="flex-1 min-w-0 [&_.status-pill-stack]:flex [&_.status-pill-stack]:flex-col [&_.status-pill-stack]:gap-1.5 [&_.status-pill-stack>span]:w-full [&_.status-pill-stack>span]:justify-center [&_.status-pill-stack>span]:text-center">
+                         <ReceiptStatusBadges header={row} master={linkedMaster} linkedPO={linkedPO} tickets={rowTickets} theme={theme} />
+                       </div>
+                       <div className="shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                         {renderActions(inspectionState, linkedPO, row, linkedMaster, `mob-${row.batchId}`)}
+                       </div>
+                     </div>
+                     <div className="space-y-2 mb-3">
+                       <div className="flex items-center justify-between">
+                         <span className="text-xs font-bold uppercase text-slate-500">Bestell Nr.</span>
+                         {row.isGroup ? (
+                           <div className="flex items-center gap-2"><Layers size={14} className="text-[#0077B5]" /><span className="font-bold">{row.bestellNr}</span></div>
+                         ) : (
+                           <span className="font-mono font-bold">{row.bestellNr || 'â€“'}</span>
+                         )}
+                       </div>
+                       <div className="flex items-center justify-between">
+                         <span className="text-xs font-bold uppercase text-slate-500">Lieferschein</span>
+                         <span className="font-medium">{deliveryCount > 1 ? <span className="italic opacity-80">Multiple ({deliveryCount})</span> : row.lieferscheinNr}</span>
+                       </div>
+                       <div className="flex items-center justify-between">
+                         <span className="text-xs font-bold uppercase text-slate-500">Lieferant</span>
+                         <span className="text-sm">{row.lieferant}</span>
+                       </div>
+                       <div className="flex items-center justify-between">
+                         <span className="text-xs font-bold uppercase text-slate-500">Aktualisiert</span>
+                         <div className="text-xs text-right">
+                           <div className="flex items-center gap-1.5 justify-end"><Calendar size={12}/>{new Date(row.timestamp).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
+                           <div className="flex items-center gap-1.5 justify-end opacity-70 mt-0.5"><User size={12}/>{row.createdByName || 'Unbekannt'}</div>
+                         </div>
+                       </div>
+                       {linkedPO?.pdfUrl && (
+                         <div className="flex items-center justify-between">
+                           <span className="text-xs font-bold uppercase text-slate-500">Bestätigung</span>
+                           <CheckCircle2 size={16} className="text-emerald-500" />
+                         </div>
+                       )}
+                     </div>
+                     
+                     <div className="flex justify-end mt-2"><ChevronRight size={18} className="text-slate-400" /></div>
+                   </div>
+                 );
+               })
+             )}
+           </div>
+
+           {/* DESKTOP TABLE VIEW */}
+           <div className="hidden md:block overflow-x-auto">
+             <table className="w-full text-left text-sm min-w-[1000px]">
+               <thead className={`border-b ${isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                 <tr>
+                   {statusColumnFirst && <th className="p-4 font-semibold">Status</th>}
+                   <th className="p-4 font-semibold">Bestell Nr.</th>
+                   {!statusColumnFirst && <th className="p-4 font-semibold">Status</th>}
+                   <th className="p-4 font-semibold text-center">Bestellbestätigung</th>
+                   <th className="p-4 font-semibold">Lieferschein</th>
+                   <th className="p-4 font-semibold">Lieferant</th>
+                   <th className="p-4 font-semibold">Aktualisiert am / von</th>
+                   <th className="p-4 font-semibold text-right"></th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y divide-slate-500/10">
+                  {filteredRows.map(row => {
+                    const linkedPO = purchaseOrders.find(po => po.id === row.bestellNr);
+                    const linkedMaster = receiptMasters.find(m => m.poId === row.bestellNr);
+                    const deliveryCount = row.deliveryCount || 1;
+                    const rowTickets = tickets.filter(t => t.receiptId === row.batchId);
+                    
+                    const inspectionState = getInspectionState(row, linkedPO, linkedMaster);
+
+                    return (
+                    <tr 
+                      key={row.batchId} 
+                      onClick={() => handleOpenDetail(row)}
+                      className={`cursor-pointer transition-colors ${row.isArchived ? (isDark ? 'bg-slate-900/50 opacity-60 hover:bg-slate-800/50' : 'bg-slate-50 opacity-60 hover:bg-slate-100') : (isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50')}`}
+                    >
+                      {statusColumnFirst && (
+                      <td className="p-4">
+                        <ReceiptStatusBadges 
+                            header={row}
+                            master={linkedMaster} 
+                            linkedPO={linkedPO} 
+                            tickets={rowTickets}
+                            theme={theme}
+                        />
+                      </td>
+                      )}
+                      <td className="p-4 font-medium text-slate-600 dark:text-slate-400">
+                          {row.isGroup ? (
+                              <div className="flex items-center gap-2">
+                                  <Layers size={14} className="text-[#0077B5]" />
+                                  <span className="font-bold">{row.bestellNr}</span>
+                              </div>
+                          ) : (
+                              row.bestellNr || '—'
+                          )}
+                      </td>
+                      {!statusColumnFirst && (
+                      <td className="p-4">
+                        <ReceiptStatusBadges 
+                            header={row}
+                            master={linkedMaster} 
+                            linkedPO={linkedPO} 
+                            tickets={rowTickets}
+                            theme={theme}
+                        />
+                      </td>
+                      )}
+                      <td className="p-4 text-center">
+                        {linkedPO?.pdfUrl ? (
+                           <div className="flex justify-center" title="Bestätigung vorhanden">
+                             <CheckCircle2 size={18} className="text-emerald-500" />
+                           </div>
+                        ) : (
+                           <div className="flex justify-center opacity-30" title="Keine Bestätigung">
+                             <Ban size={18} className="text-slate-500" />
+                           </div>
+                        )}
+                      </td>
+
+                      <td className="p-4 font-medium">
+                          {deliveryCount > 1 ? (
+                              <span className="italic opacity-80 flex items-center gap-1">
+                                  Multiple ({deliveryCount})
+                              </span>
+                          ) : (
+                              row.lieferscheinNr
+                          )}
+                      </td>
+                      <td className="p-4 text-slate-500">{row.lieferant}</td>
+                      <td className="p-4 text-slate-500">
+                        <div className="flex flex-col">
+                          <span className="flex items-center gap-1.5"><Calendar size={12}/> {new Date(row.timestamp).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                          <span className="flex items-center gap-1.5 mt-1 text-xs opacity-70"><User size={12}/> {row.createdByName || 'Unbekannt'}</span>
+                          {(() => { const po = row.bestellNr ? purchaseOrders.find(p => p.id === row.bestellNr) : null; return (
+                            <span className={`flex items-center gap-1.5 mt-1 text-xs ${po?.expectedDeliveryDate ? 'opacity-70' : 'opacity-40'}`}>
+                              <Clock size={12}/> {po?.expectedDeliveryDate ? `Erw.: ${new Date(po.expectedDeliveryDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}` : 'Kein Liefertermin'}
+                            </span>
+                          ); })()}
+                        </div>
+                      </td>
+                      <td className="p-4 text-right text-slate-400 flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                          {/* IN-ROW ACTIONS */}
+                          {renderActions(inspectionState, linkedPO, row, linkedMaster, `list-${row.batchId}`)}
+                          <ChevronRight size={18} className="cursor-pointer" onClick={() => handleOpenDetail(row)} />
+                      </td>
+                    </tr>
+                  )})}
+                  {filteredRows.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="p-12 text-center text-slate-500">Keine Datensätze gefunden.</td>
+                    </tr>
+                  )}
+               </tbody>
+             </table>
+           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!selectedHeader) return null;
+  const detailInspectionState = getInspectionState(selectedHeader, linkedPO || undefined, linkedMaster || undefined);
+
+  return (
+      <div className="h-full flex flex-col animate-in slide-in-from-right-8 duration-300 -m-4 md:-m-6 lg:-m-8">
+        {returnModalPortal}
+        {returnPickerPortal}
+        {problemConfirmPortal}
+        {closeConfirmPortal}
+      
+      {/* TOP NAVIGATION BAR - PERSISTENT */}
+      <div className={`flex-none flex items-center gap-0 px-2 md:px-4 h-10 border-b z-20 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+          {/* Back */}
+          <button 
+            onClick={handleBack} 
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold transition-colors shrink-0 ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+          >
+              <ArrowLeft size={16} /> <span className="hidden md:inline">Liste</span>
+          </button>
+          
+          {/* UNDERLINE TABS */}
+          <div className="flex items-end h-full ml-2 md:ml-4 gap-0">
+              <button 
+                  onClick={() => setActiveTab('items')}
+                  className={`relative flex items-center gap-1.5 px-3 h-full text-xs font-bold transition-colors ${
+                      activeTab === 'items' 
+                      ? (isDark ? 'text-white' : 'text-slate-900') 
+                      : (isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-700')
+                  }`}
+              >
+                  <Package size={13} />
+                  Positionen
+                  {activeTab === 'items' && <span className="absolute bottom-0 left-1 right-1 h-[2px] bg-[#0077B5] rounded-full" />}
+              </button>
+              <button 
+                  onClick={() => setActiveTab('tickets')}
+                  className={`relative flex items-center gap-1.5 px-3 h-full text-xs font-bold transition-colors ${
+                      activeTab === 'tickets' 
+                      ? (isDark ? 'text-white' : 'text-slate-900') 
+                      : (isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-700')
+                  }`}
+              >
+                  <MessageSquare size={13} />
+                  Reklamationen
+                  {activeTab === 'tickets' && <span className="absolute bottom-0 left-1 right-1 h-[2px] bg-[#0077B5] rounded-full" />}
+                  {/* iOS-style notification dots */}
+                  {openTicketsCount > 0 && (
+                      <span className="ml-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold leading-none flex items-center justify-center bg-red-500 text-white shadow-sm shadow-red-500/30">
+                          {openTicketsCount}
+                      </span>
+                  )}
+                  {closedTicketsCount > 0 && (
+                      <span className={`${openTicketsCount > 0 ? '-ml-0.5' : 'ml-1'} min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold leading-none flex items-center justify-center shadow-sm ${
+                          isDark ? 'bg-slate-600 text-slate-300 shadow-slate-600/30' : 'bg-slate-400 text-white shadow-slate-400/30'
+                      }`}>
+                          {closedTicketsCount}
+                      </span>
+                  )}
+              </button>
+          </div>
+
+          {/* Close */}
+          <button 
+            onClick={handleBack} 
+            className={`ml-auto p-1.5 rounded-lg transition-colors shrink-0 ${isDark ? 'text-slate-500 hover:bg-slate-800 hover:text-white' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-900'}`}
+            title="Schließen"
+          >
+              <X size={16} />
+          </button>
+      </div>
+
+      {/* MAIN CONTENT AREA */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+        
+        {/* ITEMS TAB CONTENT */}
+        {activeTab === 'items' && (
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6">
+                
+                {/* HEADER PANE - ONLY IN ITEMS VIEW */}
+                <div className={`rounded-xl border flex flex-col ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                    
+                    {/* ═══ MOBILE LAYOUT (default) ═══ */}
+                    <div className="lg:hidden">
+                        {/* Row 1: Bestellung + Lieferschein */}
+                        <div className="p-3 pb-2">
+                            <div className="flex items-end justify-between gap-3">
+                                <div className="min-w-0">
+                                    <span className={`text-[11px] uppercase font-bold tracking-wider ${isDark ? 'text-[#0077B5]' : 'text-[#0077B5]'}`}>Bestellung</span>
+                                    <div className={`text-xl font-extrabold tracking-tight ${selectedHeader.bestellNr ? (isDark ? 'text-white' : 'text-slate-900') : 'opacity-40 italic font-normal text-base'}`}>
+                                        {selectedHeader.bestellNr || '—'}
+                                    </div>
+                                </div>
+                                <div className="relative shrink-0">
+                                    <span className={`text-[11px] uppercase font-bold tracking-wider block text-right ${isDark ? 'text-[#0077B5]' : 'text-[#0077B5]'}`}>Lieferschein</span>
+                                    <button 
+                                        onClick={() => setShowDeliveryList(!showDeliveryList)}
+                                        className={`flex items-center gap-1 mt-0.5 transition-colors ${
+                                            isDark ? 'text-white hover:text-blue-400' : 'text-slate-900 hover:text-[#0077B5]'
+                                        }`}
+                                    >
+                                        <span className="text-lg font-extrabold tracking-tight">{selectedHeader.lieferscheinNr}</span>
+                                        <ChevronDown size={14} className={`opacity-40 transition-transform duration-200 ${showDeliveryList ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {/* Mobile LS Dropdown */}
+                                    {showDeliveryList && (
+                                        <div className={`absolute top-full right-0 mt-2 w-72 rounded-xl border shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-top-2 ${
+                                            isDark ? 'bg-[#1e293b] border-slate-700' : 'bg-white border-slate-200'
+                                        }`}>
+                                            <div className={`p-3 border-b flex justify-between items-center ${isDark ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-100'}`}>
+                                                <span className="text-xs font-bold uppercase tracking-wider opacity-70">Alle Lieferungen</span>
+                                                <button onClick={() => setShowDeliveryList(false)} className="hover:bg-red-500/10 hover:text-red-500 p-1 rounded transition-colors"><X size={14}/></button>
+                                            </div>
+                                            <div className="max-h-64 overflow-y-auto">
+                                                {linkedMaster?.deliveries
+                                                    .filter(d => d.lieferscheinNr && d.lieferscheinNr !== 'Ausstehend' && d.lieferscheinNr !== 'Pending')
+                                                    .map((del, idx) => (
+                                                    <button 
+                                                        key={del.id} 
+                                                        onClick={() => handleScrollToDelivery(del.id)}
+                                                        className={`w-full text-left p-3 border-b last:border-0 flex items-center gap-3 transition-colors ${
+                                                        del.lieferscheinNr === selectedHeader.lieferscheinNr 
+                                                            ? (isDark ? 'bg-[#0077B5]/10 border-slate-700' : 'bg-blue-50 border-slate-100')
+                                                            : (isDark ? 'border-slate-800 hover:bg-slate-800' : 'border-slate-100 hover:bg-slate-50')
+                                                        }`}
+                                                    >
+                                                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                                            del.lieferscheinNr === selectedHeader.lieferscheinNr
+                                                            ? 'bg-[#0077B5] text-white'
+                                                            : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')
+                                                        }`}>{idx + 1}</div>
+                                                        <div>
+                                                            <div className={`text-sm font-bold ${del.lieferscheinNr === selectedHeader.lieferscheinNr
+                                                                ? (isDark ? 'text-[#00A0DC]' : 'text-[#0077B5]')
+                                                                : (isDark ? 'text-slate-200' : 'text-slate-700')
+                                                            }`}>{del.lieferscheinNr}</div>
+                                                            <div className="text-[10px] opacity-60">
+                                                                {new Date(del.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })} • {del.items.length} Pos.
+                                                            </div>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                                {(!linkedMaster || linkedMaster.deliveries.filter(d => d.lieferscheinNr && d.lieferscheinNr !== 'Ausstehend' && d.lieferscheinNr !== 'Pending').length === 0) && (
+                                                    <div className="p-4 text-center text-xs opacity-50">Keine weiteren Lieferungen gefunden.</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Row 2: Status pills + 3-dot menu */}
+                        <div className={`flex items-center gap-3 px-3 py-2 border-t ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                            <div className="flex-1">
+                                <div className="status-pill-stack">
+                                    <ReceiptStatusBadges 
+                                        header={selectedHeader}
+                                        master={linkedMaster} 
+                                        linkedPO={linkedPO} 
+                                        tickets={contextTickets}
+                                        theme={theme}
+                                    />
+                                </div>
+                            </div>
+                            <div className="shrink-0">
+                                {renderActions(detailInspectionState, linkedPO || undefined, selectedHeader || undefined, linkedMaster, 'detail-mob')}
+                            </div>
+                        </div>
+
+                        {/* Row 3: Info labels */}
+                        <div className={`grid grid-cols-2 gap-x-4 gap-y-1.5 px-3 py-2.5 border-t text-[11px] ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                            <div className="flex items-center gap-1.5 col-span-2">
+                                <Truck size={11} className="text-[#0077B5] shrink-0" />
+                                <span className={`font-semibold truncate ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{selectedHeader.lieferant}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <Calendar size={11} className={`shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>{new Date(selectedHeader.timestamp).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <Clock size={11} className={`shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                <span className={linkedPO?.expectedDeliveryDate ? (isDark ? 'text-slate-400' : 'text-slate-500') : (isDark ? 'text-slate-600' : 'text-slate-400')}>
+                                    {linkedPO?.expectedDeliveryDate
+                                        ? `Erw. Lieferung: ${new Date(linkedPO.expectedDeliveryDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+                                        : 'Kein Liefertermin'}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <MapPin size={11} className={`shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                <span className={`truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{selectedHeader.warehouseLocation || '—'}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 col-span-2">
+                                <User size={11} className={`shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>{selectedHeader.createdByName || '—'}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* ═══ DESKTOP LAYOUT (lg+) ═══ */}
+                    <div className="hidden lg:flex flex-col p-4">
+                        {/* Top: PO + LS left  |  Pills + Actions right */}
+                        <div className="flex items-start justify-between gap-6">
+                            {/* Left: Identity + Info */}
+                            <div className="flex-1 min-w-0">
+                                {/* PO + LS row */}
+                                <div className="flex items-baseline gap-4 mb-3">
+                                    <div className="flex items-baseline gap-2">
+                                        <span className={`text-[11px] uppercase font-bold tracking-wider ${isDark ? 'text-[#0077B5]' : 'text-[#0077B5]'}`}>Bestellung:</span>
+                                        <span className={`text-xl font-extrabold tracking-tight ${selectedHeader.bestellNr ? (isDark ? 'text-white' : 'text-slate-900') : 'opacity-40 italic font-normal text-base'}`}>
+                                            {selectedHeader.bestellNr || '—'}
+                                        </span>
+                                    </div>
+                                    <div className={`h-5 w-px ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`}></div>
+                                    <div className="relative">
+                                        <button 
+                                            onClick={() => setShowDeliveryList(!showDeliveryList)}
+                                            className={`flex items-baseline gap-2 transition-colors group ${
+                                                isDark ? 'text-white hover:text-blue-400' : 'text-slate-900 hover:text-[#0077B5]'
+                                    }`}
+                                >
+                                    <span className={`text-[11px] uppercase font-bold tracking-wider ${isDark ? 'text-[#0077B5]' : 'text-[#0077B5]'}`}>Lieferschein:</span>
+                                    <span className="text-xl font-extrabold tracking-tight">{selectedHeader.lieferscheinNr}</span>
+                                    <ChevronDown size={14} className={`opacity-50 transition-transform duration-200 ${showDeliveryList ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                {/* Dropdown Popover */}
+                                {showDeliveryList && (
+                                    <div className={`absolute top-full left-0 mt-2 w-72 rounded-xl border shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-top-2 ${
+                                        isDark ? 'bg-[#1e293b] border-slate-700' : 'bg-white border-slate-200'
+                                    }`}>
+                                        <div className={`p-3 border-b flex justify-between items-center ${isDark ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-slate-100'}`}>
+                                            <span className="text-xs font-bold uppercase tracking-wider opacity-70">Alle Lieferungen</span>
+                                            <button onClick={() => setShowDeliveryList(false)} className="hover:bg-red-500/10 hover:text-red-500 p-1 rounded transition-colors"><X size={14}/></button>
+                                        </div>
+                                        <div className="max-h-64 overflow-y-auto">
+                                            {linkedMaster?.deliveries
+                                                .filter(d => d.lieferscheinNr && d.lieferscheinNr !== 'Ausstehend' && d.lieferscheinNr !== 'Pending')
+                                                .map((del, idx) => (
+                                                <button 
+                                                    key={del.id} 
+                                                    onClick={() => handleScrollToDelivery(del.id)}
+                                                    className={`w-full text-left p-3 border-b last:border-0 flex items-center gap-3 transition-colors ${
+                                                    del.lieferscheinNr === selectedHeader.lieferscheinNr 
+                                                        ? (isDark ? 'bg-[#0077B5]/10 hover:bg-[#0077B5]/20' : 'bg-[#0077B5]/5 hover:bg-[#0077B5]/10') 
+                                                        : (isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50')
+                                                }`}>
+                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                                                        del.lieferscheinNr === selectedHeader.lieferscheinNr 
+                                                            ? 'bg-[#0077B5] text-white' 
+                                                            : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')
+                                                    }`}>
+                                                        {idx + 1}
+                                                    </div>
+                                                    <div>
+                                                        <div className={`text-sm font-bold ${
+                                                            del.lieferscheinNr === selectedHeader.lieferscheinNr 
+                                                                ? 'text-[#0077B5]' 
+                                                                : (isDark ? 'text-slate-200' : 'text-slate-700')
+                                                        }`}>
+                                                            {del.lieferscheinNr}
+                                                        </div>
+                                                        <div className="text-[10px] opacity-60">
+                                                            {new Date(del.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })} • {del.items.length} Pos.
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                            {(!linkedMaster || linkedMaster.deliveries.filter(d => d.lieferscheinNr && d.lieferscheinNr !== 'Ausstehend' && d.lieferscheinNr !== 'Pending').length === 0) && (
+                                                <div className="p-4 text-center text-xs opacity-50">Keine weiteren Lieferungen gefunden.</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Info bar */}
+                            <div className={`flex flex-wrap items-center gap-x-5 gap-y-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                <span className="font-medium flex items-center gap-1.5"><Truck size={12} className="text-[#0077B5]" /> {selectedHeader.lieferant}</span>
+                                <span className="opacity-20">•</span>
+                                <span className="flex items-center gap-1"><Calendar size={12}/> {new Date(selectedHeader.timestamp).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                                <span className="opacity-20">•</span>
+                                <span className={`flex items-center gap-1 ${linkedPO?.expectedDeliveryDate ? '' : 'opacity-40'}`}><Clock size={12}/> {linkedPO?.expectedDeliveryDate ? `Erw.: ${new Date(linkedPO.expectedDeliveryDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}` : 'Kein Liefertermin'}</span>
+                                <span className="opacity-20">•</span>
+                                <span className="flex items-center gap-1"><MapPin size={12}/> {selectedHeader.warehouseLocation || '—'}</span>
+                                <span className="opacity-20">•</span>
+                                <span className="flex items-center gap-1"><User size={12}/> {selectedHeader.createdByName || '—'}</span>
+                            </div>
+                        </div>
+
+                        {/* Right: Pills stacked + Action menu below — fixed width column */}
+                        <div className="flex flex-col items-stretch gap-2 shrink-0 min-w-[160px]">
+                            <div className="status-pill-stack">
+                                <ReceiptStatusBadges 
+                                    header={selectedHeader}
+                                    master={linkedMaster} 
+                                    linkedPO={linkedPO} 
+                                    tickets={contextTickets}
+                                    theme={theme}
+                                />
+                            </div>
+                            <div className="flex [&>div]:w-full [&>div>button]:w-full [&>div>button]:justify-center">
+                                {renderActions(detailInspectionState, linkedPO || undefined, selectedHeader || undefined, linkedMaster, 'detail-desk')}
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+
+                {/* CONTENT COLUMNS */}
+                <div className="flex flex-col lg:flex-row gap-6">
+                    {/* PANE B: ITEM LIST & HISTORY (LEFT MAIN) */}
+                    <div className="flex-[2] flex flex-col gap-6">
+                        
+                        {linkedMaster && (
+                            <StatusDescription
+                                status={linkedMaster.status}
+                                theme={theme}
+                                showActionButton={false}
+                            />
+                        )}
+
+                        {/* STATUS HISTORY LOG - Collapsible */}
+                        <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                            <button
+                                onClick={() => setStatusHistoryExpanded(!statusHistoryExpanded)}
+                                className={`w-full px-4 py-3 flex items-center justify-between text-sm font-bold transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-50 text-slate-600'}`}
+                            >
+                                <span className="flex items-center gap-2"><Clock size={14} className="text-slate-400" /> Statusverlauf</span>
+                                {statusHistoryExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+                            </button>
+                            <div style={{ maxHeight: statusHistoryExpanded ? `${Math.max(statusHistory.length * 80 + 16, 60)}px` : '0px', transition: 'max-height 200ms ease', overflow: 'hidden' }}>
+                                <div className={`border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                                    {statusHistory.length === 0 ? (
+                                        <div className={`px-4 py-6 text-center text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Noch kein Verlauf vorhanden.</div>
+                                    ) : (
+                                        <div className="divide-y divide-slate-500/10">
+                                            {statusHistory.map((entry, idx) => (
+                                                <div key={idx} className="px-4 py-3 flex flex-col gap-1">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <span className={`text-[11px] font-mono shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                            {new Date(entry.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}{' '}
+                                                            {new Date(entry.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                        <span className={`text-[10px] shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{entry.by}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 text-sm">
+                                                        <span className={`font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{entry.from}</span>
+                                                        <span className={`${isDark ? 'text-slate-500' : 'text-slate-400'}`}>→</span>
+                                                        <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{entry.to}</span>
+                                                    </div>
+                                                    {entry.reason && <div className={`text-xs leading-snug break-words ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{entry.reason}</div>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {linkedPO && linkedMaster ? (
+                            <>
+                                {/* AGGREGATE SUMMARY DASHBOARD */}
+                                {(() => {
+                                    // Compute aggregates across all deliveries
+                                    const positionen = linkedPO.items.length;
+                                    const totalBestellt = linkedPO.items.reduce((s, i) => s + i.quantityExpected, 0);
+                                    let totalGeliefert = 0;
+                                    let totalDamaged = 0;
+                                    let totalWrong = 0;
+                                    let totalOffen = 0;
+                                    let totalZuViel = 0;
+                                    let totalReturned = 0;
+
+                                    linkedPO.items.forEach(poItem => {
+                                        let accepted = 0;
+                                        let damaged = 0;
+                                        let wrong = 0;
+                                        let returned = 0;
+                                        linkedMaster.deliveries.filter(d => !d.isStorniert).forEach(d => {
+                                            const di = d.items.find(x => x.sku === poItem.sku);
+                                            if (di) {
+                                                accepted += di.quantityAccepted;
+                                                if (di.quantityRejected > 0) {
+                                                    if (di.damageFlag || di.rejectionReason === 'Damaged') damaged += di.quantityRejected;
+                                                    else if (di.rejectionReason === 'Wrong') wrong += di.quantityRejected;
+                                                    if (di.returnCarrier || di.returnTrackingId) returned += di.quantityRejected;
+                                                }
+                                            }
+                                        });
+                                        totalGeliefert += accepted;
+                                        totalDamaged += damaged;
+                                        totalWrong += wrong;
+                                        totalReturned += returned;
+                                        totalOffen += Math.max(0, poItem.quantityExpected - accepted);
+                                        totalZuViel += Math.max(0, accepted - poItem.quantityExpected);
+                                    });
+
+                                    const pct = totalBestellt > 0 ? Math.min(100, Math.round((totalGeliefert / totalBestellt) * 100)) : 0;
+                                    const isComplete = pct >= 100;
+                                    const hasIssues = totalDamaged > 0 || totalWrong > 0;
+                                    const barColor = hasIssues ? (isDark ? 'bg-amber-500' : 'bg-amber-500') : isComplete ? (isDark ? 'bg-emerald-500' : 'bg-emerald-500') : 'bg-[#0077B5]';
+
+                                    const issueItems: Array<{ label: string; value: number; color: string; icon: React.ReactNode }> = [];
+                                    if (totalOffen > 0 && !linkedPO.isForceClosed) issueItems.push({ label: 'Offen', value: totalOffen, color: 'text-amber-500', icon: <Clock size={14} className="text-amber-500" /> });
+                                    if (totalOffen > 0 && linkedPO.isForceClosed) issueItems.push({ label: 'Offen (geschlossen)', value: totalOffen, color: 'text-slate-400 line-through', icon: <CheckCircle2 size={14} className="text-slate-400" /> });
+                                    if (totalDamaged > 0) issueItems.push({ label: 'Beschädigt', value: totalDamaged, color: 'text-red-500', icon: <AlertTriangle size={14} className="text-red-500" /> });
+                                    if (totalWrong > 0) issueItems.push({ label: 'Falsch', value: totalWrong, color: 'text-orange-500', icon: <XCircle size={14} className="text-orange-500" /> });
+                                    if (totalZuViel > 0) issueItems.push({ label: 'Zu viel', value: totalZuViel, color: 'text-orange-400', icon: <ChevronsUp size={14} className="text-orange-400" /> });
+                                    if (totalReturned > 0) issueItems.push({ label: 'Zurückgesendet', value: totalReturned, color: 'text-purple-500', icon: <RotateCcw size={14} className="text-purple-500" /> });
+
+                                    return (
+                                        <div className={`rounded-2xl border overflow-hidden shadow-lg ${
+                                            isDark ? 'bg-[#1f2937] border-slate-700' : 'bg-white border-slate-300'
+                                        }`}>
+                                            {/* Header */}
+                                            <div className={`px-4 py-3 border-b flex items-center gap-2 ${
+                                                isDark ? 'bg-[#1f2937] border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-300 text-slate-700'
+                                            }`}>
+                                                <BarChart3 size={18} className="text-[#0077B5]" />
+                                                <span className="font-bold">Gesamtübersicht</span>
+                                            </div>
+
+                                            {/* Row 1: Scope Stats */}
+                                            <div className={`grid grid-cols-3 divide-x ${isDark ? 'divide-slate-700' : 'divide-slate-200'}`}>
+                                                <div className="px-4 py-3 text-center">
+                                                    <div className={`text-[10px] uppercase font-bold tracking-wider mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Positionen</div>
+                                                    <div className="text-2xl font-bold font-mono">{positionen}</div>
+                                                </div>
+                                                <div className="px-4 py-3 text-center">
+                                                    <div className={`text-[10px] uppercase font-bold tracking-wider mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Bestellt</div>
+                                                    <div className="text-2xl font-bold font-mono">{totalBestellt}</div>
+                                                </div>
+                                                <div className="px-4 py-3 text-center">
+                                                    <div className={`text-[10px] uppercase font-bold tracking-wider mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Geliefert</div>
+                                                    <div className={`text-2xl font-bold font-mono ${isComplete && !hasIssues ? 'text-emerald-500' : ''}`}>{totalGeliefert}</div>
+                                                </div>
+                                            </div>
+
+                                            {/* Row 2: Progress Bar */}
+                                            <div className={`px-4 py-3 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                                <div className="flex items-center justify-between mb-1.5">
+                                                    <span className={`text-[10px] uppercase font-bold tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Fortschritt</span>
+                                                    <span className={`text-xs font-bold font-mono ${isComplete && !hasIssues ? 'text-emerald-500' : hasIssues ? 'text-amber-500' : 'text-[#0077B5]'}`}>
+                                                        {totalGeliefert} / {totalBestellt} — {pct}%
+                                                    </span>
+                                                </div>
+                                                <div className={`h-2.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
+                                                    <div
+                                                        className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+                                                        style={{ width: `${Math.min(100, pct)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Row 3: Issues (only if any) */}
+                                            {issueItems.length > 0 && (
+                                                <div className={`px-4 py-3 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                                    <div className={`text-[10px] uppercase font-bold tracking-wider mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Abweichungen</div>
+                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                        {issueItems.map(issue => (
+                                                            <div key={issue.label} className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
+                                                                isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'
+                                                            }`}>
+                                                                {issue.icon}
+                                                                <div className="min-w-0">
+                                                                    <div className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{issue.label}</div>
+                                                                    <div className={`text-lg font-bold font-mono leading-tight ${issue.color}`}>{issue.value}</div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* All clear badge */}
+                                            {issueItems.length === 0 && isComplete && (
+                                                <div className={`px-4 py-3 border-t flex items-center justify-center gap-2 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                                    <CheckCircle2 size={16} className="text-emerald-500" />
+                                                    <span className={`text-sm font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>Vollständig geliefert — keine Abweichungen</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
+                                <div>
+                                    <div className="flex items-center gap-2 mb-4 px-1">
+                                        <Clock size={18} className="text-slate-500" />
+                                        <h3 className="font-bold text-lg">Lieferhistorie</h3>
+                                    </div>
+                                    
+                                    <div className="space-y-4">
+                                        {visibleDeliveries.length === 0 ? (
+                                            <div className="p-8 text-center text-slate-500 border border-dashed rounded-xl">
+                                                Noch keine physischen Wareneingänge verbucht.
+                                            </div>
+                                        ) : (
+                                            visibleDeliveries.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((delivery, index) => {
+                                                const isExpanded = expandedDeliveryId === delivery.id;
+                                                const isCurrent = delivery.lieferscheinNr === selectedHeader.lieferscheinNr;
+                                                const snapshot = deliverySnapshots[delivery.id] || {};
+                                                const isLatest = index === 0;
+
+                                                return (
+                                                    <div 
+                                                        id={`delivery-${delivery.id}`}
+                                                        key={delivery.id} 
+                                                        className={`rounded-xl border transition-all duration-300 overflow-hidden ${
+                                                            isCurrent 
+                                                                ? isDark ? 'border-[#0077B5] shadow-[0_0_15px_rgba(0,119,181,0.1)]' : 'border-[#0077B5] shadow-md ring-1 ring-[#0077B5]/20'
+                                                                : isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                                                        }`}
+                                                    >
+                                                        <button 
+                                                            onClick={() => toggleDeliveryExpand(delivery.id)}
+                                                            className={`w-full flex items-center justify-between p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                                                                isExpanded ? 'border-b border-slate-200 dark:border-slate-800' : ''
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-4">
+                                                                <div className={`p-2 rounded-lg ${isCurrent ? 'bg-[#0077B5] text-white' : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')}`}>
+                                                                    <Truck size={20} />
+                                                                </div>
+                                                                <div>
+                                                                    <div className="font-bold text-sm flex items-center gap-2">
+                                                                        Lieferschein: {delivery.lieferscheinNr}
+                                                                        {isLatest && <span className="bg-[#0077B5] text-white text-[8px] px-1 py-0.5 rounded font-bold tracking-wider">LETZTE</span>}
+                                                                    </div>
+                                                                    <div className="text-xs opacity-60 flex flex-col gap-0.5 mt-1">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Calendar size={12} /> {new Date(delivery.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                                                        </div>
+                                                                        {linkedPO && (
+                                                                            <div className="flex items-center gap-2">
+                                                                                <FileText size={12} /> Verknüpfte Bestellung: {linkedPO.id}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-4">
+                                                                <span className="text-sm font-bold opacity-70">{delivery.items.length} Positionen</span>
+                                                                {isExpanded ? <ChevronUp size={20} className="opacity-50" /> : <ChevronDown size={20} className="opacity-50" />}
+                                                            </div>
+                                                        </button>
+
+                                                        {isExpanded && (
+                                                                <div className={`p-3 space-y-3 ${isDark ? 'bg-slate-950/30' : 'bg-slate-50/50'}`}>
+                                                                    {delivery.items.map(dItem => {
+                                                                        const poItem = linkedPO.items.find(pi => pi.sku === dItem.sku);
+                                                                        const itemName = poItem ? poItem.name : dItem.sku;
+                                                                        let ordered, previous, current, pending, over, totalReceived;
+                                                                        if (dItem.orderedQty !== undefined) {
+                                                                            ordered = dItem.orderedQty;
+                                                                            previous = dItem.previousReceived || 0;
+                                                                            current = dItem.receivedQty;
+                                                                            pending = dItem.offen || 0;
+                                                                            over = dItem.zuViel || 0;
+                                                                            totalReceived = previous + current;
+                                                                        } else {
+                                                                            ordered = poItem ? poItem.quantityExpected : 0;
+                                                                            const data = snapshot[dItem.sku] || { pre: 0, current: dItem.receivedQty, post: dItem.receivedQty };
+                                                                            previous = data.pre;
+                                                                            current = dItem.receivedQty;
+                                                                            totalReceived = data.post;
+                                                                            pending = Math.max(0, ordered - totalReceived);
+                                                                            over = Math.max(0, totalReceived - ordered);
+                                                                        }
+                                                                        const fullItem = findReceiptItemForLog(delivery, dItem.sku);
+                                                                        const stockItem = findStockItemBySku(dItem.sku);
+                                                                        return (
+                                                                            <div key={dItem.sku} className={`rounded-lg border p-3 space-y-2 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200'}`}>
+                                                                                <div className="flex items-center justify-between gap-2">
+                                                                                    <div className="flex-1 min-w-0">
+                                                                                        <div className="font-bold text-sm truncate">{itemName}</div>
+                                                                                        <div className="text-[10px] font-mono opacity-50">{dItem.sku}</div>
+                                                                                        {stockItem?.system && <div className="text-[10px] opacity-40 mt-0.5">System: {stockItem.system}</div>}
+                                                                                        {dItem.manualAddFlag && (
+                                                                                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border mt-1 ${isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                                                                                                <AlertTriangle size={8} /> Manuell
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    {/* Use dItem (DeliveryLogItem) as authoritative source for quality issues */}
+                                                                                    {dItem.damageFlag && dItem.rejectionReason === 'Wrong' ? (
+                                                                                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-red-50 text-red-600 border-red-200'}`}><AlertTriangle size={10} /> Schaden + Falsch</span>
+                                                                                    ) : dItem.damageFlag ? (
+                                                                                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-red-50 text-red-600 border-red-200'}`}><AlertTriangle size={10} /> Schaden</span>
+                                                                                    ) : dItem.rejectionReason === 'Wrong' ? (
+                                                                                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' : 'bg-orange-50 text-orange-700 border-orange-200'}`}><AlertTriangle size={10} /> Falsch</span>
+                                                                                    ) : dItem.quantityRejected > 0 ? (
+                                                                                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-amber-50 text-amber-700 border-amber-200'}`}><AlertTriangle size={10} /> Abweichung</span>
+                                                                                    ) : <ItemStatusBadge item={fullItem} quantityInfo={{ ordered, received: totalReceived }} />}
+                                                                                </div>
+                                                                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                                                                                    {ordered > 0 && <div className="flex justify-between"><span className="text-[10px] uppercase font-bold opacity-40">Bestellt</span><span className="font-mono opacity-70">{ordered}</span></div>}
+                                                                                    {previous > 0 && <div className="flex justify-between"><span className="text-[10px] uppercase font-bold opacity-40">Bisher</span><span className="font-mono opacity-50">{previous}</span></div>}
+                                                                                    <div className="flex justify-between"><span className="text-[10px] uppercase font-bold opacity-40">Geliefert</span><span className="font-mono font-bold">{current > 0 ? `+${current}` : '0'}</span></div>
+                                                                                    <div className="flex justify-between"><span className="text-[10px] uppercase font-bold opacity-40">Gesamt</span><span className="font-mono font-bold">{totalReceived}</span></div>
+                                                                                    {pending > 0 && <div className="flex justify-between"><span className="text-[10px] uppercase font-bold text-amber-500">Offen</span><span className="font-mono font-bold text-amber-500">{pending}</span></div>}
+                                                                                    {over > 0 && <div className="flex justify-between"><span className="text-[10px] uppercase font-bold text-orange-500">Zu viel</span><span className="font-mono font-bold text-orange-500">+{over}</span></div>}
+                                                                                    {(dItem.damageFlag || dItem.rejectionReason === 'Damaged') && dItem.quantityRejected > 0 && <div className="flex justify-between"><span className="text-[10px] uppercase font-bold text-red-500">Beschädigt</span><span className="font-mono font-bold text-red-500">{dItem.quantityRejected}</span></div>}
+                                                                                    {dItem.rejectionReason === 'Wrong' && dItem.quantityRejected > 0 && <div className="flex justify-between"><span className="text-[10px] uppercase font-bold text-amber-500">Falsch</span><span className="font-mono font-bold text-amber-500">{dItem.quantityRejected}</span></div>}
+                                                                                </div>
+                                                                                {dItem.notes && (
+                                                                                    <div className={`text-[11px] mt-1.5 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5 ${isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-700'}`}>
+                                                                                        <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                                                                                        <span>{dItem.notes}</span>
+                                                                                    </div>
+                                                                                )}
+                                                                                {(dItem.returnCarrier || dItem.returnTrackingId) && (
+                                                                                    <div className={`text-[11px] pl-2 border-l-2 ${isDark ? 'border-slate-600 text-slate-400' : 'border-slate-300 text-slate-500'}`}>
+                                                                                        Rücksendung: {dItem.returnCarrier || 'â€“'} â€“ Tracking: {dItem.returnTrackingId || 'â€“'}
+                                                                                        {dItem.rejectionReason && <span> â€“ Grund: {dItem.rejectionReason}</span>}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className={`rounded-2xl border overflow-hidden flex flex-col min-h-[400px] ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                                <div className={`p-4 border-b font-bold flex items-center gap-2 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                                    <Package size={18} className="text-slate-500" /> Enthaltene Artikel
+                                </div>
+                                <div className="flex-1 overflow-y-auto">
+                                    <table className="w-full text-left text-sm min-w-[600px]">
+                                        <thead className={`sticky top-0 backdrop-blur-md z-10 ${isDark ? 'bg-slate-900/80' : 'bg-white/80'}`}>
+                                        <tr className="text-slate-500">
+                                            <th className="p-4 font-medium">Artikel</th>
+                                            <th className="p-4 font-medium text-center">Menge</th>
+                                            <th className="p-4 font-medium">Lagerort</th>
+                                            <th className="p-4 font-medium w-40">Status</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-500/10">
+                                        {relatedItems.map(item => (
+                                            <tr key={item.id} className={isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}>
+                                                <td className="p-4">
+                                                    <div className="font-medium">{item.name}</div>
+                                                    <div className="text-xs font-mono opacity-60">{item.sku}</div>
+                                                </td>
+                                                <td className="p-4 text-center font-bold">
+                                                    {item.quantity}
+                                                </td>
+                                                <td className="p-4 text-xs">{item.targetLocation}</td>
+                                                <td className="p-4">
+                                                    <ItemStatusBadge item={item} />
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* PANE C: TRACEABILITY TIMELINE (RIGHT SIDE) */}
+                    <div className={`flex-1 rounded-2xl border flex flex-col overflow-hidden ${historieExpanded ? 'min-h-[400px]' : 'lg:min-h-[400px]'} ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                        <button
+                            onClick={() => { setHistorieExpanded(!historieExpanded); dismissAutoComments(); }}
+                            className={`p-4 border-b font-bold flex items-center gap-2 lg:cursor-default ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'} lg:pointer-events-none`}
+                        >
+                            <Clock size={18} className="text-slate-500" /> Historie & Notizen
+                            {/* iOS-style notification dot */}
+                            {unreadAutoComments.length > 0 && (
+                                <span className="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold leading-none flex items-center justify-center bg-red-500 text-white shadow-sm shadow-red-500/30">
+                                    {unreadAutoComments.length}
+                                </span>
+                            )}
+                            {unreadAutoComments.length === 0 && relatedComments.some(c => c.userName === 'System') && (
+                                <span className={`min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold leading-none flex items-center justify-center shadow-sm ${
+                                    isDark ? 'bg-slate-600 text-slate-300 shadow-slate-600/30' : 'bg-slate-400 text-white shadow-slate-400/30'
+                                }`}>
+                                    {relatedComments.filter(c => c.userName === 'System').length}
+                                </span>
+                            )}
+                            <ChevronDown size={18} className={`ml-auto lg:hidden transition-transform ${historieExpanded ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        <div onClick={dismissAutoComments} className={`flex-1 overflow-y-auto p-4 space-y-6 ${historieExpanded ? 'block' : 'hidden lg:block'}`}>
+                            {relatedComments.length === 0 ? (
+                            <div className="text-center py-10 text-slate-500 text-sm italic">Keine Einträge vorhanden.</div>
+                            ) : (
+                            relatedComments.map(c => (
+                                <div key={c.id} className="relative pl-6 border-l border-slate-500/20 last:border-0 pb-2">
+                                <div className={`absolute -left-3 top-0 w-6 h-6 rounded-full flex items-center justify-center border-2 ${
+                                    isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+                                }`}>
+                                    {c.type === 'email' && <Mail size={12} className="text-blue-500" />}
+                                    {c.type === 'call' && <Phone size={12} className="text-purple-500" />}
+                                    {c.type === 'note' && <MessageSquare size={12} className="text-amber-500" />}
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-start text-xs">
+                                        <span className="font-bold">{c.userName}</span>
+                                        <span className="text-slate-500 font-mono text-[10px]">{formatDateDE(c.timestamp)}</span>
+                                    </div>
+                                    <div className={`p-3 rounded-xl text-sm whitespace-pre-wrap ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
+                                    {c.message}
+                                    </div>
+                                </div>
+                                </div>
+                            ))
+                            )}
+                        </div>
+
+                        <div onClick={dismissAutoComments} className={`p-4 border-t ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'} ${historieExpanded ? 'block' : 'hidden lg:block'}`}>
+                            <div className="flex gap-2 mb-2">
+                                <TypeButton active={commentType === 'note'} icon={<StickyNote size={14} />} label="Notiz" onClick={() => setCommentType('note')} isDark={isDark} />
+                                <TypeButton active={commentType === 'email'} icon={<Mail size={14} />} label="Email" onClick={() => setCommentType('email')} isDark={isDark} />
+                                <TypeButton active={commentType === 'call'} icon={<Phone size={14} />} label="Tel." onClick={() => setCommentType('call')} isDark={isDark} />
+                            </div>
+                            <div className="flex gap-2 items-start">
+                            <textarea 
+                                value={commentInput}
+                                onChange={(e) => setCommentInput(e.target.value)}
+                                placeholder="Neuer Eintrag..."
+                                className={`flex-1 rounded-xl p-3 text-base md:text-sm resize-none h-20 outline-none focus:ring-2 focus:ring-blue-500/20 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300'}`}
+                            />
+                            <button 
+                                onClick={handlePostComment}
+                                disabled={!commentInput.trim()}
+                                className="self-end p-3 rounded-xl bg-[#0077B5] text-white hover:bg-[#00A0DC] disabled:opacity-50 disabled:bg-slate-500"
+                            >
+                                <Send size={18} />
+                            </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* TICKETS TAB CONTENT - FULL HEIGHT */}
+        {activeTab === 'tickets' && (
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0 h-full">
+        {/* MOBILE ONLY: Status Badges centered on top */}
+        <div className={`flex items-center justify-center gap-2 px-3 py-2 border-b md:hidden ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+            <ReceiptStatusBadges
+                header={selectedHeader}
+                master={linkedMaster}
+                linkedPO={linkedPO}
+                tickets={contextTickets}
+                theme={theme}
+                showTicketBadge={true}
+            />
+        </div>
+        <div className="flex-1 p-0 overflow-hidden min-h-0">
+                <TicketSystem 
+                    receiptId={selectedBatchId}
+                    tickets={contextTickets}
+                    onAddTicket={onAddTicket}
+                    onUpdateTicket={onUpdateTicket}
+                    theme={theme}
+                    receiptHeader={selectedHeader}
+                    linkedPO={linkedPO || undefined}
+                    statusBadges={
+                        <ReceiptStatusBadges
+                            header={selectedHeader}
+                            master={linkedMaster}
+                            linkedPO={linkedPO}
+                            tickets={contextTickets}
+                            theme={theme}
+                            showTicketBadge={true}
+                        />
+                    }
+                />
+            </div>
+    </div>
+)}
+
+      </div>
+
+    </div>
+  );
+};
+
+const TypeButton = ({ active, icon, label, onClick, isDark }: { active: boolean, icon: any, label: string, onClick: () => void, isDark: boolean }) => (
+  <button 
+    onClick={onClick}
+    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+      active 
+        ? 'bg-[#0077B5] text-white border-[#0077B5]' 
+        : isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500' : 'bg-white border-slate-300 text-slate-500 hover:border-slate-400'
+    }`}
+  >
+    {icon} {label}
+  </button>
+);
