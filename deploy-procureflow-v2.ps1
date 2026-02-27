@@ -1,5 +1,5 @@
 ##############################################################################
-# ProcureFlow - Azure One-Shot Deployment Script
+# ProcureFlow - Azure One-Shot Deployment Script (v2 - All Fixes Applied)
 # Provisions: Resource Group, Static Web Apps, Azure Functions,
 #             Cosmos DB, Key Vault, Entra ID App Registration
 # Region: West Europe
@@ -7,7 +7,7 @@
 ##############################################################################
 
 # ============================================================================
-# CONFIGURATION - Edit these if needed
+# CONFIGURATION
 # ============================================================================
 $config = @{
     # General
@@ -20,7 +20,7 @@ $config = @{
     
     # Azure Functions
     FuncAppName      = "func-procureflow"
-    FuncStorageName  = "stprocureflowfunc"   # must be lowercase, no hyphens, max 24 chars
+    FuncStorageName  = "stprocureflowfunc"
     FuncRuntime      = "node"
     FuncRuntimeVer   = "20"
     
@@ -28,13 +28,13 @@ $config = @{
     CosmosAccount    = "cosmos-procureflow"
     CosmosDb         = "procureflow-db"
     CosmosContainers = @(
-        @{ Name = "purchase-orders"; PartitionKey = "/id" }
-        @{ Name = "receipts"; PartitionKey = "/poId" }
-        @{ Name = "delivery-logs"; PartitionKey = "/receiptId" }
-        @{ Name = "stock"; PartitionKey = "/sku" }
-        @{ Name = "suppliers"; PartitionKey = "/id" }
-        @{ Name = "tickets"; PartitionKey = "/poId" }
-        @{ Name = "notifications"; PartitionKey = "/userId" }
+        @{ Name = "purchase-orders";  PartitionKey = "/id" }
+        @{ Name = "receipts";         PartitionKey = "/poId" }
+        @{ Name = "delivery-logs";    PartitionKey = "/receiptId" }
+        @{ Name = "stock";            PartitionKey = "/sku" }
+        @{ Name = "suppliers";        PartitionKey = "/id" }
+        @{ Name = "tickets";          PartitionKey = "/poId" }
+        @{ Name = "notifications";    PartitionKey = "/userId" }
     )
     
     # Key Vault
@@ -53,10 +53,10 @@ $config = @{
 # HELPER FUNCTIONS
 # ============================================================================
 function Write-Step {
-    param([string]$Step, [string]$Message)
+    param([string]$StepNum, [string]$Message)
     Write-Host ""
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-    Write-Host "  STEP ${Step}: $Message" -ForegroundColor Cyan
+    Write-Host "  STEP ${StepNum}: $Message" -ForegroundColor Cyan
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 }
 
@@ -84,17 +84,19 @@ function Test-CommandSuccess {
 }
 
 # ============================================================================
-# PRE-FLIGHT CHECKS
+# BANNER
 # ============================================================================
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════╗" -ForegroundColor Magenta
-Write-Host "║   ProcureFlow - Azure One-Shot Deployment            ║" -ForegroundColor Magenta
+Write-Host "║   ProcureFlow - Azure One-Shot Deployment (v2)       ║" -ForegroundColor Magenta
 Write-Host "║   Region: West Europe                                ║" -ForegroundColor Magenta
 Write-Host "║   Repo:   jecastrom/dost_lager                       ║" -ForegroundColor Magenta
 Write-Host "╚══════════════════════════════════════════════════════╝" -ForegroundColor Magenta
 Write-Host ""
 
-# Check Azure CLI is installed
+# ============================================================================
+# PRE-FLIGHT CHECKS
+# ============================================================================
 Write-Info "Checking Azure CLI..."
 $azVersion = az version 2>$null | ConvertFrom-Json
 if (-not $azVersion) {
@@ -103,35 +105,21 @@ if (-not $azVersion) {
 }
 Write-Success "Azure CLI found (v$($azVersion.'azure-cli'))"
 
-# Check GitHub CLI is installed (optional but helpful)
-$ghInstalled = $false
-$ghVersion = gh --version 2>$null
-if ($ghVersion) {
-    $ghInstalled = $true
-    Write-Success "GitHub CLI found"
-}
-else {
-    Write-Info "GitHub CLI not found (optional). Install from: https://cli.github.com"
-}
-
 # ============================================================================
-# STEP 1: LOGIN TO AZURE
+# STEP 1: LOGIN TO AZURE (device code flow)
 # ============================================================================
-Write-Step "1/9" "Logging in to Azure"
-Write-Info "A browser window will open for authentication..."
+Write-Step "1/10" "Logging in to Azure"
 
-# Check if already logged in, if not use device code flow
 $currentAccount = az account show 2>$null | ConvertFrom-Json
 if (-not $currentAccount) {
+    Write-Info "Not logged in. Using device code flow..."
+    Write-Info "A code will appear below. Open the URL and enter the code."
     az login --use-device-code
     Test-CommandSuccess
-}
-else {
+} else {
     Write-Success "Already logged in as $($currentAccount.user.name)"
 }
-Write-Success "Logged in to Azure"
 
-# Show current subscription
 $account = az account show | ConvertFrom-Json
 Write-Info "Subscription: $($account.name) ($($account.id))"
 Write-Info "Tenant: $($account.tenantId)"
@@ -143,141 +131,217 @@ if ($confirm -ne "y") {
     exit 0
 }
 
-# ============================================================================
-# STEP 2: CREATE RESOURCE GROUP
-# ============================================================================
-Write-Step "2/9" "Creating Resource Group"
-
-az group create `
-    --name $config.ResourceGroup `
-    --location $config.Location `
-    --tags project=procureflow environment=production `
-    --output none
-Test-CommandSuccess
-Write-Success "Resource group '$($config.ResourceGroup)' created in $($config.Location)"
+$subscriptionId = $account.id
 
 # ============================================================================
-# STEP 3: CREATE STATIC WEB APP
+# STEP 2: REGISTER RESOURCE PROVIDERS
 # ============================================================================
-Write-Step "3/9" "Creating Static Web App"
+Write-Step "2/10" "Registering Resource Providers"
+Write-Info "This ensures your subscription can create the required resources..."
+
+$providers = @("Microsoft.Web", "Microsoft.DocumentDB", "Microsoft.KeyVault", "Microsoft.Storage")
+
+foreach ($provider in $providers) {
+    $state = az provider show -n $provider --query "registrationState" -o tsv 2>$null
+    if ($state -eq "Registered") {
+        Write-Success "$provider already registered"
+    } else {
+        Write-Info "Registering $provider..."
+        az provider register --namespace $provider --output none
+        
+        # Wait for registration to complete (max 120 seconds)
+        $timeout = 120
+        $elapsed = 0
+        do {
+            Start-Sleep -Seconds 5
+            $elapsed += 5
+            $state = az provider show -n $provider --query "registrationState" -o tsv 2>$null
+        } while ($state -ne "Registered" -and $elapsed -lt $timeout)
+        
+        if ($state -eq "Registered") {
+            Write-Success "$provider registered"
+        } else {
+            Write-ErrorMsg "$provider registration timed out. Run manually: az provider register --namespace $provider"
+            exit 1
+        }
+    }
+}
+
+# ============================================================================
+# STEP 3: CREATE RESOURCE GROUP
+# ============================================================================
+Write-Step "3/10" "Creating Resource Group"
+
+$rgExists = az group show --name $config.ResourceGroup 2>$null
+if ($rgExists) {
+    Write-Success "Resource group '$($config.ResourceGroup)' already exists, skipping"
+} else {
+    az group create `
+        --name $config.ResourceGroup `
+        --location westeurope `
+        --tags project=procureflow environment=production `
+        --output none
+    Test-CommandSuccess
+    Write-Success "Resource group '$($config.ResourceGroup)' created in westeurope"
+}
+
+# ============================================================================
+# STEP 4: CREATE STATIC WEB APP
+# ============================================================================
+Write-Step "4/10" "Creating Static Web App"
 Write-Info "This hosts your React PWA with global CDN and HTTPS"
 
-az staticwebapp create `
-    --name $config.SwaName `
-    --resource-group $config.ResourceGroup `
-    --source "https://github.com/$($config.GitHubUser)/$($config.GitHubRepo)" `
-    --branch $config.GitHubBranch `
-    --app-location "/" `
-    --output-location "dist" `
-    --login-with-github `
-    --sku $config.SwaSku `
-    --output none
-Test-CommandSuccess
+$swaExists = az staticwebapp show --name $config.SwaName --resource-group $config.ResourceGroup 2>$null
+if ($swaExists) {
+    Write-Success "Static Web App '$($config.SwaName)' already exists, skipping"
+} else {
+    az staticwebapp create `
+        --name $config.SwaName `
+        --resource-group $config.ResourceGroup `
+        --source "https://github.com/$($config.GitHubUser)/$($config.GitHubRepo)" `
+        --branch $config.GitHubBranch `
+        --app-location "/" `
+        --output-location "dist" `
+        --login-with-github `
+        --sku $config.SwaSku `
+        --output none
+    Test-CommandSuccess
+}
 
 $swaUrl = az staticwebapp show `
     --name $config.SwaName `
     --resource-group $config.ResourceGroup `
     --query "defaultHostname" --output tsv
-Write-Success "Static Web App created: https://$swaUrl"
+Write-Success "Static Web App ready: https://$swaUrl"
 
 # ============================================================================
-# STEP 4: CREATE STORAGE ACCOUNT (required for Azure Functions)
+# STEP 5: CREATE STORAGE ACCOUNT (required for Azure Functions)
 # ============================================================================
-Write-Step "4/9" "Creating Storage Account for Functions"
+Write-Step "5/10" "Creating Storage Account for Functions"
 
-az storage account create `
-    --name $config.FuncStorageName `
-    --resource-group $config.ResourceGroup `
-    --location $config.Location `
-    --sku Standard_LRS `
-    --kind StorageV2 `
-    --tags project=procureflow `
-    --output none
-Test-CommandSuccess
-Write-Success "Storage account '$($config.FuncStorageName)' created"
+$storageExists = az storage account show --name $config.FuncStorageName --resource-group $config.ResourceGroup 2>$null
+if ($storageExists) {
+    Write-Success "Storage account '$($config.FuncStorageName)' already exists, skipping"
+} else {
+    az storage account create `
+        --name $config.FuncStorageName `
+        --resource-group $config.ResourceGroup `
+        --location westeurope `
+        --sku Standard_LRS `
+        --kind StorageV2 `
+        --tags project=procureflow `
+        --output none
+    Test-CommandSuccess
+    Write-Success "Storage account '$($config.FuncStorageName)' created"
+}
 
 # ============================================================================
-# STEP 5: CREATE AZURE FUNCTIONS APP
+# STEP 6: CREATE AZURE FUNCTIONS APP
 # ============================================================================
-Write-Step "5/9" "Creating Azure Functions App (Consumption Plan)"
+Write-Step "6/10" "Creating Azure Functions App (Consumption Plan)"
 Write-Info "Serverless API backend - pay only when code runs"
 
-az functionapp create `
-    --name $config.FuncAppName `
-    --resource-group $config.ResourceGroup `
-    --storage-account $config.FuncStorageName `
-    --consumption-plan-location $config.Location `
-    --runtime $config.FuncRuntime `
-    --runtime-version $config.FuncRuntimeVer `
-    --functions-version 4 `
-    --os-type Linux `
-    --tags project=procureflow `
-    --output none
-Test-CommandSuccess
-Write-Success "Functions app '$($config.FuncAppName)' created"
+$funcExists = az functionapp show --name $config.FuncAppName --resource-group $config.ResourceGroup 2>$null
+if ($funcExists) {
+    Write-Success "Functions app '$($config.FuncAppName)' already exists, skipping"
+} else {
+    az functionapp create `
+        --name $config.FuncAppName `
+        --resource-group $config.ResourceGroup `
+        --storage-account $config.FuncStorageName `
+        --consumption-plan-location westeurope `
+        --runtime $config.FuncRuntime `
+        --runtime-version $config.FuncRuntimeVer `
+        --functions-version 4 `
+        --os-type Linux `
+        --tags project=procureflow `
+        --output none
+    Test-CommandSuccess
+    Write-Success "Functions app '$($config.FuncAppName)' created"
+}
 
-# Enable CORS for the Static Web App
+# Configure CORS
 Write-Info "Configuring CORS..."
 az functionapp cors add `
     --name $config.FuncAppName `
     --resource-group $config.ResourceGroup `
     --allowed-origins "https://$swaUrl" `
-    --output none
-Test-CommandSuccess
+    --output none 2>$null
 Write-Success "CORS configured for https://$swaUrl"
 
 # ============================================================================
-# STEP 6: CREATE COSMOS DB (Free Tier)
+# STEP 7: CREATE COSMOS DB (Free Tier)
 # ============================================================================
-Write-Step "6/9" "Creating Cosmos DB Account (Free Tier)"
-Write-Info "This may take 3-5 minutes..."
+Write-Step "7/10" "Creating Cosmos DB Account (Free Tier)"
 
-az cosmosdb create `
-    --name $config.CosmosAccount `
-    --resource-group $config.ResourceGroup `
-    --locations regionName=westeurope failoverPriority=0 `
-    --default-consistency-level Session `
-    --enable-free-tier true `
-    --tags project=procureflow `
-    --output none
-Test-CommandSuccess
-Write-Success "Cosmos DB account '$($config.CosmosAccount)' created (FREE tier)"
+$cosmosExists = az cosmosdb show --name $config.CosmosAccount --resource-group $config.ResourceGroup 2>$null
+if ($cosmosExists) {
+    Write-Success "Cosmos DB account '$($config.CosmosAccount)' already exists, skipping"
+} else {
+    Write-Info "This may take 3-5 minutes..."
+    az cosmosdb create `
+        --name $config.CosmosAccount `
+        --resource-group $config.ResourceGroup `
+        --locations regionName=westeurope failoverPriority=0 `
+        --default-consistency-level Session `
+        --enable-free-tier true `
+        --tags project=procureflow `
+        --output none
+    Test-CommandSuccess
+    Write-Success "Cosmos DB account '$($config.CosmosAccount)' created (FREE tier)"
+}
 
 # Create Database
-Write-Info "Creating database '$($config.CosmosDb)'..."
-az cosmosdb sql database create `
+$dbExists = az cosmosdb sql database show `
     --account-name $config.CosmosAccount `
     --resource-group $config.ResourceGroup `
-    --name $config.CosmosDb `
-    --output none
-Test-CommandSuccess
-Write-Success "Database '$($config.CosmosDb)' created"
+    --name $config.CosmosDb 2>$null
+if ($dbExists) {
+    Write-Success "Database '$($config.CosmosDb)' already exists, skipping"
+} else {
+    Write-Info "Creating database '$($config.CosmosDb)'..."
+    az cosmosdb sql database create `
+        --account-name $config.CosmosAccount `
+        --resource-group $config.ResourceGroup `
+        --name $config.CosmosDb `
+        --output none
+    Test-CommandSuccess
+    Write-Success "Database '$($config.CosmosDb)' created"
+}
 
 # Create Containers
 foreach ($container in $config.CosmosContainers) {
-    Write-Info "Creating container '$($container.Name)'..."
-    az cosmosdb sql container create `
+    $containerExists = az cosmosdb sql container show `
         --account-name $config.CosmosAccount `
         --resource-group $config.ResourceGroup `
         --database-name $config.CosmosDb `
-        --name $container.Name `
-        --partition-key-path $container.PartitionKey `
-        --throughput 400 `
-        --output none
-    Test-CommandSuccess
-    Write-Success "Container '$($container.Name)' created (partition: $($container.PartitionKey))"
+        --name $container.Name 2>$null
+    if ($containerExists) {
+        Write-Success "Container '$($container.Name)' already exists, skipping"
+    } else {
+        Write-Info "Creating container '$($container.Name)'..."
+        az cosmosdb sql container create `
+            --account-name $config.CosmosAccount `
+            --resource-group $config.ResourceGroup `
+            --database-name $config.CosmosDb `
+            --name $container.Name `
+            --partition-key-path $container.PartitionKey `
+            --throughput 400 `
+            --output none
+        Test-CommandSuccess
+        Write-Success "Container '$($container.Name)' created (partition: $($container.PartitionKey))"
+    }
 }
 
 # ============================================================================
-# STEP 7: CREATE KEY VAULT
+# STEP 8: CREATE KEY VAULT
 # ============================================================================
-Write-Step "7/9" "Creating Key Vault"
+Write-Step "8/10" "Creating Key Vault"
 
 $kvExists = az keyvault show --name $config.KeyVaultName --resource-group $config.ResourceGroup 2>$null
 if ($kvExists) {
     Write-Success "Key Vault '$($config.KeyVaultName)' already exists, skipping"
-}
-else {
+} else {
     az keyvault create `
         --name $config.KeyVaultName `
         --resource-group $config.ResourceGroup `
@@ -285,8 +349,23 @@ else {
         --tags project=procureflow `
         --output none
     Test-CommandSuccess
+    Write-Success "Key Vault '$($config.KeyVaultName)' created"
 }
-Write-Success "Key Vault '$($config.KeyVaultName)' created"
+
+# Grant current user Key Vault Secrets Officer role (needed for RBAC vaults)
+Write-Info "Granting current user Key Vault Secrets Officer role..."
+$userId = az ad signed-in-user show --query id -o tsv
+az role assignment create `
+    --role "Key Vault Secrets Officer" `
+    --assignee-object-id $userId `
+    --assignee-principal-type User `
+    --scope "/subscriptions/$subscriptionId/resourcegroups/$($config.ResourceGroup)/providers/Microsoft.KeyVault/vaults/$($config.KeyVaultName)" `
+    --output none 2>$null
+Write-Success "Current user has Key Vault Secrets Officer role"
+
+# Wait for RBAC propagation
+Write-Info "Waiting 15 seconds for RBAC propagation..."
+Start-Sleep -Seconds 15
 
 # Store Cosmos DB connection string in Key Vault
 Write-Info "Storing Cosmos DB connection string in Key Vault..."
@@ -304,7 +383,7 @@ az keyvault secret set `
 Test-CommandSuccess
 Write-Success "Cosmos DB connection string stored in Key Vault"
 
-# Grant Functions app access to Key Vault
+# Grant Functions app access to Key Vault (RBAC)
 Write-Info "Granting Functions app access to Key Vault..."
 az functionapp identity assign `
     --name $config.FuncAppName `
@@ -321,9 +400,8 @@ az role assignment create `
     --role "Key Vault Secrets User" `
     --assignee-object-id $funcPrincipalId `
     --assignee-principal-type ServicePrincipal `
-    --scope /subscriptions/20fb7306-d8e2-4ffb-bb7e-e80744d0a078/resourcegroups/rg-procureflow-prod/providers/Microsoft.KeyVault/vaults/kv-procureflow `
-    --output none
-Test-CommandSuccess
+    --scope "/subscriptions/$subscriptionId/resourcegroups/$($config.ResourceGroup)/providers/Microsoft.KeyVault/vaults/$($config.KeyVaultName)" `
+    --output none 2>$null
 Write-Success "Functions app can now read secrets from Key Vault (RBAC)"
 
 # Configure Functions app to use Key Vault reference for Cosmos
@@ -336,51 +414,58 @@ az functionapp config appsettings set `
 Write-Success "Functions app configured with Key Vault reference"
 
 # ============================================================================
-# STEP 8: REGISTER ENTRA ID APP (for MS365 auth)
+# STEP 9: REGISTER ENTRA ID APP (for MS365 auth)
 # ============================================================================
-Write-Step "8/9" "Registering Entra ID App (for authentication)"
+Write-Step "9/10" "Registering Entra ID App (for authentication)"
 
 $swaRedirectUri = "https://$swaUrl/.auth/login/aad/callback"
 
-$entraApp = az ad app create `
-    --display-name $config.EntraAppName `
-    --web-redirect-uris $swaRedirectUri `
-    --sign-in-audience AzureADMyOrg `
-    --output json | ConvertFrom-Json
-Test-CommandSuccess
-
-$entraAppId = $entraApp.appId
-$entraObjectId = $entraApp.id
-Write-Success "Entra ID app registered: $($config.EntraAppName)"
-Write-Info "Application (client) ID: $entraAppId"
-
-# Create a client secret for the app
-$secretResult = az ad app credential reset `
-    --id $entraObjectId `
-    --display-name "ProcureFlow-Secret" `
-    --years 2 `
-    --output json | ConvertFrom-Json
-$entraClientSecret = $secretResult.password
-
-# Store Entra credentials in Key Vault
-az keyvault secret set `
-    --vault-name $config.KeyVaultName `
-    --name "EntraClientId" `
-    --value $entraAppId `
-    --output none
-
-az keyvault secret set `
-    --vault-name $config.KeyVaultName `
-    --name "EntraClientSecret" `
-    --value $entraClientSecret `
-    --output none
-Test-CommandSuccess
-Write-Success "Entra credentials stored in Key Vault"
+# Check if app already exists
+$existingApp = az ad app list --display-name $config.EntraAppName --query "[0].appId" -o tsv 2>$null
+if ($existingApp) {
+    $entraAppId = $existingApp
+    Write-Success "Entra ID app '$($config.EntraAppName)' already exists (ID: $entraAppId), skipping"
+} else {
+    $entraApp = az ad app create `
+        --display-name $config.EntraAppName `
+        --web-redirect-uris $swaRedirectUri `
+        --sign-in-audience AzureADMyOrg `
+        --output json | ConvertFrom-Json
+    Test-CommandSuccess
+    
+    $entraAppId = $entraApp.appId
+    $entraObjectId = $entraApp.id
+    Write-Success "Entra ID app registered: $($config.EntraAppName)"
+    Write-Info "Application (client) ID: $entraAppId"
+    
+    # Create a client secret for the app
+    $secretResult = az ad app credential reset `
+        --id $entraObjectId `
+        --display-name "ProcureFlow-Secret" `
+        --years 2 `
+        --output json | ConvertFrom-Json
+    $entraClientSecret = $secretResult.password
+    
+    # Store Entra credentials in Key Vault
+    az keyvault secret set `
+        --vault-name $config.KeyVaultName `
+        --name "EntraClientId" `
+        --value $entraAppId `
+        --output none
+    
+    az keyvault secret set `
+        --vault-name $config.KeyVaultName `
+        --name "EntraClientSecret" `
+        --value $entraClientSecret `
+        --output none
+    Test-CommandSuccess
+    Write-Success "Entra credentials stored in Key Vault"
+}
 
 # ============================================================================
-# STEP 9: SUMMARY & NEXT STEPS
+# STEP 10: SUMMARY
 # ============================================================================
-Write-Step "9/9" "Deployment Complete!"
+Write-Step "10/10" "Deployment Complete!"
 
 $cosmosEndpoint = az cosmosdb show `
     --name $config.CosmosAccount `
@@ -412,27 +497,26 @@ Write-Host "  ──────────────────────
 Write-Host "  Auto-deploy is configured for:" -ForegroundColor White
 Write-Host "  Repo:   $($config.GitHubUser)/$($config.GitHubRepo)" -ForegroundColor White
 Write-Host "  Branch: $($config.GitHubBranch)" -ForegroundColor White
-Write-Host "  Push to master → app auto-deploys to Azure" -ForegroundColor White
+Write-Host "  Push to master -> app auto-deploys to Azure" -ForegroundColor White
 Write-Host ""
 Write-Host "  NEXT STEPS:" -ForegroundColor Yellow
 Write-Host "  ──────────────────────────────────────────────────" -ForegroundColor DarkGray
 Write-Host "  1. Visit https://$swaUrl to verify your app is live" -ForegroundColor Yellow
-Write-Host "  2. Add allowed users in Azure Portal → Entra ID → Enterprise Apps → ProcureFlow → Users" -ForegroundColor Yellow
-Write-Host "  3. To add a colleague: az ad app owner add --id $entraAppId --owner-object-id <their-object-id>" -ForegroundColor Yellow
+Write-Host "  2. Add allowed users in Azure Portal -> Entra ID -> Enterprise Apps -> ProcureFlow -> Users" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  COST ESTIMATE:" -ForegroundColor White
 Write-Host "  ──────────────────────────────────────────────────" -ForegroundColor DarkGray
-Write-Host "  Static Web Apps (Free):     €0/mo" -ForegroundColor White
-Write-Host "  Functions (Consumption):    ~€0-2/mo" -ForegroundColor White
-Write-Host "  Cosmos DB (Free tier):      €0/mo" -ForegroundColor White
-Write-Host "  Key Vault:                  ~€0.03/mo" -ForegroundColor White
-Write-Host "  Entra ID (Free w/ M365):    €0/mo" -ForegroundColor White
+Write-Host "  Static Web Apps (Free):     EUR 0/mo" -ForegroundColor White
+Write-Host "  Functions (Consumption):    ~EUR 0-2/mo" -ForegroundColor White
+Write-Host "  Cosmos DB (Free tier):      EUR 0/mo" -ForegroundColor White
+Write-Host "  Key Vault:                  ~EUR 0.03/mo" -ForegroundColor White
+Write-Host "  Entra ID (Free w/ M365):    EUR 0/mo" -ForegroundColor White
 Write-Host "  ──────────────────────────────────────────────────" -ForegroundColor DarkGray
-Write-Host "  TOTAL:                      ~€0-2/mo" -ForegroundColor Green
+Write-Host "  TOTAL:                      ~EUR 0-2/mo" -ForegroundColor Green
 Write-Host ""
 
 # ============================================================================
-# OPTIONAL: TEARDOWN COMMAND
+# TEARDOWN COMMAND (if needed)
 # ============================================================================
 Write-Host "  TO DELETE EVERYTHING (if needed):" -ForegroundColor Red
 Write-Host "  az group delete --name $($config.ResourceGroup) --yes --no-wait" -ForegroundColor Red
