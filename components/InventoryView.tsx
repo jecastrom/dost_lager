@@ -278,6 +278,61 @@ const InventoryTableRow: React.FC<StockComponentProps> = ({ item, onUpdate, onAd
     );
 };
 
+// --- MOBILE CARD COMPONENT ---
+const MobileInventoryCard: React.FC<StockComponentProps> = ({ item, onUpdate, onAddStock, onLogStock, onClick, onClone, theme }) => {
+    const isDark = theme === 'dark';
+    const { bulkInput, setBulkInput, handleClick } = useStockAdjust(item, onUpdate, onLogStock);
+    
+    const getStockStatus = () => {
+        if (item.stockLevel <= 0) return { icon: <AlertOctagon size={16}/>, color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/20' };
+        if (item.stockLevel < item.minStock) return { icon: <AlertTriangle size={16}/>, color: 'text-amber-500', bg: 'bg-amber-500/10 border-amber-500/20' };
+        return { icon: <CheckCircle2 size={16}/>, color: 'text-emerald-500', bg: 'bg-emerald-500/10 border-emerald-500/20' };
+    };
+    const status = getStockStatus();
+
+    return (
+        <div
+            onClick={() => onClick(item)}
+            className={`p-4 cursor-pointer transition-colors ${
+                isDark ? 'hover:bg-slate-800 active:bg-slate-700' : 'hover:bg-slate-50 active:bg-slate-100'
+            }`}
+        >
+            <div className="mb-3">
+                <div className={`font-bold text-sm mb-1 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{item.name}</div>
+                {item.manufacturer && (
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wide">{item.manufacturer}</span>
+                )}
+            </div>
+            <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase text-slate-500">SKU</span>
+                    <span className={`font-mono text-xs px-1.5 py-0.5 rounded border ${isDark ? 'bg-slate-900 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-300 text-slate-600'}`}>
+                        {item.sku}
+                    </span>
+                </div>
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase text-slate-500">System</span>
+                    <span className="text-sm text-slate-500">{item.system}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase text-slate-500">Lagerort</span>
+                    <div className="flex items-center gap-1.5 text-sm text-slate-500">
+                        <MapPin size={14} className="opacity-50" />
+                        {item.warehouseLocation || '-'}
+                    </div>
+                </div>
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase text-slate-500">Bestand</span>
+                    <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full border text-xs font-bold ${status.bg} ${status.color}`}>
+                        {status.icon}
+                        <span>{item.stockLevel}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- MAIN INVENTORY VIEW COMPONENT ---
 
 interface InventoryViewProps {
@@ -491,8 +546,20 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                               <p>Keine Artikel gefunden</p>
                           </div>
                       ) : (
-                          filteredItems.map(item => {
-                              const { bulkInput, setBulkInput, handleClick } = useStockAdjust(item, onUpdate, onLogStock);
+                          filteredItems.map(item => (
+                              <MobileInventoryCard
+                                  key={item.id}
+                                  item={item}
+                                  onUpdate={onUpdate}
+                                  onAddStock={onAddStock}
+                                  onLogStock={onLogStock}
+                                  onClick={handleOpenEditItem}
+                                  onClone={handleCloneItem}
+                                  theme={theme}
+                              />
+                          ))
+                      )}
+                  </div>
                               const getStockStatus = () => {
                                   if (item.stockLevel <= 0) return { icon: <AlertOctagon size={16}/>, color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/20' };
                                   if (item.stockLevel < item.minStock) return { icon: <AlertTriangle size={16}/>, color: 'text-amber-500', bg: 'bg-amber-500/10 border-amber-500/20' };
