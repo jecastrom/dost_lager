@@ -3,6 +3,13 @@ import { CONTAINERS, queryItems, getItem, upsertItem, deleteItem } from "../util
 
 const CONTAINER = CONTAINERS.STOCK;
 
+/** Strip Cosmos DB system fields */
+function stripMeta(doc: any): any {
+  if (!doc) return doc;
+  const { _rid, _self, _etag, _attachments, _ts, ...clean } = doc;
+  return clean;
+}
+
 /**
  * GET /api/stock          → All stock items
  * GET /api/stock/:id      → Single stock item by ID
@@ -22,10 +29,10 @@ async function stockHandler(
       if (id) {
         const item = await getItem(CONTAINER, id, id);
         if (!item) return { status: 404, jsonBody: { error: "Item not found" } };
-        return { status: 200, jsonBody: item };
+        return { status: 200, jsonBody: stripMeta(item) };
       }
       const items = await queryItems(CONTAINER);
-      return { status: 200, jsonBody: items };
+      return { status: 200, jsonBody: items.map(stripMeta) };
     }
 
     // POST / PUT
