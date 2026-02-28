@@ -23,7 +23,7 @@ import { DocumentationPage } from './components/DocumentationPage';
 import { StockLogView } from './components/StockLogView';
 import { LogicInspector } from './components/LogicInspector';
 import { SupplierView } from './components/SupplierView';
-import { loadAllData } from './api';
+import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi } from './api';
 
 // Error Boundary Component
 interface ErrorBoundaryProps {
@@ -379,15 +379,23 @@ export default function App() {
   };
 
   const handleStockUpdate = (id: string, newLevel: number) => {
-    setInventory(prev => prev.map(item => item.id === id ? { ...item, stockLevel: newLevel, lastUpdated: Date.now() } : item));
+    setInventory(prev => {
+      const updated = prev.map(item => item.id === id ? { ...item, stockLevel: newLevel, lastUpdated: Date.now() } : item);
+      // API write-through
+      const changedItem = updated.find(i => i.id === id);
+      if (changedItem) stockApi.upsert(changedItem).catch(console.warn);
+      return updated;
+    });
   };
 
   const handleUpdateItem = (updatedItem: StockItem) => {
     setInventory(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
+    stockApi.upsert(updatedItem).catch(console.warn);
   };
 
   const handleCreateItem = (newItem: StockItem) => {
     setInventory(prev => [newItem, ...prev]);
+    stockApi.upsert(newItem).catch(console.warn);
   };
 
   const handleAddStock = () => {
@@ -430,8 +438,16 @@ export default function App() {
             return { ...po, status: nextStatus, isForceClosed: true };
           }));
         }
+        // API write-through — persist master + PO
+        const updMaster = receiptMasters.find(m => m.poId === poId);
+        if (updMaster) receiptsApi.upsert({ ...updMaster, status: 'Abgeschlossen', docType: 'master' }).catch(console.warn);
+        const updPO = purchaseOrders.find(p => p.id === poId);
+        if (updPO) ordersApi.upsert({ ...updPO, status: wasPreReceipt ? 'Offen' : 'Abgeschlossen' }).catch(console.warn);
       }
     }
+    // API write-through — persist header status change
+    const updHeader = receiptHeaders.find(h => h.batchId === batchId);
+    if (updHeader) receiptsApi.upsert({ ...updHeader, id: batchId, status: newStatus, docType: 'header', poId: updHeader.bestellNr || batchId }).catch(console.warn);
   };
 
   const handleAddComment = (batchId: string, type: 'note' | 'email' | 'call', message: string) => {
@@ -446,11 +462,17 @@ export default function App() {
       message
     };
     setComments(prev => [newComment, ...prev]);
+    // API write-through — receipts container needs docType + poId
+    const header = receiptHeaders.find(h => h.batchId === batchId);
+    receiptsApi.upsert({ ...newComment, docType: 'comment', poId: header?.bestellNr || batchId }).catch(console.warn);
   };
 
   const handleAddTicket = (ticket: Ticket) => {
     addAudit('Ticket Created', { ticketId: ticket.id, subject: ticket.subject, priority: ticket.priority, receiptId: ticket.receiptId });
     setTickets(prev => [...prev, ticket]);
+    // API write-through — tickets container partition key is /poId
+    const header = receiptHeaders.find(h => h.batchId === ticket.receiptId);
+    ticketsApi.upsert({ ...ticket, poId: header?.bestellNr || '' }).catch(console.warn);
   };
 
   const handleUpdateTicket = (ticket: Ticket) => {
@@ -459,6 +481,9 @@ export default function App() {
       addAudit('Ticket Status Changed', { ticketId: ticket.id, subject: ticket.subject, oldStatus: old.status, newStatus: ticket.status });
     }
     setTickets(prev => prev.map(t => t.id === ticket.id ? ticket : t));
+    // API write-through
+    const header = receiptHeaders.find(h => h.batchId === ticket.receiptId);
+    ticketsApi.upsert({ ...ticket, poId: header?.bestellNr || '' }).catch(console.warn);
   };
 
   const handleCreateOrder = (order: PurchaseOrder) => {
@@ -507,12 +532,17 @@ export default function App() {
         }))
       };
 
-      setReceiptMasters(prev => [...prev, {
+      const newMaster = {
         id: `RM-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         poId,
         status: receiptStatus as ReceiptMasterStatus,
         deliveries: [initialDelivery]
-      }]);
+      };
+      setReceiptMasters(prev => [...prev, newMaster]);
+
+      // API write-through — persist new receipt header + master
+      receiptsApi.upsert({ ...newHeader, id: batchId, docType: 'header', poId }).catch(console.warn);
+      receiptsApi.upsert({ ...newMaster, docType: 'master' }).catch(console.warn);
 
       // Link receipt to PO
       order = { ...order, linkedReceiptId: batchId };
@@ -539,10 +569,18 @@ export default function App() {
       }
       return [order, ...prev];
     });
+    // API write-through — persist order
+    ordersApi.upsert(order).catch(console.warn);
+    // If edit changed receipt master status, persist that too
+    if (exists) {
+      const updatedMaster = receiptMasters.find(m => m.poId === order.id);
+      if (updatedMaster) receiptsApi.upsert({ ...updatedMaster, docType: 'master' }).catch(console.warn);
+    }
   };
 
   const handleUpdateOrder = (updatedOrder: PurchaseOrder) => {
     setPurchaseOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+    ordersApi.upsert(updatedOrder).catch(console.warn);
   };
 
   const handleArchiveOrder = (id: string) => {
@@ -563,13 +601,22 @@ export default function App() {
     // CASCADE: Close all linked open tickets
     const linkedBatchIds = poHeaders.map(h => h.batchId);
     if (linkedBatchIds.length > 0) {
-      setTickets(prev => prev.map(t => {
-        if (linkedBatchIds.includes(t.receiptId) && t.status === 'Open') {
-          return { ...t, status: 'Closed' as const, messages: [...t.messages, { id: crypto.randomUUID(), author: 'System', text: 'Ticket automatisch geschlossen — Bestellung archiviert.', timestamp: Date.now(), type: 'system' as const }] };
-        }
-        return t;
-      }));
+      setTickets(prev => {
+        const updated = prev.map(t => {
+          if (linkedBatchIds.includes(t.receiptId) && t.status === 'Open') {
+            const closed = { ...t, status: 'Closed' as const, messages: [...t.messages, { id: crypto.randomUUID(), author: 'System', text: 'Ticket automatisch geschlossen — Bestellung archiviert.', timestamp: Date.now(), type: 'system' as const }] };
+            ticketsApi.upsert({ ...closed, poId: id }).catch(console.warn);
+            return closed;
+          }
+          return t;
+        });
+        return updated;
+      });
     }
+
+    // API write-through — persist archived order
+    const archivedOrder = purchaseOrders.find(o => o.id === id);
+    if (archivedOrder) ordersApi.upsert({ ...archivedOrder, isArchived: true }).catch(console.warn);
   };
 
   const handleCancelOrder = (id: string) => {
@@ -598,13 +645,27 @@ export default function App() {
     // 4. CASCADE: Close all linked tickets
     const linkedBatchIds = receiptHeaders.filter(h => h.bestellNr === id).map(h => h.batchId);
     if (linkedBatchIds.length > 0) {
-      setTickets(prev => prev.map(t => {
-        if (linkedBatchIds.includes(t.receiptId) && t.status === 'Open') {
-          return { ...t, status: 'Closed' as const, messages: [...t.messages, { id: crypto.randomUUID(), author: 'System', text: 'Ticket automatisch geschlossen — Bestellung storniert.', timestamp: Date.now(), type: 'system' as const }] };
-        }
-        return t;
-      }));
+      setTickets(prev => {
+        const updated = prev.map(t => {
+          if (linkedBatchIds.includes(t.receiptId) && t.status === 'Open') {
+            const closed = { ...t, status: 'Closed' as const, messages: [...t.messages, { id: crypto.randomUUID(), author: 'System', text: 'Ticket automatisch geschlossen — Bestellung storniert.', timestamp: Date.now(), type: 'system' as const }] };
+            ticketsApi.upsert({ ...closed, poId: id }).catch(console.warn);
+            return closed;
+          }
+          return t;
+        });
+        return updated;
+      });
     }
+
+    // API write-through — persist cancelled order + receipt master + headers
+    const cancelledOrder = purchaseOrders.find(o => o.id === id);
+    if (cancelledOrder) ordersApi.upsert({ ...cancelledOrder, status: 'Storniert', isArchived: true }).catch(console.warn);
+    const cancelledMaster = receiptMasters.find(m => m.poId === id);
+    if (cancelledMaster) receiptsApi.upsert({ ...cancelledMaster, status: 'Abgeschlossen', docType: 'master' }).catch(console.warn);
+    receiptHeaders.filter(h => h.bestellNr === id).forEach(h => {
+      receiptsApi.upsert({ ...h, id: h.batchId, status: 'Storniert', docType: 'header', poId: id }).catch(console.warn);
+    });
   };
 
   const handleEditOrder = (order: PurchaseOrder) => {
@@ -680,6 +741,10 @@ export default function App() {
 
     // 5. Audit trail
     addAudit('Delivery Refused', { po: poId, reason, notes: notes || '—' });
+
+    // API write-through — persist refused master
+    const refusedMaster = receiptMasters.find(m => m.poId === poId);
+    if (refusedMaster) receiptsApi.upsert({ ...refusedMaster, status: 'Abgelehnt', refusalReason: reason, refusalNotes: notes, refusalDate: new Date().toISOString(), docType: 'master' }).catch(console.warn);
 
     // 6. Navigate back
     handleNavigation('receipt-management');
@@ -1136,6 +1201,41 @@ export default function App() {
 
     addAudit('Receipt Confirmed', { receiptId: batchId, po: headerData.bestellNr || '-', lieferschein: headerData.lieferscheinNr, status: finalReceiptStatus, itemCount: cartItems.length, isProject });
 
+    // --- API WRITE-THROUGH (bulk persist all changes) ---
+    const apiPoId = headerData.bestellNr || batchId;
+    const apiDocs: any[] = [];
+
+    // Receipt header
+    apiDocs.push({ ...newHeader, id: batchId, docType: 'header', poId: apiPoId });
+
+    // Receipt items
+    newReceiptItems.forEach(ri => apiDocs.push({ ...ri, docType: 'item', poId: apiPoId }));
+
+    // Receipt master (find the updated one from state)
+    // Since state may not have settled, reconstruct: find existing or use known poId
+    setTimeout(() => {
+      // Persist receipt docs via bulk
+      receiptsApi.bulkUpsert(apiDocs).catch(console.warn);
+
+      // Persist updated PO
+      if (headerData.bestellNr) {
+        const latestPO = purchaseOrders.find(p => p.id === headerData.bestellNr);
+        if (latestPO) ordersApi.upsert(latestPO).catch(console.warn);
+
+        const latestMaster = receiptMasters.find(m => m.poId === headerData.bestellNr);
+        if (latestMaster) receiptsApi.upsert({ ...latestMaster, docType: 'master' }).catch(console.warn);
+      }
+
+      // Persist changed stock items
+      cartItems.forEach((c: any) => {
+        const item = inventory.find(i => i.id === c.item?.id);
+        if (item) stockApi.upsert(item).catch(console.warn);
+      });
+
+      // Persist any new items created during receipt
+      newItemsCreated.forEach(ni => stockApi.upsert(ni).catch(console.warn));
+    }, 100); // Small delay to let React state settle
+
     handleNavigation('receipt-management');
   };
 
@@ -1212,6 +1312,20 @@ export default function App() {
         };
       }));
     }
+
+    // API write-through — persist reverted state
+    setTimeout(() => {
+      receiptsApi.upsert({ ...header, id: batchId, status: 'In Prüfung', docType: 'header', poId: poId || batchId }).catch(console.warn);
+      if (linkedPO) {
+        const updPO = purchaseOrders.find(p => p.id === linkedPO.id);
+        if (updPO) ordersApi.upsert(updPO).catch(console.warn);
+      }
+      // Persist reverted stock items
+      itemsToRevert.forEach(rItem => {
+        const item = inventory.find(i => i.sku === rItem.sku);
+        if (item) stockApi.upsert(item).catch(console.warn);
+      });
+    }, 100);
   };
 
 
@@ -1391,7 +1505,7 @@ export default function App() {
       if (ticket.status !== 'Open') return ticket;
       const tHeader = receiptHeaders.find(h => h.batchId === ticket.receiptId);
       if (tHeader && tHeader.bestellNr === poId) {
-        return {
+        const updated = {
           ...ticket,
           messages: [...ticket.messages, {
             id: crypto.randomUUID(),
@@ -1401,9 +1515,35 @@ export default function App() {
             type: 'system' as const
           }]
         };
+        ticketsApi.upsert({ ...updated, poId }).catch(console.warn);
+        return updated;
       }
       return ticket;
     }));
+
+    // API write-through — persist return data
+    setTimeout(() => {
+      // Return header + items
+      const apiDocs: any[] = [
+        { ...newHeader, id: batchId, docType: 'header', poId },
+        ...newReceiptItems.map(ri => ({ ...ri, docType: 'item', poId }))
+      ];
+      receiptsApi.bulkUpsert(apiDocs).catch(console.warn);
+
+      // Updated master
+      const updMaster = receiptMasters.find(m => m.poId === poId);
+      if (updMaster) receiptsApi.upsert({ ...updMaster, docType: 'master' }).catch(console.warn);
+
+      // Updated PO
+      const updPO = purchaseOrders.find(p => p.id === poId);
+      if (updPO) ordersApi.upsert(updPO).catch(console.warn);
+
+      // Updated stock items
+      returnLines.forEach(rl => {
+        const item = inventory.find(i => i.sku === rl.sku);
+        if (item) stockApi.upsert(item).catch(console.warn);
+      });
+    }, 100);
   };
 
   return (
