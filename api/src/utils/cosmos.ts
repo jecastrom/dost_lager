@@ -61,14 +61,20 @@ export function getContainer(containerName: string): Container {
 export async function queryItems<T>(
   containerName: string,
   query?: string,
-  parameters?: { name: string; value: unknown }[]
+  parameters?: { name: string; value: any }[]
 ): Promise<T[]> {
   const container = getContainer(containerName);
-  const querySpec = query
-    ? { query, parameters: parameters || [] }
-    : { query: "SELECT * FROM c" };
 
-  const { resources } = await container.items.query<T>(querySpec).fetchAll();
+  if (query) {
+    const { resources } = await container.items
+      .query<T>({ query, parameters: parameters || [] })
+      .fetchAll();
+    return resources;
+  }
+
+  const { resources } = await container.items
+    .query<T>("SELECT * FROM c")
+    .fetchAll();
   return resources;
 }
 
@@ -82,8 +88,8 @@ export async function getItem<T>(
 ): Promise<T | undefined> {
   try {
     const container = getContainer(containerName);
-    const { resource } = await container.item(id, partitionKey).read<T>();
-    return resource;
+    const { resource } = await container.item(id, partitionKey).read();
+    return resource as T | undefined;
   } catch (error: any) {
     if (error.code === 404) return undefined;
     throw error;
