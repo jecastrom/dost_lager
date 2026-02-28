@@ -34,6 +34,17 @@ const useStockAdjust = (item: StockItem, onUpdate: (id: string, n: number) => vo
     return { bulkInput, setBulkInput, handleClick };
 };
 
+// --- SHARED COMPONENT PROPS ---
+interface StockComponentProps {
+    item: StockItem;
+    onUpdate: (id: string, newLevel: number) => void;
+    onAddStock: () => void;
+    onLogStock: (itemId: string, itemName: string, action: 'add' | 'remove', quantity: number, source?: string, context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project') => void;
+    onClick: (item: StockItem) => void;
+    onClone: (item: StockItem) => void;
+    theme: Theme;
+}
+
 // --- MOBILE CARD COMPONENT ---
 const MobileInventoryCard: React.FC<StockComponentProps> = ({ item, onUpdate, onAddStock, onLogStock, onClick, onClone, theme }) => {
     const isDark = theme === 'dark';
@@ -77,15 +88,6 @@ const MobileInventoryCard: React.FC<StockComponentProps> = ({ item, onUpdate, on
 };
 
 // --- GRID CARD COMPONENT ---
-interface StockComponentProps {
-    item: StockItem;
-    onUpdate: (id: string, newLevel: number) => void;
-    onAddStock: () => void;
-    onLogStock: (itemId: string, itemName: string, action: 'add' | 'remove', quantity: number, source?: string, context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project') => void;
-    onClick: (item: StockItem) => void;
-    onClone: (item: StockItem) => void;
-    theme: Theme;
-}
 
 const InventoryProductCard: React.FC<StockComponentProps> = ({ item, onUpdate, onAddStock, onLogStock, onClick, onClone, theme }) => {
     const isDark = theme === 'dark';
