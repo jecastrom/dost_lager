@@ -7,6 +7,17 @@
 
 const API_BASE = '/api';
 
+/** Strip Cosmos DB metadata fields from documents */
+function cleanDoc<T>(doc: any): T {
+  if (!doc || typeof doc !== 'object') return doc;
+  const { _rid, _self, _etag, _attachments, _ts, ...clean } = doc;
+  return clean as T;
+}
+
+function cleanDocs<T>(docs: any[]): T[] {
+  return docs.map(d => cleanDoc<T>(d));
+}
+
 // ============================================================================
 // GENERIC FETCH HELPER
 // ============================================================================
@@ -128,7 +139,12 @@ export async function loadAllData(): Promise<AppData | null> {
       ticketsApi.getAll(),
     ]);
 
-    return { stock, orders, receipts, tickets };
+    return {
+      stock: cleanDocs(stock),
+      orders: cleanDocs(orders),
+      receipts: cleanDocs(receipts),
+      tickets: cleanDocs(tickets),
+    };
   } catch (error) {
     console.warn('API unreachable — using local fallback data:', error);
     return null;
