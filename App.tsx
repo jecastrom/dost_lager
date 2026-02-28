@@ -898,6 +898,7 @@ export default function App() {
               lastUpdated: timestamp,
               warehouseLocation: cartItem.location
             };
+            stockApi.upsert(copy[idx]).catch(console.warn);
           }
         }
       });
@@ -988,13 +989,15 @@ export default function App() {
           }
         }
 
-        return {
+        const updatedPO = {
           ...po,
           items: updatedItems,
           status: nextStatus,
           linkedReceiptId: batchId,
           isForceClosed: forceClose || po.isForceClosed // Persist force close state
         };
+        ordersApi.upsert(updatedPO).catch(console.warn);
+        return updatedPO;
       }));
 
       // --- 3. CREATE RECEIPT MASTER & DELIVERY LOG ---
@@ -1041,18 +1044,22 @@ export default function App() {
         };
 
         if (existingMaster) {
-          return prev.map(m => m.id === existingMaster.id ? {
-            ...m,
-            status: finalReceiptStatus as ReceiptMasterStatus, // Update master status
-            deliveries: [...m.deliveries, newDeliveryLog]
-          } : m);
+          const updatedMaster = {
+            ...existingMaster,
+            status: finalReceiptStatus as ReceiptMasterStatus,
+            deliveries: [...existingMaster.deliveries, newDeliveryLog]
+          };
+          receiptsApi.upsert({ ...updatedMaster, docType: 'master' }).catch(console.warn);
+          return prev.map(m => m.id === existingMaster.id ? updatedMaster : m);
         } else {
-          return [...prev, {
+          const newMaster = {
             id: crypto.randomUUID(),
             poId,
             status: finalReceiptStatus as ReceiptMasterStatus,
             deliveries: [newDeliveryLog]
-          }];
+          };
+          receiptsApi.upsert({ ...newMaster, docType: 'master' }).catch(console.warn);
+          return [...prev, newMaster];
         }
       });
     }
@@ -1227,40 +1234,15 @@ export default function App() {
 
     addAudit('Receipt Confirmed', { receiptId: batchId, po: headerData.bestellNr || '-', lieferschein: headerData.lieferscheinNr, status: finalReceiptStatus, itemCount: cartItems.length, isProject });
 
-    // --- API WRITE-THROUGH (bulk persist all changes) ---
+    // --- API WRITE-THROUGH (header + items + new stock items) ---
     const apiPoId = headerData.bestellNr || batchId;
     const apiDocs: any[] = [];
-
-    // Receipt header
     apiDocs.push({ ...newHeader, id: batchId, docType: 'header', poId: apiPoId });
-
-    // Receipt items
     newReceiptItems.forEach(ri => apiDocs.push({ ...ri, docType: 'item', poId: apiPoId }));
+    receiptsApi.bulkUpsert(apiDocs).catch(console.warn);
 
-    // Receipt master (find the updated one from state)
-    // Since state may not have settled, reconstruct: find existing or use known poId
-    setTimeout(() => {
-      // Persist receipt docs via bulk
-      receiptsApi.bulkUpsert(apiDocs).catch(console.warn);
-
-      // Persist updated PO
-      if (headerData.bestellNr) {
-        const latestPO = purchaseOrders.find(p => p.id === headerData.bestellNr);
-        if (latestPO) ordersApi.upsert(latestPO).catch(console.warn);
-
-        const latestMaster = receiptMasters.find(m => m.poId === headerData.bestellNr);
-        if (latestMaster) receiptsApi.upsert({ ...latestMaster, docType: 'master' }).catch(console.warn);
-      }
-
-      // Persist changed stock items
-      cartItems.forEach((c: any) => {
-        const item = inventory.find(i => i.id === c.item?.id);
-        if (item) stockApi.upsert(item).catch(console.warn);
-      });
-
-      // Persist any new items created during receipt
-      newItemsCreated.forEach(ni => stockApi.upsert(ni).catch(console.warn));
-    }, 100); // Small delay to let React state settle
+    // Persist any brand-new stock items created during receipt
+    newItemsCreated.forEach(ni => stockApi.upsert(ni).catch(console.warn));
 
     handleNavigation('receipt-management');
   };
