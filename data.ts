@@ -34,7 +34,7 @@ const parseAspDate = (dateStr: string | null): number | undefined => {
 
 export const MOCK_ITEMS: StockItem[] = FULL_INVENTORY.map((raw, index) => {
   return {
-    id: raw["Artikel Nummer"] || `generated-id-${index}`,
+    id: raw["Artikel Nummer"] ? `${raw["Artikel Nummer"]}__${index}` : `generated-id-${index}`,
     name: raw["Artikel Bezeichnung"],
     sku: raw["Artikel Nummer"],
     system: raw["System"] || "Sonstiges",
