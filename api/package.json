@@ -1,0 +1,21 @@
+{
+  "name": "procureflow-api",
+  "version": "1.0.0",
+  "description": "ProcureFlow Azure Functions API",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "clean": "rimraf dist",
+    "prestart": "npm run clean && npm run build",
+    "start": "func start"
+  },
+  "dependencies": {
+    "@azure/cosmos": "^4.2.0",
+    "@azure/functions": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.3.0"
+  }
+}
