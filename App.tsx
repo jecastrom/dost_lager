@@ -290,7 +290,32 @@ export default function App() {
     }
 
     fetchData();
-    return () => { cancelled = true; };
+
+    // Re-fetch fresh data when user returns to tab/PWA (multi-device sync)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && !cancelled) {
+        loadAllData().then(data => {
+          if (cancelled || !data) return;
+          setApiConnected(true);
+          if (data.stock.length > 0) setInventory(data.stock);
+          if (data.orders.length > 0) setPurchaseOrders(data.orders);
+          if (data.receipts.length > 0) {
+            const masters = data.receipts.filter((r: any) => r.docType === 'master');
+            const headers = data.receipts.filter((r: any) => r.docType === 'header');
+            const items = data.receipts.filter((r: any) => r.docType === 'item');
+            const receiptComments = data.receipts.filter((r: any) => r.docType === 'comment');
+            if (masters.length > 0) setReceiptMasters(masters);
+            if (headers.length > 0) setReceiptHeaders(headers);
+            if (items.length > 0) setReceiptItems(items);
+            if (receiptComments.length > 0) setComments(receiptComments);
+          }
+          if (data.tickets.length > 0) setTickets(data.tickets);
+        }).catch(console.warn);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => { cancelled = true; document.removeEventListener('visibilitychange', handleVisibility); };
   }, []);
 
   useEffect(() => {
