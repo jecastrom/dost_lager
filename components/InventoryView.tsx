@@ -34,6 +34,48 @@ const useStockAdjust = (item: StockItem, onUpdate: (id: string, n: number) => vo
     return { bulkInput, setBulkInput, handleClick };
 };
 
+// --- MOBILE CARD COMPONENT ---
+const MobileInventoryCard: React.FC<StockComponentProps> = ({ item, onUpdate, onAddStock, onLogStock, onClick, onClone, theme }) => {
+    const isDark = theme === 'dark';
+    const { bulkInput, setBulkInput, handleClick } = useStockAdjust(item, onUpdate, onLogStock);
+    const getStockStatus = () => {
+        if (item.stockLevel <= 0) return { icon: <AlertOctagon size={16} />, color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/20' };
+        if (item.stockLevel < item.minStock) return { icon: <AlertTriangle size={16} />, color: 'text-amber-500', bg: 'bg-amber-500/10 border-amber-500/20' };
+        return { icon: <CheckCircle2 size={16} />, color: 'text-emerald-500', bg: 'bg-emerald-500/10 border-emerald-500/20' };
+    };
+    const status = getStockStatus();
+    return (
+        <div
+            key={item.id}
+            onClick={() => onClick(item)}
+            className={`p-4 cursor-pointer transition-colors ${isDark ? 'hover:bg-slate-800 active:bg-slate-700' : 'hover:bg-slate-50 active:bg-slate-100'}`}
+        >
+            <div className="mb-3">
+                <div className={`font-bold text-sm mb-1 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{item.name}</div>
+                {item.manufacturer && (<div className="text-[10px] text-slate-500 uppercase tracking-wide">{item.manufacturer}</div>)}
+            </div>
+            <div className="space-y-2 mb-3">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase text-slate-500">SKU</span>
+                    <span className={`font-mono text-xs px-1.5 py-0.5 rounded border ${isDark ? 'bg-slate-900 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-300 text-slate-600'}`}>{item.sku}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase text-slate-500">System</span>
+                    <span className="text-sm text-slate-500">{item.system}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase text-slate-500">Lagerort</span>
+                    <div className="flex items-center gap-1.5 text-sm text-slate-500"><MapPin size={14} className="opacity-50" />{item.warehouseLocation || '-'}</div>
+                </div>
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase text-slate-500">Bestand</span>
+                    <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full border text-xs font-bold ${status.bg} ${status.color}`}>{status.icon}<span>{item.stockLevel}</span></div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- GRID CARD COMPONENT ---
 interface StockComponentProps {
     item: StockItem;
@@ -60,8 +102,8 @@ const InventoryProductCard: React.FC<StockComponentProps> = ({ item, onUpdate, o
     return (
         <div
             className={`border rounded-xl p-4 flex flex-col gap-4 transition-all duration-300 group backdrop-blur-md cursor-pointer ${isDark
-                    ? 'bg-slate-800/40 border-slate-700/50 hover:shadow-xl hover:shadow-black/20 hover:border-slate-600'
-                    : 'bg-white/70 border-[#CACCCE]/40 hover:shadow-lg hover:border-[#0077B5]/40 shadow-sm'
+                ? 'bg-slate-800/40 border-slate-700/50 hover:shadow-xl hover:shadow-black/20 hover:border-slate-600'
+                : 'bg-white/70 border-[#CACCCE]/40 hover:shadow-lg hover:border-[#0077B5]/40 shadow-sm'
                 }`}
             onClick={() => onClick(item)}
         >
@@ -92,8 +134,8 @@ const InventoryProductCard: React.FC<StockComponentProps> = ({ item, onUpdate, o
                                 alert("Artikelnummer (Nur Zahlen) kopiert");
                             }}
                             className={`ml-0.5 transition-colors ${isDark
-                                    ? 'text-slate-600 hover:text-blue-400'
-                                    : 'text-gray-400 hover:text-blue-500'
+                                ? 'text-slate-600 hover:text-blue-400'
+                                : 'text-gray-400 hover:text-blue-500'
                                 }`}
                             title="Artikelnummer kopieren (Links: Exakt | Rechts: Nur Zahlen)"
                         >
@@ -159,8 +201,8 @@ const InventoryProductCard: React.FC<StockComponentProps> = ({ item, onUpdate, o
                                 onClick={e => e.stopPropagation()}
                                 placeholder="Menge"
                                 className={`w-full border rounded-lg pl-8 pr-2 py-2 text-base md:text-sm transition-all focus:outline-none focus:ring-2 ${isDark
-                                        ? 'bg-slate-900/50 border-slate-700 text-slate-200 focus:ring-blue-500/30 placeholder:text-slate-600'
-                                        : 'bg-white/50 border-[#CACCCE] text-[#000000] focus:ring-[#0077B5]/20 placeholder:text-[#86888A]'
+                                    ? 'bg-slate-900/50 border-slate-700 text-slate-200 focus:ring-blue-500/30 placeholder:text-slate-600'
+                                    : 'bg-white/50 border-[#CACCCE] text-[#000000] focus:ring-[#0077B5]/20 placeholder:text-[#86888A]'
                                     }`}
                             />
                             <Hash className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#86888A]" size={14} />
@@ -205,8 +247,8 @@ const InventoryTableRow: React.FC<StockComponentProps> = ({ item, onUpdate, onAd
         <tr
             onClick={() => onClick(item)}
             className={`group transition-colors border-b last:border-0 cursor-pointer ${isDark
-                    ? 'border-slate-800 hover:bg-slate-800/50'
-                    : 'border-slate-200 hover:bg-slate-50'
+                ? 'border-slate-800 hover:bg-slate-800/50'
+                : 'border-slate-200 hover:bg-slate-50'
                 }`}
         >
             <td className="p-4">
@@ -404,8 +446,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     <button
                         onClick={handleExport}
                         className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all border shadow-sm ${isDark
-                                ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
-                                : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                            ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                            : 'border-slate-300 text-slate-600 hover:bg-slate-50'
                             }`}
                     >
                         <Download size={20} /> Exportieren
@@ -413,8 +455,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     <button
                         onClick={handleOpenNewItem}
                         className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${isDark
-                                ? 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'
-                                : 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'
+                            ? 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'
+                            : 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'
                             }`}
                     >
                         <PlusCircle size={20} /> Neuen Artikel
@@ -432,8 +474,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className={`w-full border rounded-2xl pl-12 pr-4 py-4 text-lg transition-all focus:outline-none focus:ring-2 ${isDark
-                                ? 'bg-slate-900/50 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:ring-blue-500/30'
-                                : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:ring-[#0077B5]/20 shadow-sm'
+                            ? 'bg-slate-900/50 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:ring-blue-500/30'
+                            : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:ring-[#0077B5]/20 shadow-sm'
                             }`}
                     />
                 </div>
@@ -477,101 +519,19 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                     <p>Keine Artikel gefunden</p>
                                 </div>
                             ) : (
-                                filteredItems.map(item => {
-                                    const { bulkInput, setBulkInput, handleClick } = useStockAdjust(item, onUpdate, onLogStock);
-                                    const getStockStatus = () => {
-                                        if (item.stockLevel <= 0) return { icon: <AlertOctagon size={16} />, color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/20' };
-                                        if (item.stockLevel < item.minStock) return { icon: <AlertTriangle size={16} />, color: 'text-amber-500', bg: 'bg-amber-500/10 border-amber-500/20' };
-                                        return { icon: <CheckCircle2 size={16} />, color: 'text-emerald-500', bg: 'bg-emerald-500/10 border-emerald-500/20' };
-                                    };
-                                    const status = getStockStatus();
-
-                                    return (
-                                        <div
-                                            key={item.id}
-                                            onClick={() => handleOpenEditItem(item)}
-                                            className={`p-4 cursor-pointer transition-colors ${isDark ? 'hover:bg-slate-800 active:bg-slate-700' : 'hover:bg-slate-50 active:bg-slate-100'
-                                                }`}
-                                        >
-                                            {/* Item Name + Manufacturer */}
-                                            <div className="mb-3">
-                                                <div className={`font-bold text-sm mb-1 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
-                                                    {item.name}
-                                                </div>
-                                                {item.manufacturer && (
-                                                    <div className="text-[10px] text-slate-500 uppercase tracking-wide">
-                                                        {item.manufacturer}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Info Grid */}
-                                            <div className="space-y-2 mb-3">
-                                                {/* SKU */}
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-xs font-bold uppercase text-slate-500">SKU</span>
-                                                    <span className={`font-mono text-xs px-1.5 py-0.5 rounded border ${isDark ? 'bg-slate-900 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-300 text-slate-600'}`}>
-                                                        {item.sku}
-                                                    </span>
-                                                </div>
-
-                                                {/* System */}
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-xs font-bold uppercase text-slate-500">System</span>
-                                                    <span className="text-sm text-slate-500">{item.system}</span>
-                                                </div>
-
-                                                {/* Location */}
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-xs font-bold uppercase text-slate-500">Lagerort</span>
-                                                    <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                                                        <MapPin size={14} className="opacity-50" />
-                                                        {item.warehouseLocation || '-'}
-                                                    </div>
-                                                </div>
-
-                                                {/* Stock Level */}
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-xs font-bold uppercase text-slate-500">Bestand</span>
-                                                    <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full border text-xs font-bold ${status.bg} ${status.color}`}>
-                                                        {status.icon}
-                                                        <span>{item.stockLevel}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Actions */}
-                                            <div className="flex items-center gap-2 pt-3 border-t border-slate-200 dark:border-slate-700" onClick={e => e.stopPropagation()}>
-                                                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-700 flex-1">
-                                                    <input
-                                                        type="number"
-                                                        value={bulkInput}
-                                                        onChange={(e) => setBulkInput(e.target.value)}
-                                                        placeholder="#"
-                                                        className="w-10 bg-transparent text-center text-sm outline-none font-medium"
-                                                    />
-                                                    <button onClick={(e) => handleClick(e, -1)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500"><Minus size={14} /></button>
-                                                    <button onClick={(e) => handleClick(e, 1)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500"><Plus size={14} /></button>
-                                                </div>
-                                                <button
-                                                    onClick={() => handleCloneItem(item)}
-                                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-[#0077B5]"
-                                                    title="Artikel duplizieren"
-                                                >
-                                                    <CopyPlus size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleOpenEditItem(item)}
-                                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-[#0077B5]"
-                                                    title="Details bearbeiten"
-                                                >
-                                                    <Pencil size={16} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            )}
+                                filteredItems.map(item => (
+                                    <MobileInventoryCard
+                                        key={item.id}
+                                        item={item}
+                                        onUpdate={onUpdate}
+                                        onAddStock={onAddStock}
+                                        onLogStock={onLogStock}
+                                        onClick={handleOpenEditItem}
+                                        onClone={handleCloneItem}
+                                        theme={theme}
+                                    />
+                                )))}
+                            )
                         </div>
 
                         {/* DESKTOP TABLE VIEW */}
