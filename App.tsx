@@ -1,17 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
-import { 
-  MOCK_ITEMS, MOCK_RECEIPT_HEADERS, MOCK_RECEIPT_ITEMS, MOCK_COMMENTS, 
-  MOCK_PURCHASE_ORDERS, MOCK_RECEIPT_MASTERS, MOCK_TICKETS 
+import {
+  MOCK_ITEMS, MOCK_RECEIPT_HEADERS, MOCK_RECEIPT_ITEMS, MOCK_COMMENTS,
+  MOCK_PURCHASE_ORDERS, MOCK_RECEIPT_MASTERS, MOCK_TICKETS
 } from './data';
-import { 
-  StockItem, ReceiptHeader, ReceiptItem, ReceiptComment, ViewMode, Theme, 
-  ActiveModule, PurchaseOrder, ReceiptMaster, Ticket, DeliveryLog, StockLog, ReceiptMasterStatus, AuditEntry 
+import {
+  StockItem, ReceiptHeader, ReceiptItem, ReceiptComment, ViewMode, Theme,
+  ActiveModule, PurchaseOrder, ReceiptMaster, Ticket, DeliveryLog, StockLog, ReceiptMasterStatus, AuditEntry
 } from './types';
 import { getDeliveryDateBadge } from './components/ReceiptStatusConfig';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
-import { Dashboard } from './components/Dashboard'; 
+import { Dashboard } from './components/Dashboard';
 import { InventoryView } from './components/InventoryView';
 import { GoodsReceiptFlow } from './components/GoodsReceiptFlow';
 import { ReceiptManagement } from './components/ReceiptManagement';
@@ -23,6 +23,7 @@ import { DocumentationPage } from './components/DocumentationPage';
 import { StockLogView } from './components/StockLogView';
 import { LogicInspector } from './components/LogicInspector';
 import { SupplierView } from './components/SupplierView';
+import { loadAllData } from './api';
 
 // Error Boundary Component
 interface ErrorBoundaryProps {
@@ -97,24 +98,24 @@ export default function App() {
   // State
   const [theme, setTheme] = useState<Theme>('light');
   const [activeModule, setActiveModule] = useState<ActiveModule>('dashboard');
-  
+
   // -- UX State: Force View Refresh --
   const [viewKey, setViewKey] = useState(0);
 
   // Persistent Inventory View Mode
   const [inventoryViewMode, setInventoryViewMode] = useState<'grid' | 'list'>(() => {
     if (typeof window !== 'undefined') {
-        return (localStorage.getItem('inventoryViewMode') as 'grid' | 'list') || 'grid';
+      return (localStorage.getItem('inventoryViewMode') as 'grid' | 'list') || 'grid';
     }
     return 'grid';
   });
-  
+
   // Sidebar State
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile Toggle
   const [sidebarMode, setSidebarMode] = useState<'full' | 'slim'>(() => {
     if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('sidebarMode');
-        return (saved === 'full' || saved === 'slim') ? saved : 'full';
+      const saved = localStorage.getItem('sidebarMode');
+      return (saved === 'full' || saved === 'slim') ? saved : 'full';
     }
     return 'full';
   });
@@ -123,9 +124,9 @@ export default function App() {
   // UPDATED: Default is now FALSE (Optional)
   const [requireDeliveryDate, setRequireDeliveryDate] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('requireDeliveryDate');
-        // Only return true if explicitly saved as 'true'. Default (null) becomes false.
-        return saved === 'true';
+      const saved = localStorage.getItem('requireDeliveryDate');
+      // Only return true if explicitly saved as 'true'. Default (null) becomes false.
+      return saved === 'true';
     }
     return false;
   });
@@ -133,9 +134,9 @@ export default function App() {
   // Smart Import Feature Flag
   const [enableSmartImport, setEnableSmartImport] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('enableSmartImport');
-        // Default to TRUE if not set, or parse existing
-        return saved !== null ? saved === 'true' : true;
+      const saved = localStorage.getItem('enableSmartImport');
+      // Default to TRUE if not set, or parse existing
+      return saved !== null ? saved === 'true' : true;
     }
     return true;
   });
@@ -143,7 +144,7 @@ export default function App() {
   // Status Column Position Setting
   const [statusColumnFirst, setStatusColumnFirst] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-        return localStorage.getItem('statusColumnFirst') === 'true';
+      return localStorage.getItem('statusColumnFirst') === 'true';
     }
     return false;
   });
@@ -152,8 +153,8 @@ export default function App() {
   // UPDATED: All defaults set to TRUE for maximum coverage
   const [ticketConfig, setTicketConfig] = useState<TicketConfig>(() => {
     if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('ticketConfig');
-        if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem('ticketConfig');
+      if (saved) return JSON.parse(saved);
     }
     return { missing: true, extra: true, damage: true, wrong: true, rejected: true };
   });
@@ -161,18 +162,18 @@ export default function App() {
   // Timeline Auto-Post Config (Historie & Notizen)
   const [timelineConfig, setTimelineConfig] = useState<TimelineConfig>(() => {
     if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('timelineConfig');
-        if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem('timelineConfig');
+      if (saved) return JSON.parse(saved);
     }
     return { missing: true, extra: true, damage: true, wrong: true, rejected: true };
   });
 
   // Lagerort Options (managed in Global Settings)
   const DEFAULT_LAGERORT_OPTIONS: string[] = [
-    "Akku Service","Brandt, Service, B DI 446E","Dallmann, Service","EKZFK","GERAS","HaB","HAB",
-    "HaB Altbestand Kunde","HLU","HTW","KEH","Kitas","Koplin, Service, B DI 243","KWF",
-    "Lavrenz, Service","LHW","MPC","Pfefferwerk/WAB","RAS_Zubehör","RBB","RBB_SSP",
-    "Stöwhaas,Service","Tau13","Trittel, Service","ukb","UKB Lager","UKB Service","Wartungsklebchen"
+    "Akku Service", "Brandt, Service, B DI 446E", "Dallmann, Service", "EKZFK", "GERAS", "HaB", "HAB",
+    "HaB Altbestand Kunde", "HLU", "HTW", "KEH", "Kitas", "Koplin, Service, B DI 243", "KWF",
+    "Lavrenz, Service", "LHW", "MPC", "Pfefferwerk/WAB", "RAS_Zubehör", "RBB", "RBB_SSP",
+    "Stöwhaas,Service", "Tau13", "Trittel, Service", "ukb", "UKB Lager", "UKB Service", "Wartungsklebchen"
   ];
   const [lagerortOptions, setLagerortOptions] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -185,7 +186,7 @@ export default function App() {
     setLagerortOptions(opts);
     localStorage.setItem('lagerortOptions', JSON.stringify(opts));
   };
-  
+
   // Data State
   const [inventory, setInventory] = useState<StockItem[]>(MOCK_ITEMS);
   const [receiptHeaders, setReceiptHeaders] = useState<ReceiptHeader[]>(MOCK_RECEIPT_HEADERS);
@@ -193,10 +194,14 @@ export default function App() {
   const [comments, setComments] = useState<ReceiptComment[]>(MOCK_COMMENTS);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(MOCK_PURCHASE_ORDERS);
   const [receiptMasters, setReceiptMasters] = useState<ReceiptMaster[]>(MOCK_RECEIPT_MASTERS);
-  
+
   // Ticket State (Case Management)
   const [tickets, setTickets] = useState<Ticket[]>(MOCK_TICKETS);
-  
+
+  // API Loading State
+  const [isLoading, setIsLoading] = useState(true);
+  const [apiConnected, setApiConnected] = useState(false);
+
   // Logging State
   const [stockLogs, setStockLogs] = useState<StockLog[]>([]);
   const [auditTrail, setAuditTrail] = useState<AuditEntry[]>(() => {
@@ -222,7 +227,7 @@ export default function App() {
       return next;
     });
   };
-  
+
   // Transient State
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
@@ -231,19 +236,70 @@ export default function App() {
 
   // Toggle Theme
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  
+
   useEffect(() => {
     addAudit('User Login', { device: navigator.userAgent.substring(0, 80), screen: `${window.innerWidth}x${window.innerHeight}` });
+  }, []);
+
+  // Fetch data from API on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchData() {
+      try {
+        const data = await loadAllData();
+        if (cancelled) return;
+
+        if (data) {
+          setApiConnected(true);
+
+          // Stock → inventory
+          if (data.stock.length > 0) {
+            setInventory(data.stock);
+          }
+
+          // Orders
+          if (data.orders.length > 0) {
+            setPurchaseOrders(data.orders);
+          }
+
+          // Receipts — split by docType
+          if (data.receipts.length > 0) {
+            const masters = data.receipts.filter((r: any) => r.docType === 'master');
+            const headers = data.receipts.filter((r: any) => r.docType === 'header');
+            const items = data.receipts.filter((r: any) => r.docType === 'item');
+            const receiptComments = data.receipts.filter((r: any) => r.docType === 'comment');
+
+            if (masters.length > 0) setReceiptMasters(masters);
+            if (headers.length > 0) setReceiptHeaders(headers);
+            if (items.length > 0) setReceiptItems(items);
+            if (receiptComments.length > 0) setComments(receiptComments);
+          }
+
+          // Tickets
+          if (data.tickets.length > 0) {
+            setTickets(data.tickets);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load from API, using local data:', err);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    fetchData();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     // Clean up class list
     document.documentElement.classList.remove('dark', 'soft');
-    
+
     if (theme === 'dark') {
-        document.documentElement.classList.add('dark');
+      document.documentElement.classList.add('dark');
     } else if (theme === 'soft') {
-        document.documentElement.classList.add('soft'); 
+      document.documentElement.classList.add('soft');
     }
   }, [theme]);
 
@@ -297,8 +353,8 @@ export default function App() {
 
     if (module !== 'create-order') setOrderToEdit(null);
     if (module !== 'goods-receipt') {
-        setSelectedPoId(null);
-        setGoodsReceiptMode('standard'); // Reset mode on exit
+      setSelectedPoId(null);
+      setGoodsReceiptMode('standard'); // Reset mode on exit
     }
   };
 
@@ -306,19 +362,19 @@ export default function App() {
   const handleLogStock = (itemId: string, itemName: string, action: 'add' | 'remove', quantity: number, source?: string, context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project') => {
     const item = inventory.find(i => i.id === itemId);
     const newLog: StockLog = {
-        id: crypto.randomUUID(),
-        timestamp: new Date(),
-        userId: 'current-user-id',
-        userName: 'Admin User',
-        itemId,
-        itemName,
-        action,
-        quantity,
-        warehouse: item?.warehouseLocation || 'Hauptlager',
-        source,
-        context
+      id: crypto.randomUUID(),
+      timestamp: new Date(),
+      userId: 'current-user-id',
+      userName: 'Admin User',
+      itemId,
+      itemName,
+      action,
+      quantity,
+      warehouse: item?.warehouseLocation || 'Hauptlager',
+      source,
+      context
     };
-    
+
     setStockLogs(prev => [newLog, ...prev]);
   };
 
@@ -335,7 +391,7 @@ export default function App() {
   };
 
   const handleAddStock = () => {
-     handleNavigation('goods-receipt');
+    handleNavigation('goods-receipt');
   };
 
   const handleReceiptStatusUpdate = (batchId: string, newStatus: string) => {
@@ -478,10 +534,10 @@ export default function App() {
     }
 
     setPurchaseOrders(prev => {
-        if (exists) {
-            return prev.map(o => o.id === order.id ? order : o);
-        }
-        return [order, ...prev];
+      if (exists) {
+        return prev.map(o => o.id === order.id ? order : o);
+      }
+      return [order, ...prev];
     });
   };
 
@@ -522,7 +578,7 @@ export default function App() {
     // 1. Cancel + auto-archive PO
     setPurchaseOrders(prev => prev.map(o => {
       if (o.id === id) {
-        return { ...o, status: 'Storniert', isArchived: true }; 
+        return { ...o, status: 'Storniert', isArchived: true };
       }
       return o;
     }));
@@ -558,7 +614,7 @@ export default function App() {
 
   const handleDeliveryRefusal = (poId: string, reason: string, notes: string) => {
     // 1. Update ReceiptMaster status → Abgelehnt + store refusal data
-    setReceiptMasters(prev => prev.map(m => 
+    setReceiptMasters(prev => prev.map(m =>
       m.poId === poId ? { ...m, status: 'Abgelehnt' as const, refusalReason: reason, refusalNotes: notes, refusalDate: new Date().toISOString() } : m
     ));
 
@@ -639,8 +695,8 @@ export default function App() {
   };
 
   const handleReceiptSuccess = (
-    headerData: Omit<ReceiptHeader, 'timestamp' | 'itemCount'>, 
-    cartItems: any[], 
+    headerData: Omit<ReceiptHeader, 'timestamp' | 'itemCount'>,
+    cartItems: any[],
     newItemsCreated: StockItem[],
     forceClose: boolean = false // Accepts new Force Close flag
   ) => {
@@ -676,11 +732,13 @@ export default function App() {
           // 2. Reverse PO quantityReceived
           setPurchaseOrders(prev => prev.map(po => {
             if (po.id !== oldPoId) return po;
-            return { ...po, items: po.items.map(pItem => {
-              const oldLine = lastDelivery.items.find(d => d.sku === pItem.sku);
-              if (oldLine) return { ...pItem, quantityReceived: Math.max(0, pItem.quantityReceived - oldLine.quantityAccepted) };
-              return pItem;
-            })};
+            return {
+              ...po, items: po.items.map(pItem => {
+                const oldLine = lastDelivery.items.find(d => d.sku === pItem.sku);
+                if (oldLine) return { ...pItem, quantityReceived: Math.max(0, pItem.quantityReceived - oldLine.quantityAccepted) };
+                return pItem;
+              })
+            };
           }));
           // 3. Mark old delivery as storniert
           setReceiptMasters(prev => prev.map(m => {
@@ -706,13 +764,13 @@ export default function App() {
     // Determine Context & Log Type
     let isProject = false;
     let logContext: 'po-normal' | 'po-project' = 'po-normal';
-    
+
     if (headerData.bestellNr) {
-        const linkedPO = purchaseOrders.find(p => p.id === headerData.bestellNr);
-        if (linkedPO && linkedPO.status === 'Projekt') {
-            isProject = true;
-            logContext = 'po-project';
-        }
+      const linkedPO = purchaseOrders.find(p => p.id === headerData.bestellNr);
+      if (linkedPO && linkedPO.status === 'Projekt') {
+        isProject = true;
+        logContext = 'po-project';
+      }
     }
 
     if (newItemsCreated.length > 0) {
@@ -721,36 +779,36 @@ export default function App() {
 
     // --- 0. PERFORM LOGGING (MOVED HERE FOR CORRECT CONTEXT) ---
     cartItems.forEach(cartItem => {
-        const qtyToAdd = cartItem.qtyAccepted ?? cartItem.qty; 
-        if (qtyToAdd !== 0) {
-             const action = qtyToAdd > 0 ? 'add' : 'remove';
-             handleLogStock(
-                 cartItem.item.id,
-                 cartItem.item.name,
-                 action,
-                 Math.abs(qtyToAdd),
-                 `Wareneingang ${headerData.lieferscheinNr}`,
-                 logContext
-             );
-        }
+      const qtyToAdd = cartItem.qtyAccepted ?? cartItem.qty;
+      if (qtyToAdd !== 0) {
+        const action = qtyToAdd > 0 ? 'add' : 'remove';
+        handleLogStock(
+          cartItem.item.id,
+          cartItem.item.name,
+          action,
+          Math.abs(qtyToAdd),
+          `Wareneingang ${headerData.lieferscheinNr}`,
+          logContext
+        );
+      }
     });
 
     // --- 1. UPDATE STOCK INVENTORY (ACCEPTED QTY ONLY) ---
     setInventory(prev => {
       const copy = [...prev];
       cartItems.forEach(cartItem => {
-         if (!isProject) {
-             const idx = copy.findIndex(i => i.id === cartItem.item.id);
-             if (idx >= 0) {
-               const qtyToAdd = cartItem.qtyAccepted ?? cartItem.qty; 
-               copy[idx] = { 
-                 ...copy[idx], 
-                 stockLevel: copy[idx].stockLevel + qtyToAdd,
-                 lastUpdated: timestamp,
-                 warehouseLocation: cartItem.location 
-               };
-             }
-         }
+        if (!isProject) {
+          const idx = copy.findIndex(i => i.id === cartItem.item.id);
+          if (idx >= 0) {
+            const qtyToAdd = cartItem.qtyAccepted ?? cartItem.qty;
+            copy[idx] = {
+              ...copy[idx],
+              stockLevel: copy[idx].stockLevel + qtyToAdd,
+              lastUpdated: timestamp,
+              warehouseLocation: cartItem.location
+            };
+          }
+        }
       });
       return copy;
     });
@@ -769,143 +827,143 @@ export default function App() {
     else if (cartHasWrong) finalReceiptStatus = 'Falsch geliefert';
 
     if (headerData.bestellNr) {
-        const poId = headerData.bestellNr;
-        const currentPO = purchaseOrders.find(p => p.id === poId);
+      const poId = headerData.bestellNr;
+      const currentPO = purchaseOrders.find(p => p.id === poId);
 
-        // --- NEW STATUS CALCULATION (PARTIAL vs COMPLETED) ---
-        if (currentPO) {
-             let totalOrdered = 0;
-             let totalReceivedIncludingCurrent = 0;
+      // --- NEW STATUS CALCULATION (PARTIAL vs COMPLETED) ---
+      if (currentPO) {
+        let totalOrdered = 0;
+        let totalReceivedIncludingCurrent = 0;
 
-             currentPO.items.forEach(item => {
-                 totalOrdered += item.quantityExpected;
-                 
-                 // History from PO state
-                 let itemTotal = item.quantityReceived;
-                 
-                 // Add Current Accepted Amount (not yet in PO state)
-                 const cartLine = cartItems.find(c => c.item.sku === item.sku);
-                 if (cartLine) {
-                     itemTotal += (cartLine.qtyAccepted ?? cartLine.qty);
-                 }
-                 
-                 totalReceivedIncludingCurrent += itemTotal;
-             });
+        currentPO.items.forEach(item => {
+          totalOrdered += item.quantityExpected;
 
-             // Apply Logic: Only override if it's not already a critical error status
-             const isErrorStatus = ['Abgelehnt', 'Schaden', 'Schaden + Falsch', 'Falsch geliefert', 'Beschädigt', 'Übermenge'].includes(finalReceiptStatus);
-             
-             if (!isErrorStatus) {
-                 if (forceClose) {
-                     // FORCE CLOSE: Treat as 'Gebucht' regardless of math
-                     finalReceiptStatus = 'Gebucht'; 
-                 } else if (totalReceivedIncludingCurrent > totalOrdered) {
-                     finalReceiptStatus = 'Übermenge';
-                 } else if (totalReceivedIncludingCurrent < totalOrdered) {
-                     // If we received less than total ordered, it is Partial.
-                     finalReceiptStatus = 'Teillieferung';
-                 } else {
-                     // Exact match
-                     finalReceiptStatus = 'Gebucht';
-                 }
-             }
+          // History from PO state
+          let itemTotal = item.quantityReceived;
+
+          // Add Current Accepted Amount (not yet in PO state)
+          const cartLine = cartItems.find(c => c.item.sku === item.sku);
+          if (cartLine) {
+            itemTotal += (cartLine.qtyAccepted ?? cartLine.qty);
+          }
+
+          totalReceivedIncludingCurrent += itemTotal;
+        });
+
+        // Apply Logic: Only override if it's not already a critical error status
+        const isErrorStatus = ['Abgelehnt', 'Schaden', 'Schaden + Falsch', 'Falsch geliefert', 'Beschädigt', 'Übermenge'].includes(finalReceiptStatus);
+
+        if (!isErrorStatus) {
+          if (forceClose) {
+            // FORCE CLOSE: Treat as 'Gebucht' regardless of math
+            finalReceiptStatus = 'Gebucht';
+          } else if (totalReceivedIncludingCurrent > totalOrdered) {
+            finalReceiptStatus = 'Übermenge';
+          } else if (totalReceivedIncludingCurrent < totalOrdered) {
+            // If we received less than total ordered, it is Partial.
+            finalReceiptStatus = 'Teillieferung';
+          } else {
+            // Exact match
+            finalReceiptStatus = 'Gebucht';
+          }
         }
-        // -----------------------------------------------------------
+      }
+      // -----------------------------------------------------------
 
-        setPurchaseOrders(prev => prev.map(po => {
-            if (po.id !== poId) return po;
-            
-            const updatedItems = po.items.map(pItem => {
-                const receivedLine = cartItems.find(c => c.item.sku === pItem.sku);
-                if (receivedLine) {
-                    const qtyToAdd = receivedLine.qtyAccepted ?? receivedLine.qty;
-                    return { ...pItem, quantityReceived: Math.max(0, pItem.quantityReceived + qtyToAdd) };
-                }
-                return pItem;
-            });
+      setPurchaseOrders(prev => prev.map(po => {
+        if (po.id !== poId) return po;
 
-            // Logic Checks for PO STATUS (Distinct from Receipt Status)
-            const allReceived = updatedItems.every(i => i.quantityReceived >= i.quantityExpected);
-            const partiallyReceived = updatedItems.some(i => i.quantityReceived > 0);
-            
-            // GUARD CLAUSE: Protect Identity Statuses (Projekt/Lager)
-            // If Force Close is true, we force completion unless it's a special type.
-            let nextStatus = po.status;
-            if (po.status !== 'Projekt' && po.status !== 'Lager') {
-                if (forceClose) {
-                    nextStatus = 'Abgeschlossen';
-                } else {
-                    nextStatus = allReceived ? 'Abgeschlossen' : partiallyReceived ? 'Teilweise geliefert' : 'Offen';
-                }
-            }
+        const updatedItems = po.items.map(pItem => {
+          const receivedLine = cartItems.find(c => c.item.sku === pItem.sku);
+          if (receivedLine) {
+            const qtyToAdd = receivedLine.qtyAccepted ?? receivedLine.qty;
+            return { ...pItem, quantityReceived: Math.max(0, pItem.quantityReceived + qtyToAdd) };
+          }
+          return pItem;
+        });
+
+        // Logic Checks for PO STATUS (Distinct from Receipt Status)
+        const allReceived = updatedItems.every(i => i.quantityReceived >= i.quantityExpected);
+        const partiallyReceived = updatedItems.some(i => i.quantityReceived > 0);
+
+        // GUARD CLAUSE: Protect Identity Statuses (Projekt/Lager)
+        // If Force Close is true, we force completion unless it's a special type.
+        let nextStatus = po.status;
+        if (po.status !== 'Projekt' && po.status !== 'Lager') {
+          if (forceClose) {
+            nextStatus = 'Abgeschlossen';
+          } else {
+            nextStatus = allReceived ? 'Abgeschlossen' : partiallyReceived ? 'Teilweise geliefert' : 'Offen';
+          }
+        }
+
+        return {
+          ...po,
+          items: updatedItems,
+          status: nextStatus,
+          linkedReceiptId: batchId,
+          isForceClosed: forceClose || po.isForceClosed // Persist force close state
+        };
+      }));
+
+      // --- 3. CREATE RECEIPT MASTER & DELIVERY LOG ---
+      setReceiptMasters(prev => {
+        const existingMaster = prev.find(m => m.poId === poId);
+        const newDeliveryLog: DeliveryLog = {
+          id: crypto.randomUUID(),
+          date: new Date(timestamp).toISOString(),
+          lieferscheinNr: headerData.lieferscheinNr,
+          items: cartItems.map(c => {
+            const poItem = currentPO?.items.find(pi => pi.sku === c.item.sku);
+            const ordered = poItem ? poItem.quantityExpected : 0;
+            const rawPrevious = poItem ? poItem.quantityReceived : 0;
+            // In problem mode, subtract canceled qty (React state is stale)
+            const previous = rawPrevious - (problemCanceledQty.get(c.item.sku) || 0);
+
+            // Stats for Snapshot
+            const currentAccepted = c.qtyAccepted ?? c.qty;
+            const totalAccepted = previous + currentAccepted;
+
+            const offen = Math.max(0, ordered - totalAccepted);
+            const zuViel = Math.max(0, totalAccepted - ordered);
 
             return {
-                ...po,
-                items: updatedItems,
-                status: nextStatus,
-                linkedReceiptId: batchId,
-                isForceClosed: forceClose || po.isForceClosed // Persist force close state
+              sku: c.item.sku,
+              receivedQty: c.qtyReceived, // Total Physical Count
+              quantityAccepted: c.qtyAccepted, // Good Stock
+              quantityRejected: c.qtyRejected, // Returned/Bad
+
+              // New Logistics Fields
+              rejectionReason: c.rejectionReason,
+              returnCarrier: c.returnCarrier,
+              returnTrackingId: c.returnTrackingId,
+              notes: c.rejectionNotes || undefined,
+
+              damageFlag: (c.qtyDamaged || 0) > 0,
+              manualAddFlag: !c.orderedQty,
+              orderedQty: ordered,
+              previousReceived: previous,
+              offen: offen,
+              zuViel: zuViel
             };
-        }));
+          })
+        };
 
-        // --- 3. CREATE RECEIPT MASTER & DELIVERY LOG ---
-        setReceiptMasters(prev => {
-            const existingMaster = prev.find(m => m.poId === poId);
-            const newDeliveryLog: DeliveryLog = {
-                id: crypto.randomUUID(),
-                date: new Date(timestamp).toISOString(),
-                lieferscheinNr: headerData.lieferscheinNr,
-                items: cartItems.map(c => {
-                    const poItem = currentPO?.items.find(pi => pi.sku === c.item.sku);
-                    const ordered = poItem ? poItem.quantityExpected : 0;
-                    const rawPrevious = poItem ? poItem.quantityReceived : 0;
-                    // In problem mode, subtract canceled qty (React state is stale)
-                    const previous = rawPrevious - (problemCanceledQty.get(c.item.sku) || 0);
-                    
-                    // Stats for Snapshot
-                    const currentAccepted = c.qtyAccepted ?? c.qty;
-                    const totalAccepted = previous + currentAccepted;
-                    
-                    const offen = Math.max(0, ordered - totalAccepted);
-                    const zuViel = Math.max(0, totalAccepted - ordered);
-
-                    return {
-                        sku: c.item.sku,
-                        receivedQty: c.qtyReceived, // Total Physical Count
-                        quantityAccepted: c.qtyAccepted, // Good Stock
-                        quantityRejected: c.qtyRejected, // Returned/Bad
-                        
-                        // New Logistics Fields
-                        rejectionReason: c.rejectionReason,
-                        returnCarrier: c.returnCarrier,
-                        returnTrackingId: c.returnTrackingId,
-                        notes: c.rejectionNotes || undefined,
-                        
-                        damageFlag: (c.qtyDamaged || 0) > 0,
-                        manualAddFlag: !c.orderedQty,
-                        orderedQty: ordered,
-                        previousReceived: previous,
-                        offen: offen,
-                        zuViel: zuViel
-                    };
-                })
-            };
-
-            if (existingMaster) {
-                return prev.map(m => m.id === existingMaster.id ? { 
-                    ...m,
-                    status: finalReceiptStatus as ReceiptMasterStatus, // Update master status
-                    deliveries: [...m.deliveries, newDeliveryLog] 
-                } : m);
-            } else {
-                return [...prev, {
-                    id: crypto.randomUUID(),
-                    poId,
-                    status: finalReceiptStatus as ReceiptMasterStatus,
-                    deliveries: [newDeliveryLog]
-                }];
-            }
-        });
+        if (existingMaster) {
+          return prev.map(m => m.id === existingMaster.id ? {
+            ...m,
+            status: finalReceiptStatus as ReceiptMasterStatus, // Update master status
+            deliveries: [...m.deliveries, newDeliveryLog]
+          } : m);
+        } else {
+          return [...prev, {
+            id: crypto.randomUUID(),
+            poId,
+            status: finalReceiptStatus as ReceiptMasterStatus,
+            deliveries: [newDeliveryLog]
+          }];
+        }
+      });
     }
 
     // --- 4. CREATE RECEIPT HEADER & ITEMS ---
@@ -1000,7 +1058,7 @@ export default function App() {
         const shortageLines = autoMessages.filter(m => m.startsWith('📦 Fehlmenge'));
         const overLines = autoMessages.filter(m => m.startsWith('📈'));
         const otherLines = autoMessages.filter(m => !m.startsWith('⚠️') && !m.startsWith('🚫') && !m.startsWith('📦 Fehlmenge') && !m.startsWith('📈'));
-        
+
         const sections: string[] = [];
         if (damageLines.length > 0) sections.push(`── Beschädigungen ──\n${damageLines.join('\n')}`);
         if (wrongLines.length > 0) sections.push(`── Falschlieferungen ──\n${wrongLines.join('\n')}`);
@@ -1023,57 +1081,57 @@ export default function App() {
 
     // --- 5. AUTO-UPDATE TICKETS FOR RETURNS ---
     if (cartItems.some(c => c.quantityRejected > 0) && headerData.bestellNr) {
-        const poId = headerData.bestellNr;
-        const returnItems = cartItems.filter(c => c.quantityRejected > 0);
-        
-        const returnMsg = returnItems.map(c => 
-            `Rücksendung: ${c.quantityRejected}x ${c.item.name} (${c.rejectionReason || 'Sonstiges'}). ` +
-            (c.returnCarrier ? `Via ${c.returnCarrier} ${c.returnTrackingId ? `(${c.returnTrackingId})` : ''}` : '')
-        ).join('\n');
+      const poId = headerData.bestellNr;
+      const returnItems = cartItems.filter(c => c.quantityRejected > 0);
 
-        setTickets(prevTickets => prevTickets.map(ticket => {
-            if (ticket.status !== 'Open') return ticket;
-            
-            // Resolve ticket's PO
-            // Logic: Ticket -> ReceiptHeader -> PO ID
-            // We use the 'receiptHeaders' state which contains all EXISTING headers.
-            // If the ticket is new (created in this flow), it won't be found in 'receiptHeaders' yet, 
-            // but its 'receiptId' will match 'batchId' of the current receipt.
-            
-            let isMatch = false;
-            
-            if (ticket.receiptId === batchId) {
-                isMatch = true; // Belongs to current receipt (which belongs to poId)
-            } else {
-                const tHeader = receiptHeaders.find(h => h.batchId === ticket.receiptId);
-                if (tHeader && tHeader.bestellNr === poId) {
-                    isMatch = true;
-                }
-            }
+      const returnMsg = returnItems.map(c =>
+        `Rücksendung: ${c.quantityRejected}x ${c.item.name} (${c.rejectionReason || 'Sonstiges'}). ` +
+        (c.returnCarrier ? `Via ${c.returnCarrier} ${c.returnTrackingId ? `(${c.returnTrackingId})` : ''}` : '')
+      ).join('\n');
 
-            if (isMatch) {
-                 return {
-                     ...ticket,
-                     messages: [...ticket.messages, {
-                         id: crypto.randomUUID(),
-                         author: 'System',
-                         text: `ðŸ“¦ Logistik Update:\n${returnMsg}`,
-                         timestamp: Date.now() + 100, // +100ms to ensure it appears after creation msg
-                         type: 'system'
-                     }]
-                 };
-            }
-            return ticket;
-        }));
+      setTickets(prevTickets => prevTickets.map(ticket => {
+        if (ticket.status !== 'Open') return ticket;
+
+        // Resolve ticket's PO
+        // Logic: Ticket -> ReceiptHeader -> PO ID
+        // We use the 'receiptHeaders' state which contains all EXISTING headers.
+        // If the ticket is new (created in this flow), it won't be found in 'receiptHeaders' yet, 
+        // but its 'receiptId' will match 'batchId' of the current receipt.
+
+        let isMatch = false;
+
+        if (ticket.receiptId === batchId) {
+          isMatch = true; // Belongs to current receipt (which belongs to poId)
+        } else {
+          const tHeader = receiptHeaders.find(h => h.batchId === ticket.receiptId);
+          if (tHeader && tHeader.bestellNr === poId) {
+            isMatch = true;
+          }
+        }
+
+        if (isMatch) {
+          return {
+            ...ticket,
+            messages: [...ticket.messages, {
+              id: crypto.randomUUID(),
+              author: 'System',
+              text: `ðŸ“¦ Logistik Update:\n${returnMsg}`,
+              timestamp: Date.now() + 100, // +100ms to ensure it appears after creation msg
+              type: 'system'
+            }]
+          };
+        }
+        return ticket;
+      }));
     }
 
     // --- 6. SIMULATE NOTIFICATION FOR PROJECT COMPLETION ---
     if (isProject && finalReceiptStatus === 'Gebucht') {
-        console.log(`[M365 Mock] Sending email to 'technik-verteiler@dost.de': "Wareneingang für Projekt ${headerData.bestellNr} abgeschlossen. Bereit zur Abholung."`);
-        // Visual feedback via setTimeout to allow state to settle or simple alert
-        setTimeout(() => {
-            alert("📧 Automatische E-Mail an das Technik-Team gesendet (Abholbereit).");
-        }, 500);
+      console.log(`[M365 Mock] Sending email to 'technik-verteiler@dost.de': "Wareneingang für Projekt ${headerData.bestellNr} abgeschlossen. Bereit zur Abholung."`);
+      // Visual feedback via setTimeout to allow state to settle or simple alert
+      setTimeout(() => {
+        alert("📧 Automatische E-Mail an das Technik-Team gesendet (Abholbereit).");
+      }, 500);
     }
 
     addAudit('Receipt Confirmed', { receiptId: batchId, po: headerData.bestellNr || '-', lieferschein: headerData.lieferscheinNr, status: finalReceiptStatus, itemCount: cartItems.length, isProject });
@@ -1082,281 +1140,280 @@ export default function App() {
   };
 
   const handleRevertReceipt = (batchId: string) => {
-      const header = receiptHeaders.find(h => h.batchId === batchId);
-      if (!header) return;
-      addAudit('Receipt Reverted', { receiptId: batchId, po: header.bestellNr || '-', lieferschein: header.lieferscheinNr });
+    const header = receiptHeaders.find(h => h.batchId === batchId);
+    if (!header) return;
+    addAudit('Receipt Reverted', { receiptId: batchId, po: header.bestellNr || '-', lieferschein: header.lieferscheinNr });
 
-      const poId = header.bestellNr;
-      const linkedPO = purchaseOrders.find(p => p.id === poId);
-      const isProject = linkedPO?.status === 'Projekt';
+    const poId = header.bestellNr;
+    const linkedPO = purchaseOrders.find(p => p.id === poId);
+    const isProject = linkedPO?.status === 'Projekt';
 
-      const itemsToRevert = receiptItems.filter(i => i.batchId === batchId);
-      if (!isProject) {
-          setInventory(prev => {
-              const copy = [...prev];
-              itemsToRevert.forEach(rItem => {
-                  const idx = copy.findIndex(i => i.sku === rItem.sku);
-                  if (idx >= 0) {
-                      copy[idx] = {
-                          ...copy[idx],
-                          stockLevel: Math.max(0, copy[idx].stockLevel - rItem.quantity),
-                          lastUpdated: Date.now()
-                      };
-                      handleLogStock(
-                          copy[idx].id,
-                          copy[idx].name,
-                          'remove',
-                          rItem.quantity,
-                          `Storno - ${header.lieferscheinNr}`,
-                          'manual'
-                      );
-                  }
-              });
-              return copy;
-          });
-      } else {
-          itemsToRevert.forEach(rItem => {
-              handleLogStock(
-                  rItem.sku,
-                  rItem.name,
-                  'remove',
-                  rItem.quantity,
-                  `Storno (Projekt) - ${header.lieferscheinNr}`,
-                  'po-project'
-              );
-          });
-      }
+    const itemsToRevert = receiptItems.filter(i => i.batchId === batchId);
+    if (!isProject) {
+      setInventory(prev => {
+        const copy = [...prev];
+        itemsToRevert.forEach(rItem => {
+          const idx = copy.findIndex(i => i.sku === rItem.sku);
+          if (idx >= 0) {
+            copy[idx] = {
+              ...copy[idx],
+              stockLevel: Math.max(0, copy[idx].stockLevel - rItem.quantity),
+              lastUpdated: Date.now()
+            };
+            handleLogStock(
+              copy[idx].id,
+              copy[idx].name,
+              'remove',
+              rItem.quantity,
+              `Storno - ${header.lieferscheinNr}`,
+              'manual'
+            );
+          }
+        });
+        return copy;
+      });
+    } else {
+      itemsToRevert.forEach(rItem => {
+        handleLogStock(
+          rItem.sku,
+          rItem.name,
+          'remove',
+          rItem.quantity,
+          `Storno (Projekt) - ${header.lieferscheinNr}`,
+          'po-project'
+        );
+      });
+    }
 
-      setReceiptHeaders(prev => prev.map(h => h.batchId === batchId ? { ...h, status: 'In Prüfung' } : h));
-      
-      if (linkedPO) {
-           setPurchaseOrders(prev => prev.map(po => {
-               if (po.id !== linkedPO.id) return po;
-               const newItems = po.items.map(pItem => {
-                   const rItem = itemsToRevert.find(ri => ri.sku === pItem.sku);
-                   if (rItem) {
-                       return { ...pItem, quantityReceived: Math.max(0, pItem.quantityReceived - rItem.quantity) };
-                   }
-                   return pItem;
-               });
-               const anyReceived = newItems.some(i => i.quantityReceived > 0);
-               
-               // GUARD CLAUSE: Protect Identity Statuses (Projekt/Lager) upon Revert
-               let nextStatus = po.status;
-               if (po.status !== 'Projekt' && po.status !== 'Lager') {
-                   nextStatus = anyReceived ? 'Teilweise geliefert' : 'Offen';
-               }
+    setReceiptHeaders(prev => prev.map(h => h.batchId === batchId ? { ...h, status: 'In Prüfung' } : h));
 
-               return {
-                   ...po,
-                   items: newItems,
-                   status: nextStatus
-               };
-           }));
-      }
+    if (linkedPO) {
+      setPurchaseOrders(prev => prev.map(po => {
+        if (po.id !== linkedPO.id) return po;
+        const newItems = po.items.map(pItem => {
+          const rItem = itemsToRevert.find(ri => ri.sku === pItem.sku);
+          if (rItem) {
+            return { ...pItem, quantityReceived: Math.max(0, pItem.quantityReceived - rItem.quantity) };
+          }
+          return pItem;
+        });
+        const anyReceived = newItems.some(i => i.quantityReceived > 0);
+
+        // GUARD CLAUSE: Protect Identity Statuses (Projekt/Lager) upon Revert
+        let nextStatus = po.status;
+        if (po.status !== 'Projekt' && po.status !== 'Lager') {
+          nextStatus = anyReceived ? 'Teilweise geliefert' : 'Offen';
+        }
+
+        return {
+          ...po,
+          items: newItems,
+          status: nextStatus
+        };
+      }));
+    }
   };
 
 
 
   // --- DIRECT RETURN PROCESSING (No wizard) ---
   const handleProcessReturn = (poId: string, data: { quantity: number; reason: string; carrier: string; trackingId: string }) => {
-      const po = purchaseOrders.find(p => p.id === poId);
-      if (!po) return;
-      addAudit('Return Processed', { po: poId, quantity: data.quantity, reason: data.reason, carrier: data.carrier || '-', trackingId: data.trackingId || '-' });
+    const po = purchaseOrders.find(p => p.id === poId);
+    if (!po) return;
+    addAudit('Return Processed', { po: poId, quantity: data.quantity, reason: data.reason, carrier: data.carrier || '-', trackingId: data.trackingId || '-' });
 
-      const master = receiptMasters.find(m => m.poId === poId);
-      if (!master) return;
+    const master = receiptMasters.find(m => m.poId === poId);
+    if (!master) return;
 
-      const batchId = `b-ret-${Date.now()}`;
-      const timestamp = Date.now();
-      const d = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '');
-      const lieferscheinNr = `RÜCK-${d}`;
-      const isProject = po.status === 'Projekt';
+    const batchId = `b-ret-${Date.now()}`;
+    const timestamp = Date.now();
+    const d = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '');
+    const lieferscheinNr = `RÜCK-${d}`;
+    const isProject = po.status === 'Projekt';
 
-      // Distribute return quantity across items with overdelivery
-      let remaining = data.quantity;
-      const returnLines: Array<{ sku: string; name: string; qty: number }> = [];
+    // Distribute return quantity across items with overdelivery
+    let remaining = data.quantity;
+    const returnLines: Array<{ sku: string; name: string; qty: number }> = [];
 
-      po.items.forEach(poItem => {
-          if (remaining <= 0) return;
-          let totalAccepted = 0;
-          master.deliveries.forEach(del => {
-              const di = del.items.find(x => x.sku === poItem.sku);
-              if (di) totalAccepted += di.quantityAccepted;
-          });
-          const overQty = Math.max(0, totalAccepted - poItem.quantityExpected);
-          if (overQty > 0) {
-              const returnQty = Math.min(overQty, remaining);
-              returnLines.push({ sku: poItem.sku, name: poItem.name, qty: returnQty });
-              remaining -= returnQty;
-          }
+    po.items.forEach(poItem => {
+      if (remaining <= 0) return;
+      let totalAccepted = 0;
+      master.deliveries.forEach(del => {
+        const di = del.items.find(x => x.sku === poItem.sku);
+        if (di) totalAccepted += di.quantityAccepted;
       });
-
-      // Fallback: if no overdelivery items found, apply to first item
-      if (returnLines.length === 0 && po.items.length > 0) {
-          returnLines.push({ sku: po.items[0].sku, name: po.items[0].name, qty: data.quantity });
+      const overQty = Math.max(0, totalAccepted - poItem.quantityExpected);
+      if (overQty > 0) {
+        const returnQty = Math.min(overQty, remaining);
+        returnLines.push({ sku: poItem.sku, name: poItem.name, qty: returnQty });
+        remaining -= returnQty;
       }
+    });
 
-      if (returnLines.length === 0) return;
+    // Fallback: if no overdelivery items found, apply to first item
+    if (returnLines.length === 0 && po.items.length > 0) {
+      returnLines.push({ sku: po.items[0].sku, name: po.items[0].name, qty: data.quantity });
+    }
 
-      // 1. Stock adjustment (subtract returned qty)
-      if (!isProject) {
-          setInventory(prev => {
-              const copy = [...prev];
-              returnLines.forEach(rl => {
-                  const idx = copy.findIndex(i => i.sku === rl.sku);
-                  if (idx >= 0) {
-                      copy[idx] = { ...copy[idx], stockLevel: Math.max(0, copy[idx].stockLevel - rl.qty), lastUpdated: timestamp };
-                  }
-              });
-              return copy;
-          });
-      }
+    if (returnLines.length === 0) return;
 
-      // 2. Log stock removals
-      returnLines.forEach(rl => {
-          const item = inventory.find(i => i.sku === rl.sku);
-          if (item) {
-              handleLogStock(item.id, item.name, 'remove', rl.qty, `Rücksendung ${lieferscheinNr}`, isProject ? 'po-project' : 'po-normal');
+    // 1. Stock adjustment (subtract returned qty)
+    if (!isProject) {
+      setInventory(prev => {
+        const copy = [...prev];
+        returnLines.forEach(rl => {
+          const idx = copy.findIndex(i => i.sku === rl.sku);
+          if (idx >= 0) {
+            copy[idx] = { ...copy[idx], stockLevel: Math.max(0, copy[idx].stockLevel - rl.qty), lastUpdated: timestamp };
           }
+        });
+        return copy;
       });
+    }
 
-      // 3. Update PO items (decrease quantityReceived) + recalc status
-      setPurchaseOrders(prev => prev.map(p => {
-          if (p.id !== poId) return p;
-          const updatedItems = p.items.map(pItem => {
-              const rl = returnLines.find(r => r.sku === pItem.sku);
-              if (rl) return { ...pItem, quantityReceived: Math.max(0, pItem.quantityReceived - rl.qty) };
-              return pItem;
-          });
-          let nextStatus = p.status;
-          if (p.status !== 'Projekt' && p.status !== 'Lager') {
-              const allReceived = updatedItems.every(i => i.quantityReceived >= i.quantityExpected);
-              const anyReceived = updatedItems.some(i => i.quantityReceived > 0);
-              nextStatus = allReceived ? 'Abgeschlossen' : anyReceived ? 'Teilweise geliefert' : 'Offen';
-          }
-          return { ...p, items: updatedItems, status: nextStatus };
-      }));
+    // 2. Log stock removals
+    returnLines.forEach(rl => {
+      const item = inventory.find(i => i.sku === rl.sku);
+      if (item) {
+        handleLogStock(item.id, item.name, 'remove', rl.qty, `Rücksendung ${lieferscheinNr}`, isProject ? 'po-project' : 'po-normal');
+      }
+    });
 
-      // 4. Create receipt header for the return
-      const newHeader: ReceiptHeader = {
-          batchId,
-          lieferscheinNr,
-          bestellNr: poId,
-          lieferdatum: new Date().toISOString().split('T')[0],
-          lieferant: po.supplier,
-          status: 'Rücklieferung',
-          timestamp,
-          itemCount: returnLines.length,
-          warehouseLocation: 'Rücksendung',
-          createdByName: 'Admin User'
-      };
-      setReceiptHeaders(prev => [newHeader, ...prev]);
+    // 3. Update PO items (decrease quantityReceived) + recalc status
+    setPurchaseOrders(prev => prev.map(p => {
+      if (p.id !== poId) return p;
+      const updatedItems = p.items.map(pItem => {
+        const rl = returnLines.find(r => r.sku === pItem.sku);
+        if (rl) return { ...pItem, quantityReceived: Math.max(0, pItem.quantityReceived - rl.qty) };
+        return pItem;
+      });
+      let nextStatus = p.status;
+      if (p.status !== 'Projekt' && p.status !== 'Lager') {
+        const allReceived = updatedItems.every(i => i.quantityReceived >= i.quantityExpected);
+        const anyReceived = updatedItems.some(i => i.quantityReceived > 0);
+        nextStatus = allReceived ? 'Abgeschlossen' : anyReceived ? 'Teilweise geliefert' : 'Offen';
+      }
+      return { ...p, items: updatedItems, status: nextStatus };
+    }));
 
-      // 5. Create receipt items (negative qty to show as return)
-      const newReceiptItems: ReceiptItem[] = returnLines.map((rl, idx) => ({
-          id: `ri-${batchId}-${idx}`,
-          batchId,
+    // 4. Create receipt header for the return
+    const newHeader: ReceiptHeader = {
+      batchId,
+      lieferscheinNr,
+      bestellNr: poId,
+      lieferdatum: new Date().toISOString().split('T')[0],
+      lieferant: po.supplier,
+      status: 'Rücklieferung',
+      timestamp,
+      itemCount: returnLines.length,
+      warehouseLocation: 'Rücksendung',
+      createdByName: 'Admin User'
+    };
+    setReceiptHeaders(prev => [newHeader, ...prev]);
+
+    // 5. Create receipt items (negative qty to show as return)
+    const newReceiptItems: ReceiptItem[] = returnLines.map((rl, idx) => ({
+      id: `ri-${batchId}-${idx}`,
+      batchId,
+      sku: rl.sku,
+      name: rl.name,
+      quantity: -rl.qty,
+      targetLocation: 'Rücksendung',
+      isDamaged: data.reason === 'Schaden',
+      issueNotes: `Rücksendung: ${data.reason}${data.carrier ? ` via ${data.carrier}` : ''}${data.trackingId ? ` (${data.trackingId})` : ''}`
+    }));
+    setReceiptItems(prev => [...prev, ...newReceiptItems]);
+
+    // 6. Update ReceiptMaster: add return delivery log + recalc master status
+    const mapReason = (r: string): 'Damaged' | 'Wrong' | 'Overdelivery' | 'Other' => {
+      if (r === 'Schaden') return 'Damaged';
+      if (r === 'Falsch geliefert') return 'Wrong';
+      if (r === 'Übermenge') return 'Overdelivery';
+      return 'Other';
+    };
+
+    setReceiptMasters(prev => {
+      const existing = prev.find(m => m.poId === poId);
+      if (!existing) return prev;
+
+      const deliveryLog: DeliveryLog = {
+        id: crypto.randomUUID(),
+        date: new Date().toISOString(),
+        lieferscheinNr,
+        items: returnLines.map(rl => ({
           sku: rl.sku,
-          name: rl.name,
-          quantity: -rl.qty,
-          targetLocation: 'Rücksendung',
-          isDamaged: data.reason === 'Schaden',
-          issueNotes: `Rücksendung: ${data.reason}${data.carrier ? ` via ${data.carrier}` : ''}${data.trackingId ? ` (${data.trackingId})` : ''}`
-      }));
-      setReceiptItems(prev => [...prev, ...newReceiptItems]);
-
-      // 6. Update ReceiptMaster: add return delivery log + recalc master status
-      const mapReason = (r: string): 'Damaged' | 'Wrong' | 'Overdelivery' | 'Other' => {
-          if (r === 'Schaden') return 'Damaged';
-          if (r === 'Falsch geliefert') return 'Wrong';
-          if (r === 'Übermenge') return 'Overdelivery';
-          return 'Other';
+          receivedQty: 0,
+          quantityAccepted: 0,
+          quantityRejected: rl.qty,
+          rejectionReason: mapReason(data.reason),
+          returnCarrier: data.carrier,
+          returnTrackingId: data.trackingId,
+          damageFlag: data.reason === 'Schaden',
+          manualAddFlag: false,
+          orderedQty: po.items.find(pi => pi.sku === rl.sku)?.quantityExpected || 0,
+          previousReceived: po.items.find(pi => pi.sku === rl.sku)?.quantityReceived || 0,
+          offen: 0,
+          zuViel: 0
+        }))
       };
 
-      setReceiptMasters(prev => {
-          const existing = prev.find(m => m.poId === poId);
-          if (!existing) return prev;
-
-          const deliveryLog: DeliveryLog = {
-              id: crypto.randomUUID(),
-              date: new Date().toISOString(),
-              lieferscheinNr,
-              items: returnLines.map(rl => ({
-                  sku: rl.sku,
-                  receivedQty: 0,
-                  quantityAccepted: 0,
-                  quantityRejected: rl.qty,
-                  rejectionReason: mapReason(data.reason),
-                  returnCarrier: data.carrier,
-                  returnTrackingId: data.trackingId,
-                  damageFlag: data.reason === 'Schaden',
-                  manualAddFlag: false,
-                  orderedQty: po.items.find(pi => pi.sku === rl.sku)?.quantityExpected || 0,
-                  previousReceived: po.items.find(pi => pi.sku === rl.sku)?.quantityReceived || 0,
-                  offen: 0,
-                  zuViel: 0
-              }))
-          };
-
-          // Recalculate effective totals after the return
-          let totalOrdered = 0;
-          let totalEffective = 0;
-          po.items.forEach(pi => {
-              totalOrdered += pi.quantityExpected;
-              let accepted = 0;
-              existing.deliveries.forEach(del => {
-                  const di = del.items.find(x => x.sku === pi.sku);
-                  if (di) accepted += di.quantityAccepted;
-              });
-              const rl = returnLines.find(r => r.sku === pi.sku);
-              totalEffective += accepted - (rl ? rl.qty : 0);
-          });
-
-          let newStatus: ReceiptMasterStatus = totalEffective >= totalOrdered ? 'Gebucht'
-              : totalEffective > 0 ? 'Teillieferung'
-              : 'Offen';
-
-          return prev.map(m => m.id === existing.id ? {
-              ...m,
-              status: newStatus,
-              deliveries: [...m.deliveries, deliveryLog]
-          } : m);
+      // Recalculate effective totals after the return
+      let totalOrdered = 0;
+      let totalEffective = 0;
+      po.items.forEach(pi => {
+        totalOrdered += pi.quantityExpected;
+        let accepted = 0;
+        existing.deliveries.forEach(del => {
+          const di = del.items.find(x => x.sku === pi.sku);
+          if (di) accepted += di.quantityAccepted;
+        });
+        const rl = returnLines.find(r => r.sku === pi.sku);
+        totalEffective += accepted - (rl ? rl.qty : 0);
       });
 
-      // 7. Post system message to open tickets for this PO
-      const returnMsg = returnLines.map(rl =>
-          `Rücksendung: ${rl.qty}x ${rl.name} (${data.reason}).${data.carrier ? ` Via ${data.carrier}${data.trackingId ? ` (${data.trackingId})` : ''}` : ''}`
-      ).join('\n');
+      let newStatus: ReceiptMasterStatus = totalEffective >= totalOrdered ? 'Gebucht'
+        : totalEffective > 0 ? 'Teillieferung'
+          : 'Offen';
 
-      setTickets(prevTickets => prevTickets.map(ticket => {
-          if (ticket.status !== 'Open') return ticket;
-          const tHeader = receiptHeaders.find(h => h.batchId === ticket.receiptId);
-          if (tHeader && tHeader.bestellNr === poId) {
-              return {
-                  ...ticket,
-                  messages: [...ticket.messages, {
-                      id: crypto.randomUUID(),
-                      author: 'System',
-                      text: `📦 Logistik Update:\n${returnMsg}`,
-                      timestamp: Date.now() + 100,
-                      type: 'system' as const
-                  }]
-              };
-          }
-          return ticket;
-      }));
+      return prev.map(m => m.id === existing.id ? {
+        ...m,
+        status: newStatus,
+        deliveries: [...m.deliveries, deliveryLog]
+      } : m);
+    });
+
+    // 7. Post system message to open tickets for this PO
+    const returnMsg = returnLines.map(rl =>
+      `Rücksendung: ${rl.qty}x ${rl.name} (${data.reason}).${data.carrier ? ` Via ${data.carrier}${data.trackingId ? ` (${data.trackingId})` : ''}` : ''}`
+    ).join('\n');
+
+    setTickets(prevTickets => prevTickets.map(ticket => {
+      if (ticket.status !== 'Open') return ticket;
+      const tHeader = receiptHeaders.find(h => h.batchId === ticket.receiptId);
+      if (tHeader && tHeader.bestellNr === poId) {
+        return {
+          ...ticket,
+          messages: [...ticket.messages, {
+            id: crypto.randomUUID(),
+            author: 'System',
+            text: `📦 Logistik Update:\n${returnMsg}`,
+            timestamp: Date.now() + 100,
+            type: 'system' as const
+          }]
+        };
+      }
+      return ticket;
+    }));
   };
 
   return (
     <ErrorBoundary>
-      <div className={`min-h-screen flex transition-colors duration-300 ${
-          theme === 'dark' ? 'bg-[#0f172a] text-slate-100' : 
-          theme === 'soft' ? 'bg-[#F5F5F6] text-[#323338]' : 
+      <div className={`min-h-screen flex transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0f172a] text-slate-100' :
+        theme === 'soft' ? 'bg-[#F5F5F6] text-[#323338]' :
           'bg-[#f8fafc] text-slate-900'
-      }`}>
-        
-        <Sidebar 
+        }`}>
+
+        <Sidebar
           theme={theme}
           activeModule={activeModule}
           onNavigate={handleNavigation}
@@ -1364,202 +1421,201 @@ export default function App() {
           setSidebarOpen={setSidebarOpen}
           mode={sidebarMode}
         />
-        
+
         {sidebarOpen && (
-          <div 
-              className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
-              onClick={() => setSidebarOpen(false)}
+          <div
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
+            onClick={() => setSidebarOpen(false)}
           />
         )}
 
-        <main className={`flex-1 flex flex-col min-w-0 h-screen overflow-hidden transition-all duration-300 ${
-           sidebarMode === 'slim' ? 'lg:ml-20' : 'lg:ml-64'
-        }`}>
-         <Header 
+        <main className={`flex-1 flex flex-col min-w-0 h-screen overflow-hidden transition-all duration-300 ${sidebarMode === 'slim' ? 'lg:ml-20' : 'lg:ml-64'
+          }`}>
+          <Header
             theme={theme}
             toggleTheme={toggleTheme}
             totalItems={inventory.length}
             onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             sidebarOpen={sidebarOpen}
-         />
+          />
 
-         <div className={`flex-1 ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? 'overflow-hidden' : 'overflow-y-auto p-4 md:p-6 lg:p-8 scroll-smooth'}`}>
+          <div className={`flex-1 ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? 'overflow-hidden' : 'overflow-y-auto p-4 md:p-6 lg:p-8 scroll-smooth'}`}>
             <div className={`mx-auto h-full ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? '' : 'max-w-[1600px]'}`}>
-                
-                {activeModule === 'dashboard' && (
-                  <Dashboard 
-                    inventory={inventory}
-                    logs={stockLogs}
-                    theme={theme}
-                    onAddStock={handleAddStock}
-                    onNavigate={handleNavigation}
-                    orders={purchaseOrders}
-                    receipts={receiptMasters}
-                    tickets={tickets}
-                  />
-                )}
 
-                {activeModule === 'inventory' && (
-                  <InventoryView 
-                    key={viewKey}
-                    inventory={inventory}
-                    theme={theme}
-                    viewMode={inventoryViewMode}
-                    onUpdate={handleStockUpdate}
-                    onUpdateItem={handleUpdateItem}
-                    onCreateItem={handleCreateItem}
-                    onAddStock={handleAddStock}
-                    onLogStock={handleLogStock}
-                  />
-                )}
+              {activeModule === 'dashboard' && (
+                <Dashboard
+                  inventory={inventory}
+                  logs={stockLogs}
+                  theme={theme}
+                  onAddStock={handleAddStock}
+                  onNavigate={handleNavigation}
+                  orders={purchaseOrders}
+                  receipts={receiptMasters}
+                  tickets={tickets}
+                />
+              )}
 
-                {activeModule === 'stock-logs' && (
-                    <StockLogView 
-                        key={viewKey}
-                        logs={stockLogs} 
-                        onBack={() => handleNavigation('dashboard')} 
-                        theme={theme} 
-                    />
-                )}
+              {activeModule === 'inventory' && (
+                <InventoryView
+                  key={viewKey}
+                  inventory={inventory}
+                  theme={theme}
+                  viewMode={inventoryViewMode}
+                  onUpdate={handleStockUpdate}
+                  onUpdateItem={handleUpdateItem}
+                  onCreateItem={handleCreateItem}
+                  onAddStock={handleAddStock}
+                  onLogStock={handleLogStock}
+                />
+              )}
 
-                {activeModule === 'goods-receipt' && (
-                  <GoodsReceiptFlow 
-                    theme={theme}
-                    existingItems={inventory}
-                    onClose={() => handleNavigation('receipt-management')}
-                    onSuccess={handleReceiptSuccess}
-                    lagerortOptions={lagerortOptions}
-                    onUpdateLagerortOptions={handleSetLagerortOptions}
-                    // onLogStock removed to prevent double logging - handled in onSuccess
-                    purchaseOrders={purchaseOrders}
-                    initialPoId={selectedPoId}
-                    initialMode={goodsReceiptMode} // Pass mode prop
-                    receiptMasters={receiptMasters}
-                    ticketConfig={ticketConfig}
-                    onAddTicket={handleAddTicket}
-                    onRefuseDelivery={handleDeliveryRefusal}
-                  />
-                )}
+              {activeModule === 'stock-logs' && (
+                <StockLogView
+                  key={viewKey}
+                  logs={stockLogs}
+                  onBack={() => handleNavigation('dashboard')}
+                  theme={theme}
+                />
+              )}
 
-                {activeModule === 'receipt-management' && (
-                  <ReceiptManagement 
-                    key={viewKey}
-                    headers={receiptHeaders}
-                    items={receiptItems}
-                    comments={comments}
-                    tickets={tickets}
-                    purchaseOrders={purchaseOrders}
-                    receiptMasters={receiptMasters}
-                    stockItems={inventory}
-                    theme={theme}
-                    onUpdateStatus={handleReceiptStatusUpdate}
-                    onAddComment={handleAddComment}
-                    onAddTicket={handleAddTicket}
-                    onUpdateTicket={handleUpdateTicket}
-                    onReceiveGoods={handleReceiveGoods}
-                    onNavigate={handleNavigation}
-                    onRevertReceipt={handleRevertReceipt}
-                    onProcessReturn={handleProcessReturn}
-                    onInspect={(po, mode) => handleReceiveGoods(po.id, mode as 'standard' | 'return' | 'problem')} // Pass mode to handler
-                    statusColumnFirst={statusColumnFirst}
-                  />
-                )}
-                
-                {activeModule === 'create-order' && (
-                  <CreateOrderWizard 
-                     theme={theme}
-                     items={inventory}
-                     onNavigate={handleNavigation}
-                     onCreateOrder={handleCreateOrder}
-                     initialOrder={orderToEdit}
-                     requireDeliveryDate={requireDeliveryDate}
-                     enableSmartImport={enableSmartImport}
-                  />
-                )}
+              {activeModule === 'goods-receipt' && (
+                <GoodsReceiptFlow
+                  theme={theme}
+                  existingItems={inventory}
+                  onClose={() => handleNavigation('receipt-management')}
+                  onSuccess={handleReceiptSuccess}
+                  lagerortOptions={lagerortOptions}
+                  onUpdateLagerortOptions={handleSetLagerortOptions}
+                  // onLogStock removed to prevent double logging - handled in onSuccess
+                  purchaseOrders={purchaseOrders}
+                  initialPoId={selectedPoId}
+                  initialMode={goodsReceiptMode} // Pass mode prop
+                  receiptMasters={receiptMasters}
+                  ticketConfig={ticketConfig}
+                  onAddTicket={handleAddTicket}
+                  onRefuseDelivery={handleDeliveryRefusal}
+                />
+              )}
 
-                {activeModule === 'order-management' && (
-                  <OrderManagement 
-                     key={viewKey}
-                     orders={purchaseOrders}
-                     theme={theme}
-                     onArchive={handleArchiveOrder}
-                     onEdit={handleEditOrder}
-                     onReceiveGoods={handleReceiveGoods}
-                     onCancelOrder={handleCancelOrder}
-                     onUpdateOrder={handleUpdateOrder}
-                     receiptMasters={receiptMasters}
-                     onNavigate={handleNavigation}
-                     tickets={tickets}
-                     statusColumnFirst={statusColumnFirst}
-                  />
-                )}
+              {activeModule === 'receipt-management' && (
+                <ReceiptManagement
+                  key={viewKey}
+                  headers={receiptHeaders}
+                  items={receiptItems}
+                  comments={comments}
+                  tickets={tickets}
+                  purchaseOrders={purchaseOrders}
+                  receiptMasters={receiptMasters}
+                  stockItems={inventory}
+                  theme={theme}
+                  onUpdateStatus={handleReceiptStatusUpdate}
+                  onAddComment={handleAddComment}
+                  onAddTicket={handleAddTicket}
+                  onUpdateTicket={handleUpdateTicket}
+                  onReceiveGoods={handleReceiveGoods}
+                  onNavigate={handleNavigation}
+                  onRevertReceipt={handleRevertReceipt}
+                  onProcessReturn={handleProcessReturn}
+                  onInspect={(po, mode) => handleReceiveGoods(po.id, mode as 'standard' | 'return' | 'problem')} // Pass mode to handler
+                  statusColumnFirst={statusColumnFirst}
+                />
+              )}
 
-                {activeModule === 'suppliers' && (
-                  <SupplierView 
-                    receipts={receiptMasters}
-                    headers={receiptHeaders}
-                    orders={purchaseOrders}
-                    theme={theme}
-                  />
-                )}
+              {activeModule === 'create-order' && (
+                <CreateOrderWizard
+                  theme={theme}
+                  items={inventory}
+                  onNavigate={handleNavigation}
+                  onCreateOrder={handleCreateOrder}
+                  initialOrder={orderToEdit}
+                  requireDeliveryDate={requireDeliveryDate}
+                  enableSmartImport={enableSmartImport}
+                />
+              )}
 
-                {activeModule === 'settings' && (
-                  <SettingsPage 
-                    theme={theme}
-                    onSetTheme={(t) => setTheme(t)}
-                    onNavigate={handleNavigation}
-                    onUploadData={(newItems) => setInventory(newItems)}
-                    onClearData={() => setInventory(MOCK_ITEMS)}
-                    hasCustomData={inventory !== MOCK_ITEMS}
-                    sidebarMode={sidebarMode}
-                    onSetSidebarMode={handleSetSidebarMode}
-                    inventoryViewMode={inventoryViewMode}
-                    onSetInventoryViewMode={handleSetInventoryViewMode}
-                  />
-                )}
+              {activeModule === 'order-management' && (
+                <OrderManagement
+                  key={viewKey}
+                  orders={purchaseOrders}
+                  theme={theme}
+                  onArchive={handleArchiveOrder}
+                  onEdit={handleEditOrder}
+                  onReceiveGoods={handleReceiveGoods}
+                  onCancelOrder={handleCancelOrder}
+                  onUpdateOrder={handleUpdateOrder}
+                  receiptMasters={receiptMasters}
+                  onNavigate={handleNavigation}
+                  tickets={tickets}
+                  statusColumnFirst={statusColumnFirst}
+                />
+              )}
 
-          
+              {activeModule === 'suppliers' && (
+                <SupplierView
+                  receipts={receiptMasters}
+                  headers={receiptHeaders}
+                  orders={purchaseOrders}
+                  theme={theme}
+                />
+              )}
 
-                {activeModule === 'global-settings' && (
-                  <GlobalSettingsPage
-                    theme={theme}
-                    onNavigate={handleNavigation}
-                    statusColumnFirst={statusColumnFirst}
-                    onSetStatusColumnFirst={handleSetStatusColumnFirst}
-                    enableSmartImport={enableSmartImport}
-                    onSetEnableSmartImport={handleSetEnableSmartImport}
-                    requireDeliveryDate={requireDeliveryDate}
-                    onSetRequireDeliveryDate={handleSetRequireDeliveryDate}
-                    ticketConfig={ticketConfig}
-                    onSetTicketConfig={handleSetTicketConfig}
-                    timelineConfig={timelineConfig}
-                    onSetTimelineConfig={handleSetTimelineConfig}
-                    auditTrail={auditTrail}
-                    lagerortOptions={lagerortOptions}
-                    onSetLagerortOptions={handleSetLagerortOptions}
-                  />
-                )}
+              {activeModule === 'settings' && (
+                <SettingsPage
+                  theme={theme}
+                  onSetTheme={(t) => setTheme(t)}
+                  onNavigate={handleNavigation}
+                  onUploadData={(newItems) => setInventory(newItems)}
+                  onClearData={() => setInventory(MOCK_ITEMS)}
+                  hasCustomData={inventory !== MOCK_ITEMS}
+                  sidebarMode={sidebarMode}
+                  onSetSidebarMode={handleSetSidebarMode}
+                  inventoryViewMode={inventoryViewMode}
+                  onSetInventoryViewMode={handleSetInventoryViewMode}
+                />
+              )}
 
-                {activeModule === 'documentation' && (
-                  <DocumentationPage 
-                    theme={theme}
-                    onBack={() => handleNavigation('settings')}
-                  />
-                )}
 
-                {activeModule === 'debug' && (
-                  <LogicInspector 
-                    orders={purchaseOrders}
-                    receiptMasters={receiptMasters}
-                    onBack={() => handleNavigation('settings')}
-                    theme={theme}
-                  />
-                )}
+
+              {activeModule === 'global-settings' && (
+                <GlobalSettingsPage
+                  theme={theme}
+                  onNavigate={handleNavigation}
+                  statusColumnFirst={statusColumnFirst}
+                  onSetStatusColumnFirst={handleSetStatusColumnFirst}
+                  enableSmartImport={enableSmartImport}
+                  onSetEnableSmartImport={handleSetEnableSmartImport}
+                  requireDeliveryDate={requireDeliveryDate}
+                  onSetRequireDeliveryDate={handleSetRequireDeliveryDate}
+                  ticketConfig={ticketConfig}
+                  onSetTicketConfig={handleSetTicketConfig}
+                  timelineConfig={timelineConfig}
+                  onSetTimelineConfig={handleSetTimelineConfig}
+                  auditTrail={auditTrail}
+                  lagerortOptions={lagerortOptions}
+                  onSetLagerortOptions={handleSetLagerortOptions}
+                />
+              )}
+
+              {activeModule === 'documentation' && (
+                <DocumentationPage
+                  theme={theme}
+                  onBack={() => handleNavigation('settings')}
+                />
+              )}
+
+              {activeModule === 'debug' && (
+                <LogicInspector
+                  orders={purchaseOrders}
+                  receiptMasters={receiptMasters}
+                  onBack={() => handleNavigation('settings')}
+                  theme={theme}
+                />
+              )}
 
             </div>
-         </div>
-      </main>
-    </div>
-        </ErrorBoundary>
+          </div>
+        </main>
+      </div>
+    </ErrorBoundary>
   );
 }
