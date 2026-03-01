@@ -23,20 +23,38 @@ function cleanDocs<T>(docs: any[]): T[] {
 // ============================================================================
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const method = options?.method || 'GET';
+  const body = options?.body as string | undefined;
 
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
-    throw new Error(errorBody.error || `API error: ${response.status}`);
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(errorBody.error || `API error: ${response.status}`);
+    }
+
+    // 204 No Content (e.g., DELETE)
+    if (response.status === 204) return undefined as T;
+
+    return response.json();
+  } catch (error) {
+    // Queue write operations if it's a network failure (not a server error)
+    const isNetworkError = error instanceof TypeError && error.message.includes('fetch');
+    const isWriteOp = method !== 'GET';
+
+    if (isNetworkError && isWriteOp) {
+      await enqueueWrite(path, method, body || null).catch(console.warn);
+      console.info(`[API] Write queued for offline sync: ${method} ${path}`);
+      // Return undefined so the optimistic UI stays intact
+      return undefined as T;
+    }
+
+    throw error;
   }
-
-  // 204 No Content (e.g., DELETE)
-  if (response.status === 204) return undefined as T;
-
-  return response.json();
 }
 
 // ============================================================================
@@ -127,6 +145,7 @@ export interface AppData {
 }
 
 import { cacheAllData, getCachedAppData } from './offlineDb';
+import { enqueueWrite } from './offlineQueue';
 
 /**
  * Fetch all data needed for app initialization.

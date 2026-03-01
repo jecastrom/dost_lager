@@ -25,6 +25,7 @@ import { LogicInspector } from './components/LogicInspector';
 import { SupplierView } from './components/SupplierView';
 import { BottomNav } from './components/BottomNav';
 import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi, DataSource } from './api';
+import { flushQueue, onQueueChange } from './offlineQueue';
 
 // Error Boundary Component
 interface ErrorBoundaryProps {
@@ -303,6 +304,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [apiConnected, setApiConnected] = useState(false);
   const [dataSource, setDataSource] = useState<DataSource | null>(null);
+  const [pendingWrites, setPendingWrites] = useState(0);
 
   // Logging State
   const [stockLogs, setStockLogs] = useState<StockLog[]>([]);
@@ -437,6 +439,38 @@ export default function App() {
     }, 10000);
 
     return () => { cancelled = true; document.removeEventListener('visibilitychange', handleVisibility); clearInterval(pollInterval); };
+  }, []);
+
+  // Step 5b: Offline write queue — flush when back online, track pending count
+  useEffect(() => {
+    // Subscribe to queue count changes (for UI badge)
+    const unsubscribe = onQueueChange(count => setPendingWrites(count));
+
+    // Flush queue when browser comes back online
+    const handleOnline = () => {
+      console.info('[Queue] Online detected — flushing write queue');
+      flushQueue().catch(console.warn);
+    };
+    window.addEventListener('online', handleOnline);
+
+    // Also flush when user returns to tab (catches cases where 'online' event was missed)
+    const handleVisibilityFlush = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        flushQueue().catch(console.warn);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityFlush);
+
+    // Initial flush attempt on mount (in case there are queued writes from last session)
+    if (navigator.onLine) {
+      flushQueue().catch(console.warn);
+    }
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibilityFlush);
+    };
   }, []);
 
   useEffect(() => {

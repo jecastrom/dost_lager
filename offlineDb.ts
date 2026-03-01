@@ -12,19 +12,19 @@
  */
 
 const DB_NAME = 'procureflow-cache';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // v2: added _writeQueue store (Step 5b)
 
 // Collections that mirror the API
 const STORES = ['stock', 'orders', 'receipts', 'tickets'] as const;
 export type CacheCollection = typeof STORES[number];
 
 // ============================================================================
-// DATABASE INITIALIZATION
+// DATABASE INITIALIZATION (shared singleton — also used by offlineQueue.ts)
 // ============================================================================
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
-function getDb(): Promise<IDBDatabase> {
+export function getDb(): Promise<IDBDatabase> {
     if (dbPromise) return dbPromise;
 
     dbPromise = new Promise((resolve, reject) => {
@@ -33,16 +33,22 @@ function getDb(): Promise<IDBDatabase> {
         request.onupgradeneeded = (event) => {
             const db = (event.target as IDBOpenDBRequest).result;
 
-            // Create a store for each API collection
+            // Step 5a: Data cache stores
             for (const store of STORES) {
                 if (!db.objectStoreNames.contains(store)) {
                     db.createObjectStore(store, { keyPath: 'id' });
                 }
             }
 
-            // Meta store for sync timestamps
+            // Step 5a: Meta store for sync timestamps
             if (!db.objectStoreNames.contains('_meta')) {
                 db.createObjectStore('_meta', { keyPath: 'collection' });
+            }
+
+            // Step 5b: Write queue store
+            if (!db.objectStoreNames.contains('_writeQueue')) {
+                const qStore = db.createObjectStore('_writeQueue', { keyPath: 'id' });
+                qStore.createIndex('timestamp', 'timestamp', { unique: false });
             }
         };
 
