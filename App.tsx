@@ -506,8 +506,10 @@ export default function App() {
     addAudit('Ticket Created', { ticketId: ticket.id, subject: ticket.subject, priority: ticket.priority, receiptId: ticket.receiptId });
     setTickets(prev => [...prev, ticket]);
     // API write-through — tickets container partition key is /poId
+    // Fallback chain: header lookup → selectedPoId (set before goods receipt) → empty
     const header = receiptHeaders.find(h => h.batchId === ticket.receiptId);
-    ticketsApi.upsert({ ...ticket, poId: header?.bestellNr || '' }).catch(console.warn);
+    const resolvedPoId = header?.bestellNr || selectedPoId || '';
+    ticketsApi.upsert({ ...ticket, poId: resolvedPoId }).catch(console.warn);
   };
 
   const handleUpdateTicket = (ticket: Ticket) => {
@@ -1183,6 +1185,8 @@ export default function App() {
           message: `📋 Automatische Prüfmeldung\n\n${sections.join('\n\n')}`
         };
         setComments(prev => [autoComment, ...prev]);
+        // API write-through — persist auto-comment
+        receiptsApi.upsert({ ...autoComment, docType: 'comment', poId: headerData.bestellNr || batchId }).catch(console.warn);
       }
     }
 
