@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   MOCK_ITEMS, MOCK_RECEIPT_HEADERS, MOCK_RECEIPT_ITEMS, MOCK_COMMENTS,
   MOCK_PURCHASE_ORDERS, MOCK_RECEIPT_MASTERS, MOCK_TICKETS
@@ -115,39 +115,59 @@ export default function App() {
   // Sidebar State
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile Toggle
 
-  // Mobile bottom nav scroll-hide
+  // Mobile bottom nav scroll-hide — uses touch events so it works on ANY scrollable container
   const [bottomNavHidden, setBottomNavHidden] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const lastScrollY = useRef(0);
+  const touchStartY = useRef(0);
+  const touchDirLocked = useRef(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleContentScroll = useCallback(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    const currentY = el.scrollTop;
-    const delta = currentY - lastScrollY.current;
-
-    // Scrolling down (positive delta, past 10px threshold to avoid jitter)
-    if (delta > 5) setBottomNavHidden(true);
-    // Scrolling up
-    if (delta < -5) setBottomNavHidden(false);
-
-    lastScrollY.current = currentY;
-
-    // Idle timeout: show nav again after 1.5s of no scrolling
-    if (idleTimer.current) clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(() => setBottomNavHidden(false), 1500);
-  }, []);
-
   useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    el.addEventListener('scroll', handleContentScroll, { passive: true });
+    // Only run on mobile-sized screens
+    const isMobile = () => window.innerWidth < 1024;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (!isMobile()) return;
+      touchStartY.current = e.touches[0].clientY;
+      touchDirLocked.current = false;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isMobile()) return;
+      const currentY = e.touches[0].clientY;
+      const delta = touchStartY.current - currentY; // positive = finger moving up = scroll down
+
+      // 12px dead-zone to avoid jitter on taps
+      if (Math.abs(delta) < 12) return;
+
+      if (!touchDirLocked.current) {
+        touchDirLocked.current = true;
+        if (delta > 0) setBottomNavHidden(true);   // Scrolling down → hide
+        else setBottomNavHidden(false);              // Scrolling up → show
+      }
+
+      // Reset idle timer on every move
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+      idleTimer.current = setTimeout(() => setBottomNavHidden(false), 1500);
+    };
+
+    const onTouchEnd = () => {
+      if (!isMobile()) return;
+      // Idle timeout: show nav after 1.5s of no touch
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+      idleTimer.current = setTimeout(() => setBottomNavHidden(false), 1500);
+    };
+
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
+    document.addEventListener('touchend', onTouchEnd, { passive: true });
+
     return () => {
-      el.removeEventListener('scroll', handleContentScroll);
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
       if (idleTimer.current) clearTimeout(idleTimer.current);
     };
-  }, [handleContentScroll, activeModule]);
+  }, []);
 
   // Global Configuration State
   // UPDATED: Default is now FALSE (Optional)
@@ -1702,7 +1722,7 @@ export default function App() {
             sidebarOpen={sidebarOpen}
           />
 
-          <div ref={contentRef} className={`flex-1 ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? 'overflow-hidden' : 'overflow-y-auto p-4 pb-24 md:p-6 lg:p-8 lg:pb-8 scroll-smooth'}`}>
+          <div className={`flex-1 ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? 'overflow-hidden' : 'overflow-y-auto p-4 pb-24 md:p-6 lg:p-8 lg:pb-8 scroll-smooth'}`}>
             <div className={`mx-auto h-full ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? '' : 'max-w-[1600px]'}`}>
 
               {activeModule === 'dashboard' && (
