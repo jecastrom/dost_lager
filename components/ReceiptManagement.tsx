@@ -787,8 +787,8 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                     data-receipt-actions-menu={thisMenuKey}
                     onClick={(e) => { e.stopPropagation(); setShowMobileActionMenu(showMobileActionMenu === thisMenuKey ? null : thisMenuKey); }}
                     className={`px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all border ${showMobileActionMenu
-                            ? (isDark ? 'bg-slate-700 border-slate-600' : 'bg-slate-100 border-slate-300')
-                            : (isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-300 hover:bg-slate-50')
+                        ? (isDark ? 'bg-slate-700 border-slate-600' : 'bg-slate-100 border-slate-300')
+                        : (isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-300 hover:bg-slate-50')
                         }`}
                 >
                     <MoreVertical size={18} />
@@ -822,10 +822,10 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                             key={action.key}
                                             onClick={(e) => { action.onClick(e); setShowMobileActionMenu(null); }}
                                             className={`w-full text-left px-3 py-2.5 text-sm font-medium flex items-center gap-3 transition-colors rounded-lg ${action.variant === 'warning'
-                                                    ? (isDark ? 'text-orange-400 hover:bg-orange-500/10' : 'text-orange-600 hover:bg-orange-50')
-                                                    : action.variant === 'danger'
-                                                        ? (isDark ? 'text-red-400 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50')
-                                                        : (isDark ? 'text-slate-200 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-50')
+                                                ? (isDark ? 'text-orange-400 hover:bg-orange-500/10' : 'text-orange-600 hover:bg-orange-50')
+                                                : action.variant === 'danger'
+                                                    ? (isDark ? 'text-red-400 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50')
+                                                    : (isDark ? 'text-slate-200 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-50')
                                                 }`}
                                         >
                                             <Icon size={16} />
@@ -860,7 +860,8 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
 
     const returnModalInputClass = `w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-slate-100 focus:ring-orange-500/30' : 'bg-white border-slate-200 text-slate-800 focus:ring-orange-500/20'}`;
     // --- RETURN PICKER PORTAL ---
-    const returnPickerPortal = returnPickerPO && linkedMaster && createPortal(
+    const returnPickerMaster = returnPickerPO ? receiptMasters.find(m => m.poId === returnPickerPO.id) : null;
+    const returnPickerPortal = returnPickerPO && returnPickerMaster && createPortal(
         <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setReturnPickerPO(null)}>
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
             <div className={`relative w-full max-w-lg rounded-2xl border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`} onClick={e => e.stopPropagation()}>
@@ -878,7 +879,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                             let totalAccepted = 0;
                             let totalDamaged = 0;
                             let totalWrong = 0;
-                            linkedMaster.deliveries.filter(d => !d.isStorniert).forEach(d => {
+                            returnPickerMaster.deliveries.filter(d => !d.isStorniert).forEach(d => {
                                 const di = d.items.find(x => x.sku === poItem.sku);
                                 if (di) {
                                     totalAccepted += di.quantityAccepted;
@@ -1029,8 +1030,8 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                     key={r}
                                     onClick={() => { setReturnModal(prev => prev ? { ...prev, reason: r } : null); setShowGrundOptions(false); }}
                                     className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors border-b last:border-0 ${returnModal.reason === r
-                                            ? (isDark ? 'bg-orange-500/10 text-orange-400 border-slate-700' : 'bg-orange-50 text-orange-600 border-slate-100')
-                                            : (isDark ? 'hover:bg-slate-700 text-slate-300 border-slate-700' : 'hover:bg-slate-50 text-slate-700 border-slate-100')
+                                        ? (isDark ? 'bg-orange-500/10 text-orange-400 border-slate-700' : 'bg-orange-50 text-orange-600 border-slate-100')
+                                        : (isDark ? 'hover:bg-slate-700 text-slate-300 border-slate-700' : 'hover:bg-slate-50 text-slate-700 border-slate-100')
                                         }`}
                                 >
                                     {r}
@@ -1095,8 +1096,8 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                     <button
                         onClick={() => onNavigate('goods-receipt')}
                         className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${isDark
-                                ? 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'
-                                : 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'
+                            ? 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'
+                            : 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'
                             }`}
                     >
                         <ClipboardCheck size={20} /> Lieferung prüfen
@@ -1113,8 +1114,8 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className={`w-full border rounded-xl pl-11 pr-4 py-3 text-base md:text-sm transition-all focus:outline-none focus:ring-2 ${isDark
-                                        ? 'bg-slate-900 border-slate-800 text-slate-100 focus:ring-blue-500/30'
-                                        : 'bg-white border-slate-200 text-[#313335] focus:ring-[#0077B5]/20'
+                                    ? 'bg-slate-900 border-slate-800 text-slate-100 focus:ring-blue-500/30'
+                                    : 'bg-white border-slate-200 text-[#313335] focus:ring-[#0077B5]/20'
                                     }`}
                             />
                         </div>
@@ -1168,8 +1169,8 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                 onClick={() => setShowFilters(!showFilters)}
                                 title="Erweiterte Filter"
                                 className={`relative p-2.5 md:px-4 md:py-0 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all ${showFilters
-                                        ? 'bg-[#0077B5] border-[#0077B5] text-white'
-                                        : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                    ? 'bg-[#0077B5] border-[#0077B5] text-white'
+                                    : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
                                     }`}
                             >
                                 <Filter size={18} />
@@ -1434,8 +1435,8 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                     <button
                         onClick={() => setActiveTab('items')}
                         className={`relative flex items-center gap-1.5 px-3 h-full text-xs font-bold transition-colors ${activeTab === 'items'
-                                ? (isDark ? 'text-white' : 'text-slate-900')
-                                : (isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-700')
+                            ? (isDark ? 'text-white' : 'text-slate-900')
+                            : (isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-700')
                             }`}
                     >
                         <Package size={13} />
@@ -1445,8 +1446,8 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                     <button
                         onClick={() => setActiveTab('tickets')}
                         className={`relative flex items-center gap-1.5 px-3 h-full text-xs font-bold transition-colors ${activeTab === 'tickets'
-                                ? (isDark ? 'text-white' : 'text-slate-900')
-                                : (isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-700')
+                            ? (isDark ? 'text-white' : 'text-slate-900')
+                            : (isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-700')
                             }`}
                     >
                         <MessageSquare size={13} />
@@ -1525,13 +1526,13 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                                                     key={del.id}
                                                                     onClick={() => handleScrollToDelivery(del.id)}
                                                                     className={`w-full text-left p-3 border-b last:border-0 flex items-center gap-3 transition-colors ${del.lieferscheinNr === selectedHeader.lieferscheinNr
-                                                                            ? (isDark ? 'bg-[#0077B5]/10 border-slate-700' : 'bg-blue-50 border-slate-100')
-                                                                            : (isDark ? 'border-slate-800 hover:bg-slate-800' : 'border-slate-100 hover:bg-slate-50')
+                                                                        ? (isDark ? 'bg-[#0077B5]/10 border-slate-700' : 'bg-blue-50 border-slate-100')
+                                                                        : (isDark ? 'border-slate-800 hover:bg-slate-800' : 'border-slate-100 hover:bg-slate-50')
                                                                         }`}
                                                                 >
                                                                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold ${del.lieferscheinNr === selectedHeader.lieferscheinNr
-                                                                            ? 'bg-[#0077B5] text-white'
-                                                                            : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')
+                                                                        ? 'bg-[#0077B5] text-white'
+                                                                        : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')
                                                                         }`}>{idx + 1}</div>
                                                                     <div>
                                                                         <div className={`text-sm font-bold ${del.lieferscheinNr === selectedHeader.lieferscheinNr
@@ -1643,19 +1644,19 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                                                         key={del.id}
                                                                         onClick={() => handleScrollToDelivery(del.id)}
                                                                         className={`w-full text-left p-3 border-b last:border-0 flex items-center gap-3 transition-colors ${del.lieferscheinNr === selectedHeader.lieferscheinNr
-                                                                                ? (isDark ? 'bg-[#0077B5]/10 hover:bg-[#0077B5]/20' : 'bg-[#0077B5]/5 hover:bg-[#0077B5]/10')
-                                                                                : (isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50')
+                                                                            ? (isDark ? 'bg-[#0077B5]/10 hover:bg-[#0077B5]/20' : 'bg-[#0077B5]/5 hover:bg-[#0077B5]/10')
+                                                                            : (isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50')
                                                                             }`}>
                                                                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${del.lieferscheinNr === selectedHeader.lieferscheinNr
-                                                                                ? 'bg-[#0077B5] text-white'
-                                                                                : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')
+                                                                            ? 'bg-[#0077B5] text-white'
+                                                                            : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')
                                                                             }`}>
                                                                             {idx + 1}
                                                                         </div>
                                                                         <div>
                                                                             <div className={`text-sm font-bold ${del.lieferscheinNr === selectedHeader.lieferscheinNr
-                                                                                    ? 'text-[#0077B5]'
-                                                                                    : (isDark ? 'text-slate-200' : 'text-slate-700')
+                                                                                ? 'text-[#0077B5]'
+                                                                                : (isDark ? 'text-slate-200' : 'text-slate-700')
                                                                                 }`}>
                                                                                 {del.lieferscheinNr}
                                                                             </div>
@@ -1904,8 +1905,8 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                                                 id={`delivery-${delivery.id}`}
                                                                 key={delivery.id}
                                                                 className={`rounded-xl border transition-all duration-300 overflow-hidden ${isCurrent
-                                                                        ? isDark ? 'border-[#0077B5] shadow-[0_0_15px_rgba(0,119,181,0.1)]' : 'border-[#0077B5] shadow-md ring-1 ring-[#0077B5]/20'
-                                                                        : isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                                                                    ? isDark ? 'border-[#0077B5] shadow-[0_0_15px_rgba(0,119,181,0.1)]' : 'border-[#0077B5] shadow-md ring-1 ring-[#0077B5]/20'
+                                                                    : isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
                                                                     }`}
                                                             >
                                                                 <button
@@ -2183,8 +2184,8 @@ const TypeButton = ({ active, icon, label, onClick, isDark }: { active: boolean,
     <button
         onClick={onClick}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${active
-                ? 'bg-[#0077B5] text-white border-[#0077B5]'
-                : isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500' : 'bg-white border-slate-300 text-slate-500 hover:border-slate-400'
+            ? 'bg-[#0077B5] text-white border-[#0077B5]'
+            : isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500' : 'bg-white border-slate-300 text-slate-500 hover:border-slate-400'
             }`}
     >
         {icon} {label}
