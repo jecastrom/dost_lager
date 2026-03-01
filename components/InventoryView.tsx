@@ -537,9 +537,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         </div>
 
                         {/* DESKTOP TABLE VIEW */}
-                        <div className="hidden md:block">
+                        <div className="hidden md:block max-h-[calc(100vh-300px)] overflow-y-auto">
                             <table className="w-full text-left text-sm">
-                                <thead className={`border-b ${isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
+                                <thead className={`border-b sticky top-0 z-10 ${isDark ?
+                                    'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
                                     <tr>
                                         <th className="p-4 font-semibold">Artikel</th>
                                         <th className="p-4 font-semibold">SKU</th>
