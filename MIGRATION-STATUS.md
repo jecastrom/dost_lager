@@ -275,10 +275,10 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 
 **A2. Warehouse Log / Lagerprotokoll (#6)** 🔴 HIGH
 - **Bug:** StockLogView shows nothing — debug full pipeline
-- Check: is `handleLogStock()` in App.tsx actually called? Are `stockLogs` state entries created?
-- Check: are logs persisted to Cosmos DB? If not, add API write-through
-- Check: does StockLogView read from state correctly?
-- Fix recording (App.tsx) + display (StockLogView.tsx)
+- **Root cause confirmed:** `const [stockLogs, setStockLogs] = useState<StockLog[]>([])` — always empty on mount. `handleLogStock` pushes to in-memory state only, never writes to localStorage or API. There is **zero persistence** — logs are lost on every refresh.
+- Check: is `handleLogStock()` in App.tsx actually called? Are `stockLogs` state entries created? → Yes, entries are created in state, but never persisted anywhere.
+- Check: does StockLogView read from state correctly? → Needs verification, but moot until persistence exists.
+- **Fix:** Add API write-through to `handleLogStock` (persist to Cosmos DB `delivery-logs` or new `stock-logs` container). Add localStorage cache as interim fallback. Load from API on mount.
 
 **A3. Dashboard Latest Activity (#7)** 🔴 HIGH
 - **Bug:** Bottom activity feed shows nothing
@@ -408,9 +408,10 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 
 **K4. Settings persistence bug (A1)** 🔴 HIGH
 - Dark mode + several toggles reset on refresh
-- `theme` useState initializer may not read from localStorage
+- **Root cause confirmed (theme):** `const [theme, setTheme] = useState<Theme>('light')` is hardcoded — never reads from localStorage. `setTheme` via SettingsPage also never writes to localStorage (only `toggleTheme` exists, which doesn't persist either). So theme has **zero** persistence in both directions.
+- Same pattern likely affects other settings — each must be audited individually
 - Affected: theme, inventoryViewMode, requireDeliveryDate, enableSmartImport, statusColumnFirst, ticketConfig, timelineConfig
-- **Fix:** Audit every `useState` initializer in App.tsx — verify localStorage read on mount
+- **Fix:** Add `localStorage.getItem('theme')` initializer + `localStorage.setItem('theme', t)` in the `useEffect[theme]` or a dedicated handler. Repeat audit for all other affected settings.
 
 ### 🟡 MEDIUM — Should fix before scaling
 
@@ -457,6 +458,61 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 - Deploy script defines stock container with `/sku` partition key
 - Seed script and API use `/id` — migration doc notes this was corrected
 - **Verify:** Check live Cosmos container partition key matches `/id`
+
+**K13. `delivery-logs` and `suppliers` not loaded on mount** 🟡
+- `loadAllData()` only fetches `stock`, `orders`, `receipts`, `tickets`
+- `deliveryLogsApi` and `suppliersApi` exist in `api.ts` but are **not imported** in `App.tsx`
+- SupplierView gets data from receipt/order props (works for now), but delivery logs from API are never fetched
+- **Fix:** Add `deliveryLogs` and `suppliers` to `loadAllData()`, import APIs in App.tsx
+
+**K14. Sync polling overwrites local optimistic updates** 🔴
+- Race condition: user action → optimistic UI + fire-and-forget API call → 10s poll fires before API write lands → fetches old data → overwrites user's change
+- User sees their action "revert" even though the API write eventually succeeds
+- Separate from K5 (RU cost) — this is a **data consistency bug**
+- **Fix:** Add a "dirty flag" or debounce polling after local writes, or skip poll if a write is in-flight
+
+**K15. `syncFromApi` won't sync empty collections** 🟡
+- All sync branches use `if (data.stock.length > 0) setInventory(data.stock)` etc.
+- If a collection legitimately becomes empty (all items deleted), the app keeps showing stale data
+- **Fix:** Change conditions to `if (data.stock !== undefined)` or null-check instead of length-check
+
+**K16. `archivedReceiptGroups` cross-component sync via localStorage** 🟡
+- `handleArchiveOrder` and `handleCancelOrder` in App.tsx write directly to `localStorage('archivedReceiptGroups')`
+- `ReceiptManagement` reads it via `focus` event listener — no React state in App.tsx
+- Fragile, won't sync across devices, relies on browser focus events
+- **Fix:** Lift `archivedReceiptGroups` state into App.tsx and pass as prop, persist to API
+
+**K17. DocumentationPage is stale / incorrect** 🟢
+- Still says: "Die App läuft komplett im Browser… Geplant: Firebase/Supabase Backend"
+- Should reference Azure Functions + Cosmos DB (current architecture)
+- Claims "Kein `any` im gesamten Codebase" — but `api.ts` uses `any` extensively
+- **Fix:** Update DocumentationPage text to reflect current architecture
+
+**K18. Sidebar interface has dead `mode` prop** 🟢
+- `SidebarProps` still declares `mode?: 'full' | 'slim'`
+- Step 4d removed sidebarMode but the interface still has it
+- **Fix:** Remove `mode` from `SidebarProps`
+
+**K19. `SettingsPage` import creates non-unique IDs** 🟡
+- `handleFileUpload` uses `id: raw["Artikel Nummer"] || \`generated-id-${index}\``
+- No `__index` suffix like `data.ts` fallback has
+- Importing via SettingsPage creates duplicate IDs → items overwrite each other in state and Cosmos
+- **Fix:** Align ID generation with data.ts pattern, or always use UUID for uploaded items
+
+**K20. No user-facing API status indicator** 🟡
+- `apiConnected` state exists but is never displayed in the UI
+- If API goes down mid-session, user has no idea their writes are failing silently
+- **Fix:** Show a banner/toast when `apiConnected` flips to false, or when catch handlers fire
+
+**K21. `handleArchiveOrder` / `handleCancelOrder` read stale closures** 🟡
+- Both call `setPurchaseOrders(prev => ...)` then immediately read `purchaseOrders.find(...)` (stale closure) for API write
+- Same pattern identified and fixed for `handleReceiptSuccess` (setTimeout → inline setState) but **not applied** to archive/cancel handlers
+- **Fix:** Move API calls inside `setState` callbacks (same pattern as receipt fix)
+
+**K22. No input sanitization on API endpoints** 🟡
+- All endpoints accept arbitrary JSON bodies beyond checking `id` and `poId`
+- Combined with K1 (no auth), anyone can inject arbitrary fields into Cosmos documents
+- **Fix:** Add schema validation (zod or manual) on API endpoints
 
 ---
 
