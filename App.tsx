@@ -1195,24 +1195,36 @@ export default function App() {
       const poId = headerData.bestellNr;
       const returnItems = cartItems.filter(c => c.quantityRejected > 0);
 
-      const returnMsg = returnItems.map(c =>
-        `Rücksendung: ${c.quantityRejected}x ${c.item.name} (${c.rejectionReason || 'Sonstiges'}). ` +
-        (c.returnCarrier ? `Via ${c.returnCarrier} ${c.returnTrackingId ? `(${c.returnTrackingId})` : ''}` : '')
-      ).join('\n');
+      const reasonMap: Record<string, string> = { 'Damaged': 'Beschädigung', 'Wrong': 'Falschlieferung', 'Overdelivery': 'Übermenge', 'Other': 'Sonstiges' };
 
+      // Rich formatted return message (matching quality issue style)
+      const returnItemDetails = returnItems.map(c => {
+        const reason = reasonMap[c.rejectionReason] || c.rejectionReason || 'Sonstiges';
+        return `**${c.item.name}** (${c.item.sku})\n   Menge: ${c.quantityRejected} Stk\n   Grund: ${reason}${c.rejectionNotes ? `\n   Notiz: ${c.rejectionNotes}` : ''}${c.returnCarrier ? `\n   Versand: ${c.returnCarrier}${c.returnTrackingId ? ` (${c.returnTrackingId})` : ''}` : ''}`;
+      });
+
+      const richReturnMsg = `📦 Rücksendung erfasst\n\n**Bestellnummer:** ${poId}\n**Lieferant:** ${headerData.lieferant}\n**Lieferschein:** ${headerData.lieferscheinNr}\n**Datum:** ${headerData.lieferdatum.split('-').reverse().join('.')}\n\n── Rücksendepositionen ──\n${returnItemDetails.join('\n\n')}\n\nGesamt: ${returnItems.reduce((s, c) => s + c.quantityRejected, 0)} Stk zurückgesendet`;
+
+      // Post auto-comment in Historie & Notizen
+      const returnAutoComment: ReceiptComment = {
+        id: `auto-ret-${crypto.randomUUID()}`,
+        batchId,
+        userId: 'system',
+        userName: 'System',
+        timestamp: Date.now() + 50,
+        type: 'note',
+        message: richReturnMsg
+      };
+      setComments(prev => [returnAutoComment, ...prev]);
+      receiptsApi.upsert({ ...returnAutoComment, docType: 'comment', poId }).catch(console.warn);
+
+      // Post rich update to all open tickets for this PO
       setTickets(prevTickets => prevTickets.map(ticket => {
         if (ticket.status !== 'Open') return ticket;
 
-        // Resolve ticket's PO
-        // Logic: Ticket -> ReceiptHeader -> PO ID
-        // We use the 'receiptHeaders' state which contains all EXISTING headers.
-        // If the ticket is new (created in this flow), it won't be found in 'receiptHeaders' yet, 
-        // but its 'receiptId' will match 'batchId' of the current receipt.
-
         let isMatch = false;
-
         if (ticket.receiptId === batchId) {
-          isMatch = true; // Belongs to current receipt (which belongs to poId)
+          isMatch = true;
         } else {
           const tHeader = receiptHeaders.find(h => h.batchId === ticket.receiptId);
           if (tHeader && tHeader.bestellNr === poId) {
@@ -1226,9 +1238,9 @@ export default function App() {
             messages: [...ticket.messages, {
               id: crypto.randomUUID(),
               author: 'System',
-              text: `ðŸ“¦ Logistik Update:\n${returnMsg}`,
-              timestamp: Date.now() + 100, // +100ms to ensure it appears after creation msg
-              type: 'system'
+              text: `📦 Rücksendung verarbeitet\n\n${returnItems.map(c => `**${c.item.name}:** ${c.quantityRejected} Stk zurückgesendet (${reasonMap[c.rejectionReason] || 'Sonstiges'})`).join('\n')}${returnItems.some(c => c.returnCarrier) ? `\n\n── Versanddetails ──\n${returnItems.filter(c => c.returnCarrier).map(c => `${c.item.name}: ${c.returnCarrier}${c.returnTrackingId ? ` (${c.returnTrackingId})` : ''}`).join('\n')}` : ''}`,
+              timestamp: Date.now() + 100,
+              type: 'system' as const
             }]
           };
         }
@@ -1517,13 +1529,52 @@ export default function App() {
       } : m);
     });
 
-    // 7. Post system message to open tickets for this PO
-    const returnMsg = returnLines.map(rl =>
-      `Rücksendung: ${rl.qty}x ${rl.name} (${data.reason}).${data.carrier ? ` Via ${data.carrier}${data.trackingId ? ` (${data.trackingId})` : ''}` : ''}`
-    ).join('\n');
+    // 7. Auto-comment in Historie & Notizen (rich format matching quality issues)
+    const returnItemDetails = returnLines.map(rl =>
+      `**${rl.name}** (${rl.sku})\n   Menge: ${rl.qty} Stk\n   Grund: ${data.reason}${data.carrier ? `\n   Versand: ${data.carrier}${data.trackingId ? ` (${data.trackingId})` : ''}` : ''}`
+    );
 
+    const returnCommentText = `📦 Rücksendung erfasst\n\n**Bestellnummer:** ${poId}\n**Lieferant:** ${po.supplier}\n**Lieferschein:** ${lieferscheinNr}\n**Datum:** ${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}\n\n── Rücksendepositionen ──\n${returnItemDetails.join('\n\n')}\n\nGesamt: ${returnLines.reduce((s, r) => s + r.qty, 0)} Stk zurückgesendet`;
+
+    // Find linked receipt header for this PO to post comment
+    const linkedHeader = receiptHeaders.find(h => h.bestellNr === poId);
+    if (linkedHeader) {
+      const returnComment: ReceiptComment = {
+        id: `auto-ret-${crypto.randomUUID()}`,
+        batchId: linkedHeader.batchId,
+        userId: 'system',
+        userName: 'System',
+        timestamp: Date.now(),
+        type: 'note',
+        message: returnCommentText
+      };
+      setComments(prev => [returnComment, ...prev]);
+      receiptsApi.upsert({ ...returnComment, docType: 'comment', poId }).catch(console.warn);
+    }
+
+    // 8. Create return ticket + post to existing open tickets
+    const returnTicketMsg = returnCommentText; // Same rich format for ticket
+
+    // Create dedicated return ticket
+    const returnTicket: Ticket = {
+      id: `t-ret-${Date.now()}`,
+      receiptId: linkedHeader?.batchId || batchId,
+      subject: `Rücksendung — ${poId} — ${data.reason}`,
+      status: 'Open',
+      priority: 'Normal',
+      messages: [{
+        id: crypto.randomUUID(),
+        author: 'System',
+        text: returnTicketMsg,
+        timestamp: Date.now(),
+        type: 'system'
+      }]
+    };
+    handleAddTicket(returnTicket);
+
+    // Also post update to any OTHER existing open tickets for this PO
     setTickets(prevTickets => prevTickets.map(ticket => {
-      if (ticket.status !== 'Open') return ticket;
+      if (ticket.status !== 'Open' || ticket.id === returnTicket.id) return ticket;
       const tHeader = receiptHeaders.find(h => h.batchId === ticket.receiptId);
       if (tHeader && tHeader.bestellNr === poId) {
         const updated = {
@@ -1531,7 +1582,7 @@ export default function App() {
           messages: [...ticket.messages, {
             id: crypto.randomUUID(),
             author: 'System',
-            text: `📦 Logistik Update:\n${returnMsg}`,
+            text: `📦 Rücksendung verarbeitet\n\n${returnLines.map(rl => `**${rl.name}:** ${rl.qty} Stk zurückgesendet (${data.reason})`).join('\n')}${data.carrier ? `\n\n**Versand:** ${data.carrier}${data.trackingId ? ` (${data.trackingId})` : ''}` : ''}`,
             timestamp: Date.now() + 100,
             type: 'system' as const
           }]
