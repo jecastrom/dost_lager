@@ -99,7 +99,13 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
 
 export default function App() {
   // State
-  const [theme, setTheme] = useState<Theme>('light');
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('theme') as Theme | null;
+      if (saved === 'dark' || saved === 'light' || saved === 'soft') return saved;
+    }
+    return 'light';
+  });
   const [activeModule, setActiveModule] = useState<ActiveModule>('dashboard');
 
   // -- UX State: Force View Refresh --
@@ -307,7 +313,19 @@ export default function App() {
   const [pendingWrites, setPendingWrites] = useState(0);
 
   // Logging State
-  const [stockLogs, setStockLogs] = useState<StockLog[]>([]);
+  const [stockLogs, setStockLogs] = useState<StockLog[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('stockLogs');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          // Restore Date objects from ISO strings
+          return parsed.map((log: any) => ({ ...log, timestamp: new Date(log.timestamp) }));
+        } catch { /* corrupted data, start fresh */ }
+      }
+    }
+    return [];
+  });
   const [auditTrail, setAuditTrail] = useState<AuditEntry[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('auditTrail');
@@ -339,7 +357,11 @@ export default function App() {
   const [orderToEdit, setOrderToEdit] = useState<PurchaseOrder | null>(null);
 
   // Toggle Theme
-  const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  const toggleTheme = () => setTheme(prev => {
+    const next = prev === 'light' ? 'dark' : prev === 'dark' ? 'soft' : 'light';
+    localStorage.setItem('theme', next);
+    return next;
+  });
 
   useEffect(() => {
     addAudit('User Login', { device: navigator.userAgent.substring(0, 80), screen: `${window.innerWidth}x${window.innerHeight}` });
@@ -551,7 +573,11 @@ export default function App() {
       context
     };
 
-    setStockLogs(prev => [newLog, ...prev]);
+    setStockLogs(prev => {
+      const next = [newLog, ...prev].slice(0, 500); // Cap at 500 entries
+      localStorage.setItem('stockLogs', JSON.stringify(next));
+      return next;
+    });
   };
 
   const handleStockUpdate = (id: string, newLevel: number) => {
@@ -1903,7 +1929,7 @@ export default function App() {
               {activeModule === 'settings' && (
                 <SettingsPage
                   theme={theme}
-                  onSetTheme={(t) => setTheme(t)}
+                  onSetTheme={(t) => { setTheme(t); localStorage.setItem('theme', t); }}
                   onNavigate={handleNavigation}
                   onUploadData={(newItems) => setInventory(newItems)}
                   onClearData={() => setInventory(MOCK_ITEMS)}
