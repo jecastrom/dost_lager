@@ -23,6 +23,7 @@ import { DocumentationPage } from './components/DocumentationPage';
 import { StockLogView } from './components/StockLogView';
 import { LogicInspector } from './components/LogicInspector';
 import { SupplierView } from './components/SupplierView';
+import { BottomNav } from './components/BottomNav';
 import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi } from './api';
 
 // Error Boundary Component
@@ -1667,7 +1668,7 @@ export default function App() {
             sidebarOpen={sidebarOpen}
           />
 
-          <div className={`flex-1 ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? 'overflow-hidden' : 'overflow-y-auto p-4 md:p-6 lg:p-8 scroll-smooth'}`}>
+          <div className={`flex-1 ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? 'overflow-hidden' : 'overflow-y-auto p-4 pb-20 md:p-6 lg:p-8 lg:pb-8 scroll-smooth'}`}>
             <div className={`mx-auto h-full ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? '' : 'max-w-[1600px]'}`}>
 
               {activeModule === 'dashboard' && (
@@ -1851,6 +1852,13 @@ export default function App() {
             </div>
           </div>
         </main>
+
+        {/* Mobile Bottom Navigation */}
+        <BottomNav
+          theme={theme}
+          activeModule={activeModule}
+          onNavigate={handleNavigation}
+        />
       </div>
     </ErrorBoundary>
   );
