@@ -24,7 +24,7 @@ import { StockLogView } from './components/StockLogView';
 import { LogicInspector } from './components/LogicInspector';
 import { SupplierView } from './components/SupplierView';
 import { BottomNav } from './components/BottomNav';
-import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi } from './api';
+import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi, DataSource } from './api';
 
 // Error Boundary Component
 interface ErrorBoundaryProps {
@@ -302,6 +302,7 @@ export default function App() {
   // API Loading State
   const [isLoading, setIsLoading] = useState(true);
   const [apiConnected, setApiConnected] = useState(false);
+  const [dataSource, setDataSource] = useState<DataSource | null>(null);
 
   // Logging State
   const [stockLogs, setStockLogs] = useState<StockLog[]>([]);
@@ -348,11 +349,13 @@ export default function App() {
 
     async function fetchData() {
       try {
-        const data = await loadAllData();
+        const result = await loadAllData();
         if (cancelled) return;
 
-        if (data) {
-          setApiConnected(true);
+        if (result) {
+          const { data, source } = result;
+          setApiConnected(source === 'api');
+          setDataSource(source);
 
           // Stock → inventory
           if (data.stock.length > 0) {
@@ -381,9 +384,16 @@ export default function App() {
           if (data.tickets.length > 0) {
             setTickets(data.tickets);
           }
+
+          if (source === 'cache') {
+            console.info('[App] Running from cached data — writes will queue when offline support is complete');
+          }
+        } else {
+          setDataSource('mock');
         }
       } catch (err) {
         console.warn('Failed to load from API, using local data:', err);
+        setDataSource('mock');
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -394,9 +404,11 @@ export default function App() {
     // Shared sync function — reusable for visibility + polling
     const syncFromApi = () => {
       if (cancelled) return;
-      loadAllData().then(data => {
-        if (cancelled || !data) return;
-        setApiConnected(true);
+      loadAllData().then(result => {
+        if (cancelled || !result) return;
+        const { data, source } = result;
+        setApiConnected(source === 'api');
+        setDataSource(source);
         if (data.stock.length > 0) setInventory(data.stock);
         if (data.orders.length > 0) setPurchaseOrders(data.orders);
         if (data.receipts.length > 0) {

@@ -126,11 +126,29 @@ export interface AppData {
   tickets: any[];
 }
 
+import { cacheAllData, getCachedAppData } from './offlineDb';
+
 /**
  * Fetch all data needed for app initialization.
  * Returns null if API is unreachable (triggers fallback to local data).
  */
-export async function loadAllData(): Promise<AppData | null> {
+export type DataSource = 'api' | 'cache' | 'mock';
+
+export interface LoadResult {
+  data: AppData;
+  source: DataSource;
+}
+
+/**
+ * Fetch all data needed for app initialization.
+ * 
+ * Strategy:
+ * 1. Try API → cache response in IndexedDB → return { source: 'api' }
+ * 2. If API fails → try IndexedDB cache → return { source: 'cache' }
+ * 3. If cache empty → return null (caller falls back to mock data)
+ */
+export async function loadAllData(): Promise<LoadResult | null> {
+  // Attempt 1: Live API
   try {
     const [stock, orders, receipts, tickets] = await Promise.all([
       stockApi.getAll(),
@@ -139,14 +157,32 @@ export async function loadAllData(): Promise<AppData | null> {
       ticketsApi.getAll(),
     ]);
 
-    return {
+    const data: AppData = {
       stock: cleanDocs(stock),
       orders: cleanDocs(orders),
       receipts: cleanDocs(receipts),
       tickets: cleanDocs(tickets),
     };
+
+    // Cache in IndexedDB for offline fallback (fire-and-forget)
+    cacheAllData(data).catch(err => console.warn('[Cache] Failed to cache API data:', err));
+
+    return { data, source: 'api' };
   } catch (error) {
-    console.warn('API unreachable — using local fallback data:', error);
-    return null;
+    console.warn('API unreachable — trying IndexedDB cache:', error);
   }
+
+  // Attempt 2: IndexedDB cache
+  try {
+    const cached = await getCachedAppData();
+    if (cached) {
+      console.info('[Cache] Loaded from IndexedDB cache');
+      return { data: cached, source: 'cache' };
+    }
+  } catch (err) {
+    console.warn('[Cache] IndexedDB read failed:', err);
+  }
+
+  // Attempt 3: Nothing — caller uses mock data
+  return null;
 }
