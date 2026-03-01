@@ -113,13 +113,6 @@ export default function App() {
 
   // Sidebar State
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile Toggle
-  const [sidebarMode, setSidebarMode] = useState<'full' | 'slim'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('sidebarMode');
-      return (saved === 'full' || saved === 'slim') ? saved : 'full';
-    }
-    return 'full';
-  });
 
   // Global Configuration State
   // UPDATED: Default is now FALSE (Optional)
@@ -391,11 +384,6 @@ export default function App() {
   }, [theme]);
 
   // Sidebar Handler
-  const handleSetSidebarMode = (mode: 'full' | 'slim') => {
-    setSidebarMode(mode);
-    localStorage.setItem('sidebarMode', mode);
-  };
-
   // Inventory View Mode Handler
   const handleSetInventoryViewMode = (mode: 'grid' | 'list') => {
     setInventoryViewMode(mode);
@@ -1817,8 +1805,6 @@ export default function App() {
                   onUploadData={(newItems) => setInventory(newItems)}
                   onClearData={() => setInventory(MOCK_ITEMS)}
                   hasCustomData={inventory !== MOCK_ITEMS}
-                  sidebarMode={sidebarMode}
-                  onSetSidebarMode={handleSetSidebarMode}
                   inventoryViewMode={inventoryViewMode}
                   onSetInventoryViewMode={handleSetInventoryViewMode}
                 />
