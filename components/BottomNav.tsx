@@ -15,7 +15,7 @@ const NAV_ITEMS: { id: ActiveModule; label: string; icon: React.ElementType }[] 
     { id: 'order-management', label: 'Bestell.', icon: FileText },
     { id: 'receipt-management', label: 'Eingang', icon: ClipboardList },
     // Audit placeholder — navigates nowhere yet, visually ready
-    { id: 'dashboard' as ActiveModule, label: 'Inventur', icon: ClipboardCheck },
+    { id: 'dashboard' as ActiveModule, label: 'Audit', icon: ClipboardCheck },
 ];
 
 export const BottomNav: React.FC<BottomNavProps> = ({ theme, activeModule, onNavigate, hidden }) => {
@@ -37,7 +37,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ theme, activeModule, onNav
                 transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
         >
-            <div className="flex items-stretch justify-around h-14 max-w-lg mx-auto">
+            <div className="flex items-stretch justify-around h-[4.75rem] max-w-lg mx-auto">
                 {NAV_ITEMS.map((item, idx) => {
                     const Icon = item.icon;
                     const isAuditPlaceholder = idx === 4;
