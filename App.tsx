@@ -1766,6 +1766,8 @@ export default function App() {
             totalItems={inventory.length}
             onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             sidebarOpen={sidebarOpen}
+            dataSource={dataSource}
+            pendingWrites={pendingWrites}
           />
 
           <div className={`flex-1 ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? 'overflow-hidden' : 'overflow-y-auto p-4 pb-24 md:p-6 lg:p-8 lg:pb-8 scroll-smooth'}`}>

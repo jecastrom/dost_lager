@@ -1,6 +1,7 @@
-import React from 'react';
-import { Sun, Moon, MoreVertical, Package } from 'lucide-react';
+import React, { useState } from 'react';
+import { Sun, Moon, MoreVertical, Package, Wifi, WifiOff, Cloud, CloudOff, RefreshCw, Database } from 'lucide-react';
 import { Theme } from '../types';
+import { DataSource } from '../api';
 
 interface HeaderProps {
   theme: Theme;
@@ -8,6 +9,8 @@ interface HeaderProps {
   totalItems: number;
   onToggleSidebar: () => void;
   sidebarOpen: boolean;
+  dataSource?: DataSource | null;
+  pendingWrites?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,9 +18,13 @@ export const Header: React.FC<HeaderProps> = ({
   toggleTheme,
   totalItems,
   onToggleSidebar,
-  sidebarOpen
+  sidebarOpen,
+  dataSource = null,
+  pendingWrites = 0,
 }) => {
   const isDark = theme === 'dark';
+  const isSoft = theme === 'soft';
+  const [showSyncDetail, setShowSyncDetail] = useState(false);
 
   return (
     <header className={`sticky top-0 z-40 backdrop-blur-xl border-b transition-all duration-500 ${isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white/50 border-[#CACCCE]/60 shadow-sm shadow-slate-200/20'
@@ -41,6 +48,80 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right Controls */}
           <div className="flex items-center justify-end gap-2 shrink-0 ml-auto">
+
+            {/* Sync Status Indicator */}
+            {dataSource && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowSyncDetail(prev => !prev)}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all text-[11px] font-bold ${dataSource === 'api'
+                      ? pendingWrites > 0
+                        ? isDark ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : isSoft ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                        : isDark ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' : isSoft ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                      : dataSource === 'cache'
+                        ? isDark ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : isSoft ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+                        : isDark ? 'bg-slate-800 text-slate-500 hover:bg-slate-700' : isSoft ? 'bg-slate-200 text-slate-500 hover:bg-slate-300' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                  style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
+                >
+                  {dataSource === 'api' ? (
+                    pendingWrites > 0 ? <RefreshCw size={13} className="animate-spin" /> : <Cloud size={13} />
+                  ) : dataSource === 'cache' ? (
+                    <Database size={13} />
+                  ) : (
+                    <CloudOff size={13} />
+                  )}
+                  <span className="hidden sm:inline">
+                    {dataSource === 'api'
+                      ? pendingWrites > 0 ? `${pendingWrites} ausstehend` : 'Verbunden'
+                      : dataSource === 'cache' ? 'Offline' : 'Lokal'}
+                  </span>
+                  {pendingWrites > 0 && (
+                    <span className={`sm:hidden min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-black ${isDark ? 'bg-amber-500 text-slate-900' : 'bg-amber-500 text-white'
+                      }`}>
+                      {pendingWrites}
+                    </span>
+                  )}
+                </button>
+
+                {/* Dropdown detail panel */}
+                {showSyncDetail && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowSyncDetail(false)} />
+                    <div className={`absolute right-0 top-full mt-2 z-50 w-64 rounded-xl border shadow-xl p-3 ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-white border-[#E6E7EB]' : 'bg-white border-slate-200'
+                      }`}>
+                      {/* Connection status */}
+                      <div className="flex items-center gap-2.5 mb-2.5">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${dataSource === 'api' ? 'bg-emerald-500' : dataSource === 'cache' ? 'bg-orange-500' : 'bg-slate-400'
+                          }`} />
+                        <span className={`text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                          {dataSource === 'api' ? 'Mit Server verbunden' : dataSource === 'cache' ? 'Offline — Cache aktiv' : 'Lokale Daten'}
+                        </span>
+                      </div>
+
+                      {/* Pending writes */}
+                      {pendingWrites > 0 && (
+                        <div className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg mb-2 ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'
+                          }`}>
+                          <RefreshCw size={13} className={`shrink-0 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                          <span className={`text-[11px] ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                            <strong>{pendingWrites}</strong> {pendingWrites === 1 ? 'Änderung wartet' : 'Änderungen warten'} auf Sync
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Info text */}
+                      <p className={`text-[10px] leading-relaxed ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {dataSource === 'api' && pendingWrites === 0 && 'Alle Daten sind synchronisiert.'}
+                        {dataSource === 'api' && pendingWrites > 0 && 'Änderungen werden automatisch synchronisiert, sobald möglich.'}
+                        {dataSource === 'cache' && 'Daten aus dem letzten Sync werden angezeigt. Neue Eingaben werden gespeichert und bei Verbindung synchronisiert.'}
+                        {dataSource === 'mock' && 'Keine Verbindung und kein Cache vorhanden. Es werden Beispieldaten angezeigt.'}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             <button
               onClick={toggleTheme}
