@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   MOCK_ITEMS, MOCK_RECEIPT_HEADERS, MOCK_RECEIPT_ITEMS, MOCK_COMMENTS,
   MOCK_PURCHASE_ORDERS, MOCK_RECEIPT_MASTERS, MOCK_TICKETS
@@ -114,6 +114,40 @@ export default function App() {
 
   // Sidebar State
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile Toggle
+
+  // Mobile bottom nav scroll-hide
+  const [bottomNavHidden, setBottomNavHidden] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const lastScrollY = useRef(0);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleContentScroll = useCallback(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const currentY = el.scrollTop;
+    const delta = currentY - lastScrollY.current;
+
+    // Scrolling down (positive delta, past 10px threshold to avoid jitter)
+    if (delta > 5) setBottomNavHidden(true);
+    // Scrolling up
+    if (delta < -5) setBottomNavHidden(false);
+
+    lastScrollY.current = currentY;
+
+    // Idle timeout: show nav again after 1.5s of no scrolling
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => setBottomNavHidden(false), 1500);
+  }, []);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', handleContentScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', handleContentScroll);
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+    };
+  }, [handleContentScroll, activeModule]);
 
   // Global Configuration State
   // UPDATED: Default is now FALSE (Optional)
@@ -1668,7 +1702,7 @@ export default function App() {
             sidebarOpen={sidebarOpen}
           />
 
-          <div className={`flex-1 ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? 'overflow-hidden' : 'overflow-y-auto p-4 pb-20 md:p-6 lg:p-8 lg:pb-8 scroll-smooth'}`}>
+          <div ref={contentRef} className={`flex-1 ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? 'overflow-hidden' : 'overflow-y-auto p-4 pb-24 md:p-6 lg:p-8 lg:pb-8 scroll-smooth'}`}>
             <div className={`mx-auto h-full ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? '' : 'max-w-[1600px]'}`}>
 
               {activeModule === 'dashboard' && (
@@ -1853,12 +1887,12 @@ export default function App() {
           </div>
         </main>
 
-        {/* Mobile Bottom Navigation — hidden during full-screen flows */}
+        {/* Mobile Bottom Navigation — hidden during full-screen flows or scroll-down */}
         <BottomNav
           theme={theme}
           activeModule={activeModule}
           onNavigate={handleNavigation}
-          hidden={activeModule === 'create-order' || activeModule === 'goods-receipt'}
+          hidden={activeModule === 'create-order' || activeModule === 'goods-receipt' || bottomNavHidden}
         />
       </div>
     </ErrorBoundary>

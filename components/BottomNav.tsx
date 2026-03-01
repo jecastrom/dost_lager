@@ -34,10 +34,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({ theme, activeModule, onNav
                 paddingBottom: 'env(safe-area-inset-bottom, 0px)',
                 boxShadow: '0 -4px 24px rgba(0,0,0,0.08)',
                 transform: hidden ? 'translateY(100%)' : 'translateY(0)',
-                transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'transform 0.2s ease-out',
             }}
         >
-            <div className="flex items-stretch justify-around h-[4.75rem] max-w-lg mx-auto">
+            <div className="flex items-stretch justify-around h-[5.7rem] max-w-lg mx-auto">
                 {NAV_ITEMS.map((item, idx) => {
                     const Icon = item.icon;
                     const isAuditPlaceholder = idx === 4;
