@@ -1668,18 +1668,9 @@ export default function App() {
           onNavigate={handleNavigation}
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
-          mode={sidebarMode}
         />
 
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-
-        <main className={`flex-1 flex flex-col min-w-0 h-screen overflow-hidden transition-all duration-300 ${sidebarMode === 'slim' ? 'lg:ml-20' : 'lg:ml-64'
-          }`}>
+        <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden transition-all duration-300 lg:ml-[68px]">
           <Header
             theme={theme}
             toggleTheme={toggleTheme}
