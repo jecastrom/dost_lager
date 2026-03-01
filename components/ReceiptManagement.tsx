@@ -1953,14 +1953,17 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                                         const isCurrent = delivery.lieferscheinNr === selectedHeader.lieferscheinNr;
                                                         const snapshot = deliverySnapshots[delivery.id] || {};
                                                         const isLatest = index === 0;
+                                                        const isReturn = delivery.lieferscheinNr.startsWith('RÜCK');
 
                                                         return (
                                                             <div
                                                                 id={`delivery-${delivery.id}`}
                                                                 key={delivery.id}
-                                                                className={`rounded-xl border transition-all duration-300 overflow-hidden ${isCurrent
-                                                                    ? isDark ? 'border-[#0077B5] shadow-[0_0_15px_rgba(0,119,181,0.1)]' : 'border-[#0077B5] shadow-md ring-1 ring-[#0077B5]/20'
-                                                                    : isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                                                                className={`rounded-xl border transition-all duration-300 overflow-hidden ${isReturn
+                                                                    ? isDark ? 'border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'border-orange-400 shadow-md ring-1 ring-orange-400/20'
+                                                                    : isLatest
+                                                                        ? isDark ? 'border-[#0077B5] shadow-[0_0_15px_rgba(0,119,181,0.1)]' : 'border-[#0077B5] shadow-md ring-1 ring-[#0077B5]/20'
+                                                                        : isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
                                                                     }`}
                                                             >
                                                                 <button
@@ -1969,13 +1972,14 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                                                         }`}
                                                                 >
                                                                     <div className="flex items-center gap-4">
-                                                                        <div className={`p-2 rounded-lg ${isCurrent ? 'bg-[#0077B5] text-white' : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')}`}>
+                                                                        <div className={`p-2 rounded-lg ${isReturn ? 'bg-orange-500 text-white animate-[returnPulse_2s_ease-in-out_1]' : isCurrent ? 'bg-[#0077B5] text-white' : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')}`}>
                                                                             <Truck size={20} />
                                                                         </div>
                                                                         <div>
                                                                             <div className="font-bold text-sm flex items-center gap-2">
-                                                                                Lieferschein: {delivery.lieferscheinNr}
-                                                                                {isLatest && <span className="bg-[#0077B5] text-white text-[8px] px-1 py-0.5 rounded font-bold tracking-wider">LETZTE</span>}
+                                                                                {isReturn ? 'Zurücksendung' : 'Lieferschein'}: {delivery.lieferscheinNr}
+                                                                                {isLatest && !isReturn && <span className="bg-[#0077B5] text-white text-[8px] px-1 py-0.5 rounded font-bold tracking-wider">LETZTE</span>}
+                                                                                {isReturn && <span className="bg-orange-500 text-white text-[8px] px-1 py-0.5 rounded font-bold tracking-wider">RÜCKSENDUNG</span>}
                                                                             </div>
                                                                             <div className="text-xs opacity-60 flex flex-col gap-0.5 mt-1">
                                                                                 <div className="flex items-center gap-2">

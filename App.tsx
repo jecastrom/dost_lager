@@ -1376,7 +1376,7 @@ export default function App() {
 
     const batchId = `b-ret-${Date.now()}`;
     const timestamp = Date.now();
-    const d = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '');
+    const d = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const lieferscheinNr = `RÜCK-${d}`;
     const isProject = po.status === 'Projekt';
 
