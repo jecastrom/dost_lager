@@ -1544,20 +1544,33 @@ export default function App() {
 
     const returnCommentText = `📦 Rücksendung erfasst\n\n**Bestellnummer:** ${poId}\n**Lieferant:** ${po.supplier}\n**Lieferschein:** ${lieferscheinNr}\n**Datum:** ${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}\n\n── Rücksendepositionen ──\n${returnItemDetails.join('\n\n')}\n\nGesamt: ${returnLines.reduce((s, r) => s + r.qty, 0)} Stk zurückgesendet`;
 
-    // Find linked receipt header for this PO to post comment
-    const linkedHeader = receiptHeaders.find(h => h.bestellNr === poId);
-    if (linkedHeader) {
-      const returnComment: ReceiptComment = {
-        id: `auto-ret-${crypto.randomUUID()}`,
-        batchId: linkedHeader.batchId,
+    // Post return comment to the RETURN receipt (batchId from step 4)
+    const returnComment: ReceiptComment = {
+      id: `auto-ret-${crypto.randomUUID()}`,
+      batchId,
+      userId: 'system',
+      userName: 'System',
+      timestamp: Date.now(),
+      type: 'note',
+      message: returnCommentText
+    };
+    setComments(prev => [returnComment, ...prev]);
+    receiptsApi.upsert({ ...returnComment, docType: 'comment', poId }).catch(console.warn);
+
+    // Also post to the original receipt so it appears in both Historie views
+    const originalHeader = receiptHeaders.find(h => h.bestellNr === poId && h.batchId !== batchId);
+    if (originalHeader) {
+      const originalComment: ReceiptComment = {
+        id: `auto-ret-orig-${crypto.randomUUID()}`,
+        batchId: originalHeader.batchId,
         userId: 'system',
         userName: 'System',
-        timestamp: Date.now(),
+        timestamp: Date.now() + 1,
         type: 'note',
         message: returnCommentText
       };
-      setComments(prev => [returnComment, ...prev]);
-      receiptsApi.upsert({ ...returnComment, docType: 'comment', poId }).catch(console.warn);
+      setComments(prev => [originalComment, ...prev]);
+      receiptsApi.upsert({ ...originalComment, docType: 'comment', poId }).catch(console.warn);
     }
 
     // 8. Post return update to existing open tickets for this PO (no new ticket created)
