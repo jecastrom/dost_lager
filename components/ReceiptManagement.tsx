@@ -1086,26 +1086,79 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
 
     if (!selectedBatchId) {
         return (
-            <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="flex flex-col h-full md:block md:h-auto md:space-y-6 animate-in fade-in duration-300">
                 {returnModalPortal}
                 {returnPickerPortal}
                 {problemConfirmPortal}
                 {closeConfirmPortal}
-                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+
+                {/* Mobile sticky header zone */}
+                <div className={`md:hidden sticky top-0 z-20 pt-1 pb-2 space-y-2 ${isDark ? 'bg-[#0f172a]' : theme === 'soft' ? 'bg-[#F5F5F6]' : 'bg-[#f8fafc]'}`}>
+                    <div className="flex items-center justify-between gap-2">
+                        <h2 className="text-base font-bold">Wareneingang Verwaltung</h2>
+                        <button
+                            onClick={() => onNavigate('goods-receipt')}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-lg shadow-blue-500/20 transition-all"
+                        >
+                            <ClipboardCheck size={14} /> Lieferung prüfen
+                        </button>
+                    </div>
+                </div>
+
+                {/* Desktop header — unchanged */}
+                <div className="hidden md:flex flex-col md:flex-row gap-4 items-center justify-between">
                     <h2 className="text-2xl font-bold">Wareneingang Verwaltung</h2>
                     <button
                         onClick={() => onNavigate('goods-receipt')}
-                        className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${isDark
-                            ? 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'
-                            : 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'
-                            }`}
+                        className="px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20"
                     >
                         <ClipboardCheck size={20} /> Lieferung prüfen
                     </button>
                 </div>
 
                 <div className="flex flex-col gap-4">
-                    <div className="flex flex-col md:flex-row gap-4">
+                    {/* Mobile compact search + filters (inside sticky zone) */}
+                    <div className="md:hidden space-y-2">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                            <input
+                                type="text"
+                                placeholder="Suche nach Lieferschein, Lieferant oder Bestell Nr..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className={`w-full border rounded-lg pl-9 pr-3 py-2 text-xs transition-all focus:outline-none focus:ring-2 ${isDark
+                                    ? 'bg-slate-900 border-slate-800 text-slate-100 focus:ring-blue-500/30'
+                                    : 'bg-white border-slate-200 text-[#313335] focus:ring-[#0077B5]/20'
+                                    }`}
+                            />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <div className={`flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 p-0.5 rounded-lg ${isDark ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
+                                <FilterChip label="Alle" count={categoryCounts.all} active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} type="neutral" />
+                                <FilterChip label="In Arbeit" count={categoryCounts.pending} active={statusFilter === 'pending'} onClick={() => setStatusFilter('pending')} type="pending" />
+                                <FilterChip label="Probleme" count={categoryCounts.issues} active={statusFilter === 'issues'} onClick={() => setStatusFilter('issues')} type="issue" />
+                                <FilterChip label="Gebucht" count={categoryCounts.completed} active={statusFilter === 'completed'} onClick={() => setStatusFilter('completed')} type="success" />
+                            </div>
+                            <button
+                                onClick={() => setShowArchived(!showArchived)}
+                                title={showArchived ? 'Archivierte ausblenden' : 'Archivierte einblenden'}
+                                className={`relative shrink-0 p-2 rounded-lg border transition-all ${isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'} ${showArchived ? 'text-[#0077B5] border-[#0077B5]/30' : (isDark ? 'text-slate-400' : 'text-slate-500')}`}
+                            >
+                                <Archive size={14} />
+                                {showArchived && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#0077B5] ring-1 ring-white dark:ring-slate-950" />}
+                            </button>
+                            <button
+                                onClick={() => setShowFilters(!showFilters)}
+                                className={`relative shrink-0 p-2 rounded-lg border transition-all ${showFilters ? 'bg-[#0077B5] border-[#0077B5] text-white' : isDark ? 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                            >
+                                <Filter size={14} />
+                                {(dateFrom || dateTo || filterUser) && !showFilters && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500 ring-1 ring-white dark:ring-slate-950" />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Desktop search + filters — unchanged */}
+                    <div className="hidden md:flex flex-col md:flex-row gap-4">
                         <div className="relative flex-1 group">
                             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                             <input
@@ -1113,7 +1166,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                                 placeholder="Suche nach Lieferschein, Lieferant oder Bestell Nr..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className={`w-full border rounded-xl pl-11 pr-4 py-3 text-base md:text-sm transition-all focus:outline-none focus:ring-2 ${isDark
+                                className={`w-full border rounded-xl pl-11 pr-4 py-3 text-sm transition-all focus:outline-none focus:ring-2 ${isDark
                                     ? 'bg-slate-900 border-slate-800 text-slate-100 focus:ring-blue-500/30'
                                     : 'bg-white border-slate-200 text-[#313335] focus:ring-[#0077B5]/20'
                                     }`}

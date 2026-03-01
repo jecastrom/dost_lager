@@ -463,37 +463,79 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
     );
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex flex-col h-full md:block md:h-auto md:space-y-6 animate-in fade-in duration-300">
 
-            {/* Header */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <FileText className="text-[#0077B5]" /> Bestellungen
-                </h2>
-                <button
-                    onClick={() => onNavigate('create-order')}
-                    className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${isDark ? 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20' : 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'}`}
-                >
-                    <Plus size={20} /> Neue Bestellung
-                </button>
-            </div>
+            {/* Sticky mobile header zone */}
+            <div className="flex-none md:contents sticky top-0 z-20 space-y-2 pb-2 md:pb-0 md:space-y-6" style={{ background: 'inherit' }}>
+                <div className={`md:hidden sticky top-0 z-20 pt-1 pb-2 space-y-2 ${isDark ? 'bg-[#0f172a]' : theme === 'soft' ? 'bg-[#F5F5F6]' : 'bg-[#f8fafc]'}`}>
+                    {/* Header — compact on mobile */}
+                    <div className="flex items-center justify-between gap-2">
+                        <h2 className="text-base font-bold flex items-center gap-1.5">
+                            <FileText size={16} className="text-[#0077B5]" /> Bestellungen
+                        </h2>
+                        <button
+                            onClick={() => onNavigate('create-order')}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-lg shadow-blue-500/20 transition-all"
+                        >
+                            <Plus size={14} /> Neue Bestellung
+                        </button>
+                    </div>
 
-            {/* Controls */}
-            <div className="flex flex-col gap-4">
-                <div className="flex flex-col md:flex-row gap-4">
-                    <div className="relative flex-1 group">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input type="text" placeholder="Suche nach PO Nummer oder Lieferant..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className={`w-full border rounded-xl pl-11 pr-4 py-3 text-base md:text-sm transition-all focus:outline-none focus:ring-2 ${isDark ? 'bg-slate-900 border-slate-800 text-slate-100 focus:ring-blue-500/30' : 'bg-white border-slate-200 text-[#313335] focus:ring-[#0077B5]/20'}`} />
+                    {/* Search — compact */}
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                        <input type="text" placeholder="Suche nach PO Nummer oder Lieferant..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className={`w-full border rounded-lg pl-9 pr-3 py-2 text-xs transition-all focus:outline-none focus:ring-2 ${isDark ? 'bg-slate-900 border-slate-800 text-slate-100 focus:ring-blue-500/30' : 'bg-white border-slate-200 text-[#313335] focus:ring-[#0077B5]/20'}`} />
                     </div>
-                    <div className={`flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar p-1 rounded-xl max-w-full ${isDark ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
-                        <FilterChip label="Alle" count={counts.all} active={filterStatus === 'all'} onClick={() => setFilterStatus('all')} type="neutral" />
-                        <FilterChip label="Offen" count={counts.open} active={filterStatus === 'open'} onClick={() => setFilterStatus('open')} type="pending" />
-                        <FilterChip label="Verspätet" count={counts.late} active={filterStatus === 'late'} onClick={() => setFilterStatus('late')} type="issue" />
-                        <FilterChip label="Erledigt" count={counts.completed} active={filterStatus === 'completed'} onClick={() => setFilterStatus('completed')} type="success" />
+
+                    {/* Filters + Archive icon — compact row */}
+                    <div className="flex items-center gap-1.5">
+                        <div className={`flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 p-0.5 rounded-lg ${isDark ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
+                            <FilterChip label="Alle" count={counts.all} active={filterStatus === 'all'} onClick={() => setFilterStatus('all')} type="neutral" />
+                            <FilterChip label="Offen" count={counts.open} active={filterStatus === 'open'} onClick={() => setFilterStatus('open')} type="pending" />
+                            <FilterChip label="Verspätet" count={counts.late} active={filterStatus === 'late'} onClick={() => setFilterStatus('late')} type="issue" />
+                            <FilterChip label="Erledigt" count={counts.completed} active={filterStatus === 'completed'} onClick={() => setFilterStatus('completed')} type="success" />
+                        </div>
+                        <button
+                            onClick={() => setShowArchived(!showArchived)}
+                            title={showArchived ? 'Archivierte ausblenden' : 'Archivierte einblenden'}
+                            className={`relative shrink-0 p-2 rounded-lg border transition-all ${isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'} ${showArchived ? 'text-[#0077B5] border-[#0077B5]/30' : (isDark ? 'text-slate-400' : 'text-slate-500')}`}
+                        >
+                            <Archive size={14} />
+                            {showArchived && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#0077B5] ring-1 ring-white dark:ring-slate-950" />}
+                        </button>
                     </div>
-                    <button onClick={() => setShowArchived(!showArchived)} className={`px-4 py-3 md:py-0 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all whitespace-nowrap ${isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'} ${showArchived ? 'text-[#0077B5] border-[#0077B5]/30' : (isDark ? 'text-slate-400' : 'text-slate-500')}`}>
-                        {showArchived ? <CheckSquare size={18} /> : <Square size={18} />} <span>Archivierte</span>
+                </div>
+
+                {/* Desktop header — unchanged */}
+                <div className="hidden md:flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <h2 className="text-2xl font-bold flex items-center gap-2">
+                        <FileText className="text-[#0077B5]" /> Bestellungen
+                    </h2>
+                    <button
+                        onClick={() => onNavigate('create-order')}
+                        className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${isDark ? 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20' : 'bg-[#0077B5] hover:bg-[#00A0DC] text-white shadow-blue-500/20'}`}
+                    >
+                        <Plus size={20} /> Neue Bestellung
                     </button>
+                </div>
+
+                {/* Desktop controls — unchanged */}
+                <div className="hidden md:flex flex-col gap-4">
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <div className="relative flex-1 group">
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            <input type="text" placeholder="Suche nach PO Nummer oder Lieferant..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className={`w-full border rounded-xl pl-11 pr-4 py-3 text-sm transition-all focus:outline-none focus:ring-2 ${isDark ? 'bg-slate-900 border-slate-800 text-slate-100 focus:ring-blue-500/30' : 'bg-white border-slate-200 text-[#313335] focus:ring-[#0077B5]/20'}`} />
+                        </div>
+                        <div className={`flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar p-1 rounded-xl max-w-full ${isDark ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
+                            <FilterChip label="Alle" count={counts.all} active={filterStatus === 'all'} onClick={() => setFilterStatus('all')} type="neutral" />
+                            <FilterChip label="Offen" count={counts.open} active={filterStatus === 'open'} onClick={() => setFilterStatus('open')} type="pending" />
+                            <FilterChip label="Verspätet" count={counts.late} active={filterStatus === 'late'} onClick={() => setFilterStatus('late')} type="issue" />
+                            <FilterChip label="Erledigt" count={counts.completed} active={filterStatus === 'completed'} onClick={() => setFilterStatus('completed')} type="success" />
+                        </div>
+                        <button onClick={() => setShowArchived(!showArchived)} className={`px-4 py-0 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all whitespace-nowrap ${isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:bg-slate-50'} ${showArchived ? 'text-[#0077B5] border-[#0077B5]/30' : (isDark ? 'text-slate-400' : 'text-slate-500')}`}>
+                            {showArchived ? <CheckSquare size={18} /> : <Square size={18} />} <span>Archivierte</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
