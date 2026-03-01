@@ -1,5 +1,5 @@
 # ProcureFlow — Cloud Migration Status
-## Date: 2026-02-28
+## Date: 2026-03-01
 
 ---
 
@@ -197,6 +197,62 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 
 ---
 
+## ✅ STEP 4d: Navigation Overhaul (COMPLETE)
+
+### Desktop Sidebar: Hover-Expand
+- Replaced toggle-based sidebar (Kompakt/Voll mode selector) with CSS `:hover` auto-expand
+- Slim state: 68px (icon-only), expanded state: 256px (icon + label) — overlays content, no layout shift
+- Pure CSS transition via `.sidebar-desktop` / `.sidebar-desktop:hover` classes — no React state, no re-renders
+- `width: 0.3s cubic-bezier(0.4, 0, 0.2, 1)` for fluid open/close
+- Labels use `.sidebar-label` class: `opacity: 0 → 1` with 0.1s delay on hover
+- Box shadow appears only on hover: `4px 0 24px rgba(0,0,0,0.08)`
+- `App.tsx` main content margin fixed at `lg:ml-[68px]` (no longer toggles between 80px/256px)
+- Supports all 3 themes (dark, soft, light)
+
+### Sidebar Setting Removed
+- Removed "Seitenleiste Darstellung der Navigation (Desktop)" toggle from SettingsPage
+- Removed `sidebarMode` state, `setSidebarMode`, `handleSetSidebarMode` from App.tsx
+- Removed `sidebarMode`/`onSetSidebarMode` props from SettingsPage interface
+- Removed `LayoutPanelLeft` import from SettingsPage
+- Cleaned up localStorage `sidebarMode` references
+
+### Mobile Bottom Navigation Bar (NEW)
+- New component: `components/BottomNav.tsx`
+- 5 tabs: Lager, Artikel, Bestell., Eingang, Audit (placeholder — grayed out, no-op)
+- Fixed bottom, hidden on `lg+` (desktop uses sidebar)
+- Height: `5.7rem` (~91px) — optimized for thumb reach
+- `backdrop-blur-xl` + `box-shadow: 0 -4px 24px` for floating native feel
+- `env(safe-area-inset-bottom)` padding for iPhone notch/home indicator
+- Active tab: blue top bar indicator (3px), `scale-110` icon, `text-[#0077B5]`
+- `WebkitTapHighlightColor: transparent` + `touchAction: manipulation` for instant tap
+- Slides off-screen during full-screen flows (CreateOrderWizard, GoodsReceiptFlow) via `hidden` prop
+- **Scroll-aware auto-hide:** Touch event detection on `document` (not tied to any specific scroll container)
+  - `touchstart` records finger Y, `touchmove` calculates delta
+  - Finger up (scroll down) → hide, finger down (scroll up) → show
+  - 12px dead-zone prevents jitter from taps
+  - `touchDirLocked` prevents flicker by locking direction per gesture
+  - 1.5s idle timeout re-shows nav after scroll stops
+  - Works across all modules regardless of internal scroll structure
+
+### Header Cleanup (Mobile)
+- Removed hamburger (`Menu` icon) from left side of header
+- Logo (icon + DOST INFOSYS text) now sits clean on left
+- Added `MoreVertical` (⋮) button on right (next to theme toggle) — opens sidebar drawer for secondary nav (Settings, Suppliers, Lagerprotokoll)
+- `WebkitTapHighlightColor: transparent` + `touchAction: manipulation` on more button
+
+### Content Area
+- Bottom padding increased to `pb-24` on mobile (prevents content clipping behind taller bottom nav)
+- Desktop padding unchanged (`lg:pb-8`)
+
+### Files Changed
+- `components/Sidebar.tsx` — full rewrite: CSS hover-expand desktop + slide-in mobile drawer
+- `components/BottomNav.tsx` — new file
+- `components/Header.tsx` — mobile layout rework
+- `components/SettingsPage.tsx` — removed sidebar mode setting + props
+- `App.tsx` — removed sidebarMode state, added BottomNav, touch-based scroll detection
+
+---
+
 ## 🔮 STEP 5: Offline Resilience (FUTURE)
 
 - Cache last-fetched API data in localStorage
@@ -212,7 +268,8 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 **A1. Settings Persistence Fix (#4)** 🔴 HIGH
 - **Bug:** Dark mode + all toggles reset on refresh
 - Audit every `useState` initializer in App.tsx + SettingsPage.tsx — verify localStorage read on mount
-- Affected settings: theme, sidebarMode, inventoryViewMode, requireDeliveryDate, enableSmartImport, statusColumnFirst, ticketConfig, timelineConfig
+- Affected settings: theme, inventoryViewMode, requireDeliveryDate, enableSmartImport, statusColumnFirst, ticketConfig, timelineConfig
+- Note: `sidebarMode` removed in Step 4d (sidebar is now always hover-expand on desktop)
 - Ensure `handleSet*` functions write to localStorage AND (future) Cosmos DB user-prefs container
 - **Test:** Change theme → hard refresh → must survive
 
@@ -324,6 +381,83 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 - Persist lagerortCategories to Cosmos DB (currently localStorage only)
 - Persist audit trail to Cosmos DB
 - Persist user preferences to Cosmos DB (user-prefs container)
+
+---
+
+## ⚠️ KNOWN ISSUES & TECHNICAL DEBT — Prioritized
+
+### 🔴 HIGH — Must fix before multi-user production
+
+**K1. No authentication** 🔴 CRITICAL
+- Entra ID provisioned but not wired in
+- All API endpoints are publicly accessible — anyone with the URL can read/write data
+- **Fix:** Wire Entra ID app registration into SWA auth, add `/.auth/login/aad` flow, protect API with `x-ms-client-principal` header validation
+- **Depends on:** Nothing — can be done independently
+
+**K2. No offline write queue** 🔴 HIGH
+- Step 5 not implemented. If user processes a goods receipt while offline, all API writes silently fail (`.catch(console.warn)`)
+- No retry queue, no user notification of failed persistence
+- **Fix:** Implement write queue in localStorage/IndexedDB, flush on reconnect, show sync indicator
+- **Depends on:** Step 5 (offline resilience)
+
+**K3. Fire-and-forget API persistence** 🔴 HIGH
+- All write-through calls use `.catch(console.warn)` — silent data loss if API is down
+- User sees success (optimistic UI) but data never reaches Cosmos DB
+- **Fix:** At minimum, show toast/banner when API write fails. Ideally, queue + retry.
+- **Depends on:** K2 (offline write queue)
+
+**K4. Settings persistence bug (A1)** 🔴 HIGH
+- Dark mode + several toggles reset on refresh
+- `theme` useState initializer may not read from localStorage
+- Affected: theme, inventoryViewMode, requireDeliveryDate, enableSmartImport, statusColumnFirst, ticketConfig, timelineConfig
+- **Fix:** Audit every `useState` initializer in App.tsx — verify localStorage read on mount
+
+### 🟡 MEDIUM — Should fix before scaling
+
+**K5. Aggressive polling (10s)** 🟡
+- `setInterval(10000)` calls `syncFromApi()` = 6 full-data fetches per minute per tab
+- Free-tier Cosmos DB: 1000 RU/s shared across all operations
+- No throttle on failed requests — if API is down, hammers every 10s
+- **Fix:** Increase interval to 30–60s, add exponential backoff on failures, consider WebSocket/SSE for real-time
+
+**K6. 182 duplicate Artikel Nummer in seed data** 🟡
+- Values like "Unbekannt", "?", "Geheim" appear across many items
+- Last-write-wins = ~182 items silently overwritten, only ~613 unique docs in Cosmos
+- **Fix:** Production data cleanup — assign unique SKUs to items with generic Artikel Nummer
+
+**K7. `data.ts` compound IDs vs Cosmos IDs** 🟡
+- Mock fallback uses `${raw["Artikel Nummer"]}__${index}` as ID
+- Cosmos documents use `raw["Artikel Nummer"]` (no index suffix)
+- If app falls back to mock data, IDs won't match Cosmos docs — edits to mock items won't persist correctly
+- **Fix:** Align ID generation between data.ts and seed script, or remove mock fallback once API is stable
+
+**K8. `receipts` container overloaded** 🟡
+- Masters, Headers, Items, Comments all in one container distinguished by `docType`
+- Cross-type queries scan all docs (e.g., "get all masters" reads through items/comments too)
+- **Fix:** Add composite index on `docType` + `poId`, or split into separate containers at scale
+
+**K9. `stripMeta()` inconsistency** 🟡
+- Only `stock.ts` API endpoint strips Cosmos metadata (`_rid`, `_self`, etc.) server-side
+- Other 5 endpoints return raw Cosmos docs — frontend `cleanDocs()` handles it
+- **Fix:** Add `stripMeta()` to all endpoints for consistency, reduce payload size
+
+**K10. localStorage as source of truth** 🟡
+- lagerortCategories, audit trail (500 max), user preferences — all localStorage only
+- Lost on device switch, cleared on browser data wipe
+- **Fix:** Persist to Cosmos DB `user-prefs` container (per-user), sync on mount
+
+### 🟢 LOW — Nice to have / eventual cleanup
+
+**K11. GoodsReceiptFlow prop surface** 🟢
+- 15+ props — suggests component may benefit from context or state management refactoring
+- Not urgent, works correctly, but harder to maintain/test
+- **Fix:** Extract shared state into a `ReceiptContext` or use `useReducer`
+
+**K12. stock.ts partition key documentation mismatch** 🟢
+- Deploy script defines stock container with `/sku` partition key
+- Seed script and API use `/id` — migration doc notes this was corrected
+- **Verify:** Check live Cosmos container partition key matches `/id`
+
 ---
 
 ## PROJECT FILE STRUCTURE
@@ -352,12 +486,13 @@ dost_lager/
 │   ├── tsconfig.json
 │   └── tsconfig.seed.json
 ├── components/
+│   ├── BottomNav.tsx ← NEW (mobile bottom navigation)
 │   ├── CreateOrderWizard.tsx
 │   ├── Dashboard.tsx
 │   ├── DocumentationPage.tsx
 │   ├── GlobalSettingsPage.tsx
 │   ├── GoodsReceiptFlow.tsx
-│   ├── Header.tsx
+│   ├── Header.tsx (reworked — mobile logo + more button)
 │   ├── InsightsRow.tsx
 │   ├── InventoryView.tsx (bug fixed — MobileInventoryCard extracted)
 │   ├── ItemModal.tsx
@@ -367,8 +502,8 @@ dost_lager/
 │   ├── ReceiptManagement.tsx
 │   ├── ReceiptStatusBadges.tsx
 │   ├── ReceiptStatusConfig.tsx
-│   ├── SettingsPage.tsx
-│   ├── Sidebar.tsx
+│   ├── SettingsPage.tsx (sidebar mode setting removed)
+│   ├── Sidebar.tsx (rewritten — CSS hover-expand desktop + slide-in mobile)
 │   ├── StatusDescription.tsx
 │   ├── StockCard.tsx
 │   ├── StockLogView.tsx
@@ -377,7 +512,7 @@ dost_lager/
 ├── data/
 │   └── warehouse-inventory.json (795 items)
 ├── api.ts (service layer — API fetch helpers)
-├── App.tsx (main app — loads data from API on mount)
+├── App.tsx (main app — loads data from API on mount, touch scroll detection, BottomNav)
 ├── data.ts (imports JSON, maps to StockItem[], fallback data)
 ├── types.ts (all TypeScript interfaces)
 ├── staticwebapp.config.json
