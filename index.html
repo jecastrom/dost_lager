@@ -118,6 +118,22 @@
 <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+    <script>
+        // Register Service Worker (Step 5c)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                    .then(reg => {
+                        console.info('[App] Service Worker registered:', reg.scope);
+                        // Check for updates on visibility change
+                        document.addEventListener('visibilitychange', () => {
+                            if (document.visibilityState === 'visible') reg.update();
+                        });
+                    })
+                    .catch(err => console.warn('[App] Service Worker registration failed:', err));
+            });
+        }
+    </script>
 </body>
 
 </html>
