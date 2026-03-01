@@ -205,6 +205,126 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 - Service worker background sync
 
 ---
+## 🔮 ROADMAP — Prioritized by dependency chain & developer efficiency
+
+### PHASE A: Bug Fixes & Persistence (do first — everything else depends on these)
+
+**A1. Settings Persistence Fix (#4)** 🔴 HIGH
+- **Bug:** Dark mode + all toggles reset on refresh
+- Audit every `useState` initializer in App.tsx + SettingsPage.tsx — verify localStorage read on mount
+- Affected settings: theme, sidebarMode, inventoryViewMode, requireDeliveryDate, enableSmartImport, statusColumnFirst, ticketConfig, timelineConfig
+- Ensure `handleSet*` functions write to localStorage AND (future) Cosmos DB user-prefs container
+- **Test:** Change theme → hard refresh → must survive
+
+**A2. Warehouse Log / Lagerprotokoll (#6)** 🔴 HIGH
+- **Bug:** StockLogView shows nothing — debug full pipeline
+- Check: is `handleLogStock()` in App.tsx actually called? Are `stockLogs` state entries created?
+- Check: are logs persisted to Cosmos DB? If not, add API write-through
+- Check: does StockLogView read from state correctly?
+- Fix recording (App.tsx) + display (StockLogView.tsx)
+
+**A3. Dashboard Latest Activity (#7)** 🔴 HIGH
+- **Bug:** Bottom activity feed shows nothing
+- Debug Dashboard.tsx — verify it receives `orders`, `receipts`, `tickets` props
+- Build activity list from: recent POs created, receipts checked-in, tickets opened
+- Persist activity entries (derive from existing data or add dedicated activity log)
+- Sort by timestamp, show last 20 entries
+
+---
+
+### PHASE B: Product UX Overhaul (intertwined — do together)
+
+**B1. Product Editing Redesign (#2)** 🟡 MEDIUM
+- **B1a.** Unlock product number (SKU) — remove `disabled` / read-only rule in ItemModal
+- **B1b.** Warehouse field → replace `<input>` with `ComboboxSelect` (reuse from Step 4f, pass `lagerortCategories`)
+- **B1c.** Form redesign — replace full-screen modal with:
+  - **Mobile:** Tap card → inline expand with editable fields (accordion pattern). Swipe-to-edit or tap-reveal on grid/list cards
+  - **Desktop:** Click row → inline edit panel slides in (split view or expandable row)
+  - Keep modal as fallback for "New Item" creation
+- **B1d.** Mobile compact layout — reduce field spacing, use 2-column grid for small fields (minStock, packUnits)
+- **Depends on:** ComboboxSelect (done), lagerortCategories (done)
+
+**B2. Product Filter Enhancement (#9)** 🟡 MEDIUM
+- Fix filter performance on 800+ products (debounce search, virtualize list if needed)
+- Add filter chips: Warehouse (ComboboxSelect grouped), System (ComboboxSelect grouped), Status
+- Filters persist in URL params or session state
+- Compact filter bar — horizontal scroll on mobile, expandable panel on desktop
+- **Depends on:** ComboboxSelect (done), intertwines with B1 (same InventoryView component)
+
+**B3. Item Creation from URL (#1)** 🟢 LOW (manual works fine)
+- Add "Von URL erstellen" option alongside manual in ItemModal / InventoryView
+- Flow: paste URL → loading spinner → backend Azure Function scrapes page → returns: name, product number, box quantity (default 1), manufacturer
+- Auto-assign system category (Object/Service) — needs product URL mapping rules (collect examples first)
+- Manual fields remain editable after scrape (user can override)
+- **Depends on:** B1 (editing redesign), new API endpoint (`api/src/functions/scrape-product.ts`)
+- **Blocker:** Need product URL examples to build scraping rules
+
+---
+
+### PHASE C: Module Enhancements (standalone — can be parallelized)
+
+**C1. Suppliers Section Upgrade (#3)** 🟡 MEDIUM
+- Add "Info" tab alongside existing "Performance" scores tab
+- Info tab fields: Name, Website (clickable link), Order Email, Inquiry Email (clearly labeled)
+- Use tab pattern: `Performance | Info` (like existing receipt detail tabs)
+- Store in Supplier interface: `website?: string`, `orderEmail?: string`, `inquiryEmail?: string`
+- Update SupplierView.tsx + types.ts
+- **Standalone** — no dependencies on other phases
+
+**C2. Data Management / Import Tool (#5)** 🟡 MEDIUM
+- Move import UI from SettingsPage to GlobalSettingsPage (admin section)
+- Replace JSON upload with Excel (.xlsx) upload using SheetJS library
+- SharePoint export format: map columns → StockItem interface (reuse seed-inventory.ts mapping logic)
+- On upload: full overwrite of stock data (not merge) — confirm dialog with item count
+- Add preview step: parse Excel → show table with row count, flag bad/empty rows in red
+- No delete button anywhere — overwrite only
+- **Standalone** — touches SettingsPage.tsx + GlobalSettingsPage.tsx
+
+**C3. Fast One-Click Inspection (#8)** 🟡 MEDIUM
+- New button on PO detail or receipt list: "⚡ Schnellbuchung" (Quick Booking)
+- One click: auto-accept all items at ordered quantities → book to stock or project (based on PO type)
+- **Warehouse resolution order:** (1) PO has warehouse set → use it, (2) Default warehouse from settings → use it, (3) Neither → show ComboboxSelect quick picker
+- Add "Standard-Lagerort" setting to GlobalSettingsPage (dropdown from lagerortCategories)
+- Animation: 3-step progress stepper (1.5s total): "Prüfe…" → "Buche…" → "Fertig ✓"
+- Success toast: "Lieferung gebucht — Team wird benachrichtigt" (rectangular, subtle, auto-dismiss 4s)
+- **Depends on:** A1 (settings persistence for default warehouse), ComboboxSelect (done)
+
+---
+
+### PHASE D: New Module — Inventory Auditing (#10) (biggest effort — do last)
+
+**D1. Auditing Tool** 🟢 LOW (new feature, large scope)
+- **New module:** Add to sidebar as "Inventur" (between Artikel and Bestellungen)
+- **Offline-first architecture:**
+  - Cache full product list in IndexedDB on module open
+  - All counting works offline — queue sync for when back online
+  - Service worker background sync for audit submissions
+- **Flow:**
+  1. Start new audit session (name, date, optional warehouse filter)
+  2. Search/scan product → enter physical count (Ist-Bestand)
+  3. Build list of audited items with running totals
+  4. "Vergleichen" button → system diffs physical vs recorded (Soll vs Ist)
+  5. Output: Variance report — surplus (+), shortage (−), match (✓)
+  6. "Missing" list: items with negative variance → exportable
+  7. Archive completed audits — history with timestamps, user, variance summary
+- **Data model:**
+  - `AuditSession { id, name, date, status, warehouseFilter?, userId, items: AuditItem[] }`
+  - `AuditItem { sku, name, expectedQty, countedQty, variance, notes? }`
+- **Reference patterns:** SAP MM cycle count, Oracle WMS count tasks, Fishbowl cycle count
+- **Cosmos container:** `audits` (partition key: `/id`)
+- **Depends on:** Phase A (persistence fixes), Phase B2 (product filter for search), Step 5 (offline resilience)
+
+---
+
+### Ongoing / Cross-cutting
+
+- Replace remaining bottom sheets with ComboboxSelect (supplier picker in CreateOrderWizard)
+- ComboboxSelect in ItemModal for Lagerort field (covered in B1b)
+- Combobox grouping for System field (similar pattern)
+- Persist lagerortCategories to Cosmos DB (currently localStorage only)
+- Persist audit trail to Cosmos DB
+- Persist user preferences to Cosmos DB (user-prefs container)
+---
 
 ## PROJECT FILE STRUCTURE
 
