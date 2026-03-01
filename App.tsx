@@ -1853,11 +1853,12 @@ export default function App() {
           </div>
         </main>
 
-        {/* Mobile Bottom Navigation */}
+        {/* Mobile Bottom Navigation — hidden during full-screen flows */}
         <BottomNav
           theme={theme}
           activeModule={activeModule}
           onNavigate={handleNavigation}
+          hidden={activeModule === 'create-order' || activeModule === 'goods-receipt'}
         />
       </div>
     </ErrorBoundary>

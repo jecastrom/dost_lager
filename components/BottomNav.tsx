@@ -6,6 +6,7 @@ interface BottomNavProps {
     theme: Theme;
     activeModule: ActiveModule;
     onNavigate: (module: ActiveModule) => void;
+    hidden?: boolean;
 }
 
 const NAV_ITEMS: { id: ActiveModule; label: string; icon: React.ElementType }[] = [
@@ -17,7 +18,7 @@ const NAV_ITEMS: { id: ActiveModule; label: string; icon: React.ElementType }[] 
     { id: 'dashboard' as ActiveModule, label: 'Inventur', icon: ClipboardCheck },
 ];
 
-export const BottomNav: React.FC<BottomNavProps> = ({ theme, activeModule, onNavigate }) => {
+export const BottomNav: React.FC<BottomNavProps> = ({ theme, activeModule, onNavigate, hidden }) => {
     const isDark = theme === 'dark';
     const isSoft = theme === 'soft';
 
@@ -32,6 +33,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({ theme, activeModule, onNav
             style={{
                 paddingBottom: 'env(safe-area-inset-bottom, 0px)',
                 boxShadow: '0 -4px 24px rgba(0,0,0,0.08)',
+                transform: hidden ? 'translateY(100%)' : 'translateY(0)',
+                transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
         >
             <div className="flex items-stretch justify-around h-14 max-w-lg mx-auto">
