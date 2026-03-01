@@ -97,48 +97,103 @@ All 6 endpoints deployed and working:
 
 ---
 
-## ⏳ STEP 4b: Frontend API Integration — WRITE (NEXT)
+## ✅ STEP 4b: Frontend API Integration — WRITE (COMPLETE)
 
-**Goal:** When the user creates/updates/deletes data in the app, persist those changes to Cosmos DB via the API. Currently all handlers only update React state — data is lost on page refresh.
+**Goal:** When the user creates/updates/deletes data in the app, persist those changes to Cosmos DB via the API.
 
-### Handlers that need API write-through:
+### Implementation: Optimistic UI + fire-and-forget API calls
+- React state updates immediately (optimistic UI)
+- API call fires in background: `apiXxx.upsert(newValue).catch(console.warn)`
+- If API fails, warning logged but UI stays functional
+- Receipt documents include `docType` + `poId` (partition key) on every write
 
-**Stock/Inventory:**
-- `handleStockUpdate(id, newLevel)` → `stockApi.upsert(item)` 
-- `handleUpdateItem(item)` → `stockApi.upsert(item)`
-- `handleCreateItem(item)` → `stockApi.upsert(item)`
+### All handlers with API write-through:
 
-**Purchase Orders:**
-- `handleCreateOrder(order)` → `ordersApi.upsert(order)`
-- `handleUpdateOrder(order)` → `ordersApi.upsert(order)`
-- `handleArchiveOrder(orderId)` → `ordersApi.upsert(updatedOrder)`
-- `handleCancelOrder(orderId)` → `ordersApi.upsert(updatedOrder)`
+**Stock/Inventory:** ✅
+- `handleStockUpdate` → `stockApi.upsert(item)`
+- `handleUpdateItem` → `stockApi.upsert(item)`
+- `handleCreateItem` → `stockApi.upsert(item)`
 
-**Receipts (most complex):**
-- `handleReceiptSuccess(...)` → creates ReceiptMaster + ReceiptHeader + ReceiptItems + updates PO + updates stock levels → multiple API calls or bulk upsert
-- `handleReceiptStatusUpdate(batchId, newStatus)` → `receiptsApi.upsert(header)`
-- `handleRevertReceipt(batchId)` → multiple updates (master, PO, stock reversal)
-- `handleDeliveryRefusal(poId, reason, notes)` → updates master + PO
+**Purchase Orders:** ✅
+- `handleCreateOrder` → `ordersApi.upsert(order)` + auto-creates receipt header/master
+- `handleUpdateOrder` → `ordersApi.upsert(order)` + recalculates receipt status
+- `handleArchiveOrder` → `ordersApi.upsert(updatedOrder)`
+- `handleCancelOrder` → cascades: order + receipt master + headers + closes tickets
 
-**Tickets:**
-- `handleAddTicket(ticket)` → `ticketsApi.upsert(ticket)`
-- `handleUpdateTicket(ticket)` → `ticketsApi.upsert(ticket)`
+**Receipts:** ✅
+- `handleReceiptSuccess` → inline persistence in setState callbacks (no setTimeout):
+  - PO update persisted inside `setPurchaseOrders` callback
+  - Receipt master persisted inside `setReceiptMasters` callback
+  - Stock items persisted inside `setInventory` callback
+  - Header + items via `receiptsApi.bulkUpsert()` (constructed before state updates)
+  - Auto-comments + auto-tickets persisted via `receiptsApi.upsert()` / `handleAddTicket()`
+- `handleReceiptStatusUpdate` → `receiptsApi.upsert(header)`
+- `handleRevertReceipt` → reverses stock, PO, receipt master + header
+- `handleDeliveryRefusal` → updates master + creates ticket + auto-comments
 
-**Comments:**
-- `handleAddComment(batchId, type, message)` → `receiptsApi.upsert(comment)` (with docType: "comment")
+**Returns (handleProcessReturn):** ✅
+- Stock subtraction persisted inline in `setInventory` callback
+- PO status update persisted inline in `setPurchaseOrders` callback
+- Receipt master + delivery log persisted inline in `setReceiptMasters` callback
+- Return header + items via `receiptsApi.bulkUpsert()`
+- Auto-comment posted to Historie & Notizen (rich formatted)
+- Dedicated return ticket auto-created via `handleAddTicket()`
+- Cross-posted to existing open tickets for same PO
 
-### Implementation approach:
-1. Keep React state as primary (optimistic UI — update state immediately)
-2. Fire API call in background (fire-and-forget with error logging)
-3. If API fails, log warning but don't break UI
-4. Pattern: `setStateXxx(newValue); apiXxx.upsert(newValue).catch(console.warn);`
+**Tickets:** ✅
+- `handleAddTicket` → `ticketsApi.upsert(ticket)` with poId fallback chain
+- `handleUpdateTicket` → `ticketsApi.upsert(ticket)`
 
-### Important considerations:
-- Receipt documents need `docType` field added when saving to API
-- Receipt documents need `poId` field (partition key) — must be included
-- Stock updates from goods receipt flow update multiple items — use batch approach
-- Archived orders: `isArchived: true` flag, never deleted
-- Audit trail stays in localStorage (not migrated to API yet)
+**Comments:** ✅
+- `handleAddComment` → `receiptsApi.upsert(comment)` with docType: "comment"
+- Auto-comments (inspection + returns) persisted via `receiptsApi.upsert()`
+
+### Stale closure fix (critical bug resolved):
+Original implementation used `setTimeout(() => {...}, 100)` to "let React state settle" before reading updated values for API persistence. But `setTimeout` captures stale closures — variables inside callback point to old state. **Fix:** All API calls moved **inside** `setState` callbacks where computed/updated values are immediately available.
+
+### Multi-device sync (real-time):
+- `visibilitychange` listener: re-fetches all data when user returns to tab/PWA
+- 10-second polling: `setInterval(10000)` calls `syncFromApi()` while tab is visible
+- Polling pauses when tab hidden (saves bandwidth)
+- Shared `syncFromApi()` function calls `loadAllData()` and updates all state
+
+### Auto-ticket/comment improvements:
+- Return processing now creates dedicated return tickets (was missing)
+- Return auto-comments posted to Historie & Notizen in rich format (matching quality issue style)
+- Rich formatting: bold labels, `──` section separators, item details with SKU/qty/reason/shipping
+- All auto-generated messages use consistent structured format across:
+  - Quality issues (inspection) → `📋 Automatische Prüfmeldung`
+  - Returns (inspection) → `📦 Rücksendung erfasst`
+  - Returns (direct) → `📦 Rücksendung erfasst`
+  - Delivery refusal → `📛 Lieferung abgelehnt`
+  - Order cancellation → `Ticket automatisch geschlossen`
+
+---
+
+## ✅ STEP 4c: UI Polish & Bug Fixes (COMPLETE)
+
+### Desktop: Sticky table headers
+- OrderManagement, ReceiptManagement, InventoryView (list view)
+- `max-h-[calc(100vh-300px)] overflow-y-auto` on table container
+- `sticky top-0 z-10` on `<thead>` element
+
+### Mobile: Compact sticky headers
+- OrderManagement + ReceiptManagement list views
+- Title scaled 2xl→base, buttons py-2.5→py-1.5 + text-xs, search py-3→py-2 + text-xs, icons 18→14px
+- Entire top section (title + search + filters) sticky on mobile
+- Card list area uses `flex-1 overflow-y-auto min-h-0` for independent scrolling
+- Desktop layouts completely untouched
+
+### Archive toggle (OrderManagement)
+- Changed from full checkbox+text button to discrete icon button (matches ReceiptManagement)
+- Icon-only on mobile with blue dot indicator when active
+- Full text label preserved on desktop
+
+### Return picker portal fix (ReceiptManagement)
+- **Bug:** Rücksendung button in master receipt list silently failed
+- **Root cause:** `returnPickerPortal` condition depended on `linkedMaster` which is null on list view (only set when detail is selected)
+- **Fix:** Portal now resolves its own master: `returnPickerMaster = receiptMasters.find(m => m.poId === returnPickerPO.id)`
+- Works from both list and detail views
 
 ---
 

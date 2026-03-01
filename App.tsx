@@ -1338,15 +1338,17 @@ export default function App() {
           nextStatus = anyReceived ? 'Teilweise geliefert' : 'Offen';
         }
 
-        return {
+        const updatedPO = {
           ...po,
           items: newItems,
           status: nextStatus
         };
+        ordersApi.upsert(updatedPO).catch(console.warn);
+        return updatedPO;
       }));
     }
 
-    // API write-through — persist reverted state
+    // API write-through — persist return data
     setTimeout(() => {
       receiptsApi.upsert({ ...header, id: batchId, status: 'In Prüfung', docType: 'header', poId: poId || batchId }).catch(console.warn);
       if (linkedPO) {
@@ -1412,6 +1414,7 @@ export default function App() {
           const idx = copy.findIndex(i => i.sku === rl.sku);
           if (idx >= 0) {
             copy[idx] = { ...copy[idx], stockLevel: Math.max(0, copy[idx].stockLevel - rl.qty), lastUpdated: timestamp };
+            stockApi.upsert(copy[idx]).catch(console.warn);
           }
         });
         return copy;
@@ -1522,11 +1525,13 @@ export default function App() {
         : totalEffective > 0 ? 'Teillieferung'
           : 'Offen';
 
-      return prev.map(m => m.id === existing.id ? {
-        ...m,
+      const updatedMaster = {
+        ...existing,
         status: newStatus,
-        deliveries: [...m.deliveries, deliveryLog]
-      } : m);
+        deliveries: [...existing.deliveries, deliveryLog]
+      };
+      receiptsApi.upsert({ ...updatedMaster, docType: 'master' }).catch(console.warn);
+      return prev.map(m => m.id === existing.id ? updatedMaster : m);
     });
 
     // 7. Auto-comment in Historie & Notizen (rich format matching quality issues)
@@ -1593,29 +1598,13 @@ export default function App() {
       return ticket;
     }));
 
-    // API write-through — persist return data
-    setTimeout(() => {
-      // Return header + items
-      const apiDocs: any[] = [
-        { ...newHeader, id: batchId, docType: 'header', poId },
-        ...newReceiptItems.map(ri => ({ ...ri, docType: 'item', poId }))
-      ];
-      receiptsApi.bulkUpsert(apiDocs).catch(console.warn);
-
-      // Updated master
-      const updMaster = receiptMasters.find(m => m.poId === poId);
-      if (updMaster) receiptsApi.upsert({ ...updMaster, docType: 'master' }).catch(console.warn);
-
-      // Updated PO
-      const updPO = purchaseOrders.find(p => p.id === poId);
-      if (updPO) ordersApi.upsert(updPO).catch(console.warn);
-
-      // Updated stock items
-      returnLines.forEach(rl => {
-        const item = inventory.find(i => i.sku === rl.sku);
-        if (item) stockApi.upsert(item).catch(console.warn);
-      });
-    }, 100);
+    // API write-through — persist return header + items (local vars, no stale closure)
+    const apiDocs: any[] = [
+      { ...newHeader, id: batchId, docType: 'header', poId },
+      ...newReceiptItems.map(ri => ({ ...ri, docType: 'item', poId }))
+    ];
+    receiptsApi.bulkUpsert(apiDocs).catch(console.warn);
+    // Master, PO, and stock are now persisted inline in their respective setState callbacks above
   };
 
   return (
