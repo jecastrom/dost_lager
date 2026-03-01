@@ -1560,29 +1560,9 @@ export default function App() {
       receiptsApi.upsert({ ...returnComment, docType: 'comment', poId }).catch(console.warn);
     }
 
-    // 8. Create return ticket + post to existing open tickets
-    const returnTicketMsg = returnCommentText; // Same rich format for ticket
-
-    // Create dedicated return ticket
-    const returnTicket: Ticket = {
-      id: `t-ret-${Date.now()}`,
-      receiptId: linkedHeader?.batchId || batchId,
-      subject: `Rücksendung — ${poId} — ${data.reason}`,
-      status: 'Open',
-      priority: 'Normal',
-      messages: [{
-        id: crypto.randomUUID(),
-        author: 'System',
-        text: returnTicketMsg,
-        timestamp: Date.now(),
-        type: 'system'
-      }]
-    };
-    handleAddTicket(returnTicket);
-
-    // Also post update to any OTHER existing open tickets for this PO
+    // 8. Post return update to existing open tickets for this PO (no new ticket created)
     setTickets(prevTickets => prevTickets.map(ticket => {
-      if (ticket.status !== 'Open' || ticket.id === returnTicket.id) return ticket;
+      if (ticket.status !== 'Open') return ticket;
       const tHeader = receiptHeaders.find(h => h.batchId === ticket.receiptId);
       if (tHeader && tHeader.bestellNr === poId) {
         const updated = {
