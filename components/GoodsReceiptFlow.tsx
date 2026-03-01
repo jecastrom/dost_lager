@@ -1,26 +1,27 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  X, Search, Plus, Calendar, Truck, Package, 
+import {
+  X, Search, Plus, Calendar, Truck, Package,
   Hash, Info, CheckCircle2, AlertCircle, ChevronDown, Check,
   ArrowRight, ArrowLeft, Trash2, MapPin, FileText, Building2,
-  AlertTriangle, Loader2, Home, ClipboardList, Ban, LogOut, 
+  AlertTriangle, Loader2, Home, ClipboardList, Ban, LogOut,
   PlusCircle, Clock, Box, ChevronUp, Briefcase, Minus, XCircle,
   ShieldBan, Layers, RotateCcw, BarChart3, ChevronsUp, ChevronsDown, Copy, Tag
 } from 'lucide-react';
-import { StockItem, Theme, ReceiptHeader, PurchaseOrder, ReceiptMaster, Ticket } from '../types';
+import { StockItem, Theme, ReceiptHeader, PurchaseOrder, ReceiptMaster, Ticket, LagerortCategory } from '../types';
 import { MOCK_PURCHASE_ORDERS } from '../data';
 import { TicketConfig } from './SettingsPage';
+import { ComboboxSelect } from './ComboboxSelect';
 
 // --- SEARCHABLE DROPDOWN WITH ADD NEW ---
-const SearchableDropdown = ({ 
-  value, 
-  onChange, 
-  options, 
+const SearchableDropdown = ({
+  value,
+  onChange,
+  options,
   onAddNew,
-  placeholder = "Wählen...", 
+  placeholder = "Wählen...",
   label,
-  isDark = false 
+  isDark = false
 }: {
   value: string;
   onChange: (val: string) => void;
@@ -74,24 +75,22 @@ const SearchableDropdown = ({
   return (
     <div ref={dropdownRef} className="relative">
       {label && <label className={`text-sm font-bold block mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{label}</label>}
-      
+
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full px-4 py-3 rounded-xl border flex items-center justify-between transition-all ${
-          isDark 
-            ? 'bg-slate-900 border-slate-700 text-white hover:border-slate-600' 
-            : 'bg-white border-slate-300 hover:border-slate-400'
-        } ${isOpen ? 'ring-2 ring-blue-500/20' : ''}`}
+        className={`w-full px-4 py-3 rounded-xl border flex items-center justify-between transition-all ${isDark
+          ? 'bg-slate-900 border-slate-700 text-white hover:border-slate-600'
+          : 'bg-white border-slate-300 hover:border-slate-400'
+          } ${isOpen ? 'ring-2 ring-blue-500/20' : ''}`}
       >
         <span className={value ? '' : 'opacity-50'}>{value || placeholder}</span>
         <ChevronDown size={18} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className={`absolute z-50 mt-2 w-full rounded-xl border shadow-2xl max-h-[300px] overflow-hidden flex flex-col ${
-          isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
-        }`}>
+        <div className={`absolute z-50 mt-2 w-full rounded-xl border shadow-2xl max-h-[300px] overflow-hidden flex flex-col ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+          }`}>
           {/* Search */}
           <div className={`p-3 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
@@ -115,11 +114,10 @@ const SearchableDropdown = ({
                   key={idx}
                   type="button"
                   onClick={() => handleSelect(opt)}
-                  className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center justify-between ${
-                    value === opt 
-                      ? isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'
-                      : isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'
-                  }`}
+                  className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center justify-between ${value === opt
+                    ? isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'
+                    : isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'
+                    }`}
                 >
                   <span>{opt}</span>
                   {value === opt && <Check size={16} />}
@@ -135,11 +133,10 @@ const SearchableDropdown = ({
             <button
               type="button"
               onClick={() => setShowAddNew(true)}
-              className={`p-3 border-t flex items-center justify-center gap-2 text-sm font-bold transition-colors ${
-                isDark 
-                  ? 'border-slate-700 hover:bg-slate-800 text-blue-400' 
-                  : 'border-slate-200 hover:bg-slate-50 text-blue-600'
-              }`}
+              className={`p-3 border-t flex items-center justify-center gap-2 text-sm font-bold transition-colors ${isDark
+                ? 'border-slate-700 hover:bg-slate-800 text-blue-400'
+                : 'border-slate-200 hover:bg-slate-50 text-blue-600'
+                }`}
             >
               <Plus size={16} /> Neuen Lagerort hinzufügen
             </button>
@@ -155,9 +152,8 @@ const SearchableDropdown = ({
                   onChange={(e) => setNewItemInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddNew()}
                   placeholder="Neuer Lagerort..."
-                  className={`flex-1 px-3 py-2 rounded-lg border text-sm outline-none ${
-                    isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'
-                  }`}
+                  className={`flex-1 px-3 py-2 rounded-lg border text-sm outline-none ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'
+                    }`}
                   autoFocus
                 />
                 <button
@@ -170,7 +166,7 @@ const SearchableDropdown = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {setShowAddNew(false); setNewItemInput('');}}
+                  onClick={() => { setShowAddNew(false); setNewItemInput(''); }}
                   className={`px-3 py-2 rounded-lg text-sm ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-200'}`}
                 >
                   <X size={16} />
@@ -184,30 +180,25 @@ const SearchableDropdown = ({
   );
 };
 
-const LAGERORT_OPTIONS: string[] = [
-  "Akku Service","Brandt, Service, B DI 446E","Dallmann, Service","EKZFK","GERAS","HaB","HAB",
-  "HaB Altbestand Kunde","HLU","HTW","KEH","Kitas","Koplin, Service, B DI 243","KWF",
-  "Lavrenz, Service","LHW","MPC","Pfefferwerk/WAB","RAS_Zubehör","RBB","RBB_SSP",
-  "Stöwhaas,Service","Tau13","Trittel, Service","ukb","UKB Lager","UKB Service","Wartungsklebchen"
-];
+
 
 interface CartItem {
-    item: StockItem;
-    qtyReceived: number;
-    qtyDamaged: number;
-    qtyWrong: number;
-    qtyRejected: number;
-    qtyAccepted: number;
-    location: string;
-    rejectionReason: 'Damaged' | 'Wrong' | 'Overdelivery' | 'Other' | '';
-    rejectionNotes: string;
-    returnCarrier: string;
-    returnTrackingId: string;
-    showIssuePanel: boolean;
-    orderedQty?: number;
-    previouslyReceived?: number;
-    isManualAddition?: boolean;
-    issueNotes: string;
+  item: StockItem;
+  qtyReceived: number;
+  qtyDamaged: number;
+  qtyWrong: number;
+  qtyRejected: number;
+  qtyAccepted: number;
+  location: string;
+  rejectionReason: 'Damaged' | 'Wrong' | 'Overdelivery' | 'Other' | '';
+  rejectionNotes: string;
+  returnCarrier: string;
+  returnTrackingId: string;
+  showIssuePanel: boolean;
+  orderedQty?: number;
+  previouslyReceived?: number;
+  isManualAddition?: boolean;
+  issueNotes: string;
 }
 
 interface ReturnPopupData {
@@ -228,7 +219,7 @@ const PlusMinusPicker = ({ value, onChange, min = 0, max = 999, disabled = false
 
   const inc = () => { if (!disabled && value < max) onChange(value + 1); };
   const dec = () => { if (!disabled && value > min) onChange(value - 1); };
-  
+
   const handleNumberClick = () => {
     if (disabled) return;
     setIsEditing(true);
@@ -252,14 +243,13 @@ const PlusMinusPicker = ({ value, onChange, min = 0, max = 999, disabled = false
   return (
     <div className={`flex items-center gap-1 select-none ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
       {/* MINUS BUTTON - RED */}
-      <button 
-        onClick={dec} 
+      <button
+        onClick={dec}
         disabled={disabled || value <= min}
-        className={`min-w-[48px] min-h-[48px] md:min-w-[36px] md:min-h-[36px] flex items-center justify-center rounded-lg font-bold text-white text-2xl md:text-lg active:scale-95 transition-all ${
-          disabled || value <= min 
-            ? 'bg-gray-400 cursor-not-allowed' 
-            : 'bg-red-600 hover:bg-red-500 active:bg-red-700'
-        }`}
+        className={`min-w-[48px] min-h-[48px] md:min-w-[36px] md:min-h-[36px] flex items-center justify-center rounded-lg font-bold text-white text-2xl md:text-lg active:scale-95 transition-all ${disabled || value <= min
+          ? 'bg-gray-400 cursor-not-allowed'
+          : 'bg-red-600 hover:bg-red-500 active:bg-red-700'
+          }`}
       >
         −
       </button>
@@ -276,22 +266,20 @@ const PlusMinusPicker = ({ value, onChange, min = 0, max = 999, disabled = false
             onChange={e => setTempValue(e.target.value)}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
-            className={`w-20 h-12 md:w-14 md:h-9 text-center text-2xl md:text-base font-bold font-mono rounded-lg border-2 ${
-              isDark 
-                ? 'bg-slate-900 border-blue-500 text-white' 
-                : 'bg-white border-blue-500 text-slate-900'
-            }`}
+            className={`w-20 h-12 md:w-14 md:h-9 text-center text-2xl md:text-base font-bold font-mono rounded-lg border-2 ${isDark
+              ? 'bg-slate-900 border-blue-500 text-white'
+              : 'bg-white border-blue-500 text-slate-900'
+              }`}
             style={{ appearance: 'none', MozAppearance: 'textfield' }}
           />
         ) : (
           <button
             onClick={handleNumberClick}
             disabled={disabled}
-            className={`w-20 h-12 md:w-14 md:h-9 flex items-center justify-center text-2xl md:text-base font-bold font-mono rounded-lg border-2 transition-all ${
-              isDark 
-                ? 'bg-slate-900 border-slate-600 text-white hover:border-slate-500' 
-                : 'bg-white border-slate-300 text-slate-900 hover:border-slate-400'
-            }`}
+            className={`w-20 h-12 md:w-14 md:h-9 flex items-center justify-center text-2xl md:text-base font-bold font-mono rounded-lg border-2 transition-all ${isDark
+              ? 'bg-slate-900 border-slate-600 text-white hover:border-slate-500'
+              : 'bg-white border-slate-300 text-slate-900 hover:border-slate-400'
+              }`}
           >
             {value}
           </button>
@@ -299,14 +287,13 @@ const PlusMinusPicker = ({ value, onChange, min = 0, max = 999, disabled = false
       </div>
 
       {/* PLUS BUTTON - GREEN */}
-      <button 
-        onClick={inc} 
+      <button
+        onClick={inc}
         disabled={disabled || value >= max}
-        className={`min-w-[48px] min-h-[48px] md:min-w-[36px] md:min-h-[36px] flex items-center justify-center rounded-lg font-bold text-white text-2xl md:text-lg active:scale-95 transition-all ${
-          disabled || value >= max 
-            ? 'bg-gray-400 cursor-not-allowed' 
-            : 'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700'
-        }`}
+        className={`min-w-[48px] min-h-[48px] md:min-w-[36px] md:min-h-[36px] flex items-center justify-center rounded-lg font-bold text-white text-2xl md:text-lg active:scale-95 transition-all ${disabled || value >= max
+          ? 'bg-gray-400 cursor-not-allowed'
+          : 'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700'
+          }`}
       >
         +
       </button>
@@ -338,7 +325,7 @@ const POSelectionModal = ({ isOpen, onClose, orders, onSelect, receiptMasters, t
         <div className={`p-5 border-b flex items-center gap-4 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
           <Search className="text-slate-400" size={24} />
           <input autoFocus className={`flex-1 bg-transparent outline-none text-lg font-medium placeholder:opacity-50 ${isDark ? 'text-white' : 'text-slate-900'}`} placeholder="Bestellung suchen..." value={term} onChange={e => setTerm(e.target.value)} />
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X size={24} className="text-slate-400"/></button>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X size={24} className="text-slate-400" /></button>
         </div>
         <div className="overflow-y-auto p-4 space-y-3 bg-slate-50 dark:bg-slate-950/50 flex-1">
           {filtered.length === 0 && <div className="text-center py-10 text-slate-500">Keine offenen Bestellungen gefunden.</div>}
@@ -350,13 +337,13 @@ const POSelectionModal = ({ isOpen, onClose, orders, onSelect, receiptMasters, t
               <button key={po.id} onClick={() => onSelect(po)} className={`w-full text-left p-4 rounded-xl border transition-all ${isDark ? 'bg-slate-800 border-slate-700 hover:border-blue-500' : 'bg-white border-slate-200 hover:border-[#0077B5] hover:shadow-md'}`}>
                 <div className="flex items-center gap-3 mb-1.5">
                   <span className={`font-mono font-bold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>{po.id}</span>
-                  {isProject ? <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase flex items-center gap-1 ${isDark ? 'bg-blue-900/30 text-blue-400 border-blue-900' : 'bg-blue-100 text-blue-700 border-blue-200'}`}><Briefcase size={10}/> Projekt</span> : <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase flex items-center gap-1 ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}><Box size={10}/> Lager</span>}
+                  {isProject ? <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase flex items-center gap-1 ${isDark ? 'bg-blue-900/30 text-blue-400 border-blue-900' : 'bg-blue-100 text-blue-700 border-blue-200'}`}><Briefcase size={10} /> Projekt</span> : <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase flex items-center gap-1 ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}><Box size={10} /> Lager</span>}
                   {totalReceived > 0 && totalReceived < totalOrdered && <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>Teillieferung</span>}
                 </div>
                 <div className="flex items-center gap-4 text-xs opacity-70 flex-wrap">
-                  <span className="flex items-center gap-1.5 font-medium"><Truck size={12}/> {po.supplier}</span>
-                  <span className="flex items-center gap-1.5"><Calendar size={12}/> {fmtDate(po.dateCreated)}</span>
-                  {po.expectedDeliveryDate && <span className="flex items-center gap-1.5"><Clock size={12}/> Lieferung: {fmtDate(po.expectedDeliveryDate)}</span>}
+                  <span className="flex items-center gap-1.5 font-medium"><Truck size={12} /> {po.supplier}</span>
+                  <span className="flex items-center gap-1.5"><Calendar size={12} /> {fmtDate(po.dateCreated)}</span>
+                  {po.expectedDeliveryDate && <span className="flex items-center gap-1.5"><Clock size={12} /> Lieferung: {fmtDate(po.expectedDeliveryDate)}</span>}
                   <span className="font-mono opacity-70">{po.items.length} Pos.</span>
                 </div>
                 {po.externalRefs && po.externalRefs.length > 0 && (
@@ -391,13 +378,14 @@ interface GoodsReceiptFlowProps {
   onAddTicket: (ticket: Ticket) => void;
   lagerortOptions?: string[];
   onUpdateLagerortOptions?: (opts: string[]) => void;
+  lagerortCategories?: LagerortCategory[];
   onRefuseDelivery?: (poId: string, reason: string, notes: string) => void;
 }
 
 export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
   theme, existingItems, onClose, onSuccess, onLogStock, purchaseOrders,
   initialPoId, initialMode = 'standard', receiptMasters = [], ticketConfig, onAddTicket,
-  lagerortOptions: externalLagerortOptions, onUpdateLagerortOptions, onRefuseDelivery
+  lagerortOptions: externalLagerortOptions, onUpdateLagerortOptions, lagerortCategories, onRefuseDelivery
 }) => {
   const isDark = theme === 'dark';
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -410,10 +398,6 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
   const [finalResultStatus, setFinalResultStatus] = useState('');
   const [linkedPoId, setLinkedPoId] = useState<string | null>(null);
   const [showPoModal, setShowPoModal] = useState(false);
-  const [showLagerortSheet, setShowLagerortSheet] = useState(false);
-  const [lagerortSheetSearch, setLagerortSheetSearch] = useState('');
-  const [showAddNewLagerort, setShowAddNewLagerort] = useState(false);
-  const [newLagerortName, setNewLagerortName] = useState('');
   const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [forceClose, setForceClose] = useState(false);
 
@@ -423,12 +407,12 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [lagerortOptions, setLagerortOptions] = useState<string[]>(externalLagerortOptions || LAGERORT_OPTIONS);
+  const [lagerortOptions, setLagerortOptions] = useState<string[]>(externalLagerortOptions || []);
   const [returnPopup, setReturnPopup] = useState<ReturnPopupData | null>(null);
   const [cardIdx, setCardIdx] = useState(0);
   const [returnAutoAdvancing, setReturnAutoAdvancing] = useState(false);
   const [showRefuseModal, setShowRefuseModal] = useState(false);
-  
+
   // Swipe navigation for mobile Step 2
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
@@ -606,7 +590,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
           handleSelectPO(po);
         }
         if (initialMode === 'return') {
-          const d = new Date().toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\./g, '');
+          const d = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\./g, '');
           let loc = headerData.warehouseLocation || 'Wareneingang';
           const fi = existingItems.find(i => i.sku === po.items[0]?.sku);
           if (fi?.warehouseLocation) loc = fi.warehouseLocation;
@@ -626,7 +610,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
     }
   }, [returnAutoAdvancing, step, cart.length]);
 
-  
+
 
   const handleReturnSubmit = () => {
     if (!returnPopup) return;
@@ -641,24 +625,24 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
 
   const handleFinalize = () => {
     const batchId = `b-${Date.now()}`;
-    
+
     // Separate issue tracking by category
     const qualityIssues: string[] = [];
     const partialDeliveryIssues: string[] = [];
     const overdeliveryIssues: string[] = [];
     const returnTrackingInfo: string[] = [];
-    
+
     const qualityTypes = new Set<string>();
-    
+
     if (initialMode !== 'return') {
       cart.forEach(c => {
         const lbl = `${c.item.name} (${c.item.sku})`;
         const calc = getLineCalc(c);
-        
+
         // QUALITY ISSUES: Damaged, Wrong, Rejected
         if (c.qtyRejected > 0) {
           const r = c.rejectionReason === 'Damaged' ? 'Beschädigt' : c.rejectionReason === 'Wrong' ? 'Falsch' : c.rejectionReason === 'Overdelivery' ? 'Übermenge' : 'Sonstiges';
-          
+
           // Check individual ticket config flags
           if (c.rejectionReason === 'Damaged' && ticketConfig.damage) {
             qualityIssues.push(`${lbl}: ${c.qtyRejected}x Abgelehnt (${r}) - ${c.rejectionNotes || 'Keine Details'}`);
@@ -673,19 +657,19 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
             // Overdelivery rejections handled separately
             overdeliveryIssues.push(`${lbl}: ${c.qtyRejected}x zurückgesendet (Übermenge) - ${c.rejectionNotes || 'Keine Details'}`);
           }
-          
+
           // Add return tracking info if available
           if (c.returnCarrier || c.returnTrackingId) {
             const trackingDetail = `Rücksendung ${lbl}: ${c.qtyRejected}x — Versandart: ${c.returnCarrier || 'Nicht angegeben'} — Tracking: ${c.returnTrackingId || 'Nicht angegeben'}${c.rejectionNotes ? ` — Grund: ${c.rejectionNotes}` : ''}`;
             returnTrackingInfo.push(trackingDetail);
           }
         }
-        
+
         // PARTIAL DELIVERY (OFFEN > 0)
         if (ticketConfig.missing && linkedPoId && calc.offen > 0) {
           partialDeliveryIssues.push(`${lbl}: Bestellt ${calc.bestellt}, Geliefert ${calc.heute}, Offen ${calc.offen}`);
         }
-        
+
         // OVERDELIVERY (ZU VIEL > 0)
         if (ticketConfig.extra && c.orderedQty !== undefined && c.qtyAccepted > 0) {
           const tot = (c.previouslyReceived || 0) + c.qtyAccepted;
@@ -694,7 +678,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
           }
         }
       });
-      
+
       // CREATE TICKET FOR QUALITY ISSUES (Damage, Wrong, Rejected)
       if (qualityIssues.length > 0) {
         // Build subject: direct problem type — PO number
@@ -729,15 +713,15 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
         });
 
         const qualityMessages: any[] = [
-          { 
-            id: crypto.randomUUID(), 
-            author: 'System', 
-            text: messageText.trim(), 
-            timestamp: Date.now(), 
-            type: 'system' 
+          {
+            id: crypto.randomUUID(),
+            author: 'System',
+            text: messageText.trim(),
+            timestamp: Date.now(),
+            type: 'system'
           }
         ];
-        
+
         // Add return tracking as separate message if available
         if (returnTrackingInfo.length > 0) {
           qualityMessages.push({
@@ -748,17 +732,17 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
             type: 'system'
           });
         }
-        
-        onAddTicket({ 
-          id: crypto.randomUUID(), 
-          receiptId: batchId, 
-          subject: ticketSubject, 
-          status: 'Open', 
+
+        onAddTicket({
+          id: crypto.randomUUID(),
+          receiptId: batchId,
+          subject: ticketSubject,
+          status: 'Open',
           priority: 'High',
           messages: qualityMessages
         });
       }
-      
+
       // CREATE TICKET FOR PARTIAL DELIVERY (OFFEN > 0) — Skip if quality ticket already covers this
       if (partialDeliveryIssues.length > 0 && qualityIssues.length === 0) {
         const totalOffen = cart.reduce((sum, c) => sum + getLineCalc(c).offen, 0);
@@ -779,14 +763,14 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
           ]
         });
       }
-      
+
       // CREATE TICKET FOR OVERDELIVERY (ZU VIEL > 0)
       if (overdeliveryIssues.length > 0) {
         const totalZuViel = cart.reduce((sum, c) => {
           const calc = getLineCalc(c);
           return sum + calc.zuViel;
         }, 0);
-        
+
         const overMessages: any[] = [
           {
             id: crypto.randomUUID(),
@@ -796,7 +780,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
             type: 'system'
           }
         ];
-        
+
         // Add return tracking for overdelivery if available
         const overdeliveryReturns = returnTrackingInfo.filter(info => info.includes('Übermenge'));
         if (overdeliveryReturns.length > 0) {
@@ -808,7 +792,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
             type: 'system'
           });
         }
-        
+
         onAddTicket({
           id: crypto.randomUUID(),
           receiptId: batchId,
@@ -819,22 +803,22 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
         });
       }
     }
-    
+
     const clean = cart.map(c => ({ ...c, qty: c.qtyAccepted, isDamaged: c.rejectionReason === 'Damaged' && c.qtyRejected > 0, issueNotes: c.rejectionNotes || c.issueNotes }));
     if (onLogStock) clean.forEach(c => { if (c.qty !== 0) onLogStock(c.item.sku, c.item.name, c.qty > 0 ? 'add' : 'remove', Math.abs(c.qty), `Wareneingang ${headerData.lieferscheinNr}`, 'po-normal'); });
     const created = cart.filter(c => c.qtyAccepted > 0).map(c => c.item).filter(i => !existingItems.find(e => e.id === i.id));
     // Enrich cart items with proper rejection data from Beschädigt/Falsch columns
     const enriched = clean.map((c: any) => {
-        const src = cart.find(x => x.item.sku === c.item.sku);
-        if (src) {
-            c.qtyDamaged = src.qtyDamaged;
-            c.qtyWrong = src.qtyWrong;
-            c.isDamaged = src.qtyDamaged > 0;
-            if (src.qtyDamaged > 0 && src.qtyWrong > 0) c.rejectionReason = 'Damaged';
-            else if (src.qtyDamaged > 0) c.rejectionReason = 'Damaged';
-            else if (src.qtyWrong > 0) c.rejectionReason = 'Wrong';
-        }
-        return c;
+      const src = cart.find(x => x.item.sku === c.item.sku);
+      if (src) {
+        c.qtyDamaged = src.qtyDamaged;
+        c.qtyWrong = src.qtyWrong;
+        c.isDamaged = src.qtyDamaged > 0;
+        if (src.qtyDamaged > 0 && src.qtyWrong > 0) c.rejectionReason = 'Damaged';
+        else if (src.qtyDamaged > 0) c.rejectionReason = 'Damaged';
+        else if (src.qtyWrong > 0) c.rejectionReason = 'Wrong';
+      }
+      return c;
     });
     onSuccess({ ...headerData, batchId, status: finalResultStatus }, enriched, created, forceClose);
   };
@@ -884,24 +868,24 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setReturnPopup(null)} />
           <div className={`relative w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4 ${isDark ? 'bg-slate-900 border border-slate-700' : 'bg-white'}`}>
             <div className="flex items-center gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
-              <RotateCcw size={24} className="text-orange-500"/>
+              <RotateCcw size={24} className="text-orange-500" />
               <h3 className="text-lg font-bold">Rücksendung erfassen</h3>
             </div>
             <div>
               <label className="text-xs font-bold uppercase mb-2 block opacity-60">Menge</label>
-              <input type="number" min="1" value={returnPopup.qty} onChange={e => setReturnPopup(p => p ? {...p, qty: parseInt(e.target.value) || 1} : null)} className={inputClass} />
+              <input type="number" min="1" value={returnPopup.qty} onChange={e => setReturnPopup(p => p ? { ...p, qty: parseInt(e.target.value) || 1 } : null)} className={inputClass} />
             </div>
             <div>
               <label className="text-xs font-bold uppercase mb-2 block opacity-60">Grund</label>
-              <input value={returnPopup.reason} onChange={e => setReturnPopup(p => p ? {...p, reason: e.target.value} : null)} placeholder="z.B. Überzahl, beschädigt..." className={inputClass} />
+              <input value={returnPopup.reason} onChange={e => setReturnPopup(p => p ? { ...p, reason: e.target.value } : null)} placeholder="z.B. Überzahl, beschädigt..." className={inputClass} />
             </div>
             <div>
               <label className="text-xs font-bold uppercase mb-2 block opacity-60">Versandart</label>
-              <input value={returnPopup.carrier} onChange={e => setReturnPopup(p => p ? {...p, carrier: e.target.value} : null)} placeholder="DHL, Hermes..." className={inputClass} />
+              <input value={returnPopup.carrier} onChange={e => setReturnPopup(p => p ? { ...p, carrier: e.target.value } : null)} placeholder="DHL, Hermes..." className={inputClass} />
             </div>
             <div>
               <label className="text-xs font-bold uppercase mb-2 block opacity-60">Tracking-ID</label>
-              <input value={returnPopup.tracking} onChange={e => setReturnPopup(p => p ? {...p, tracking: e.target.value} : null)} placeholder="Optional" className={inputClass} />
+              <input value={returnPopup.tracking} onChange={e => setReturnPopup(p => p ? { ...p, tracking: e.target.value } : null)} placeholder="Optional" className={inputClass} />
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={() => setReturnPopup(null)} className="flex-1 px-4 py-3 rounded-xl font-bold bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">Abbrechen</button>
@@ -926,7 +910,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
           </div>
           {/* Desktop inline stepper */}
           <div className="hidden md:flex items-center gap-3 flex-1 max-w-md mx-8">
-            {[{s:1,l:'Kopfdaten'},{s:2,l:'Inspektion'},{s:3,l:'Prüfung'}].map(({s,l}) => (
+            {[{ s: 1, l: 'Kopfdaten' }, { s: 2, l: 'Inspektion' }, { s: 3, l: 'Prüfung' }].map(({ s, l }) => (
               <div key={s} className="flex-1 flex flex-col items-center gap-0.5">
                 <div className={`w-full h-1 rounded-full transition-all ${s <= step ? 'bg-[#0077B5]' : (isDark ? 'bg-slate-700/50' : 'bg-slate-200')}`} />
                 <span className={`text-[9px] uppercase font-bold tracking-wider ${s <= step ? 'text-[#0077B5]' : 'opacity-40'}`}>{l}</span>
@@ -955,42 +939,45 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
 
       {/* CONTENT */}
       <div className="flex-1 overflow-y-auto p-4 md:p-4">
-        
+
         {/* STEP 1 */}
         {step === 1 && (
           <div className="max-w-2xl mx-auto space-y-5">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className={`${labelClass} mb-2 block`}>Lieferschein-Nr. *</label>
-                <input value={headerData.lieferscheinNr} onChange={e => setHeaderData(prev => ({...prev, lieferscheinNr: e.target.value}))} placeholder="LS-2024-001" className={inputClass} />
+                <input value={headerData.lieferscheinNr} onChange={e => setHeaderData(prev => ({ ...prev, lieferscheinNr: e.target.value }))} placeholder="LS-2024-001" className={inputClass} />
               </div>
               <div>
                 <label className={`${labelClass} mb-2 block`}>Lieferdatum</label>
-                <input type="date" value={headerData.lieferdatum} onChange={e => setHeaderData(prev => ({...prev, lieferdatum: e.target.value}))} className={`${inputClass} appearance-none max-w-full`} style={{ WebkitAppearance: 'none' }} />
+                <input type="date" value={headerData.lieferdatum} onChange={e => setHeaderData(prev => ({ ...prev, lieferdatum: e.target.value }))} className={`${inputClass} appearance-none max-w-full`} style={{ WebkitAppearance: 'none' }} />
               </div>
             </div>
 
             {!linkedPoId && (
               <div>
                 <label className={`${labelClass} mb-2 block`}>Lieferant</label>
-                <input value={headerData.lieferant} onChange={e => setHeaderData(prev => ({...prev, lieferant: e.target.value}))} placeholder="Battery Kutter" className={inputClass} />
+                <input value={headerData.lieferant} onChange={e => setHeaderData(prev => ({ ...prev, lieferant: e.target.value }))} placeholder="Battery Kutter" className={inputClass} />
               </div>
             )}
 
             <div>
-              <label className={`text-sm font-bold block mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Lagerort</label>
-              <button
-                type="button"
-                onClick={() => setShowLagerortSheet(true)}
-                className={`w-full px-4 py-3 rounded-xl border flex items-center justify-between transition-all ${
-                  isDark 
-                    ? 'bg-slate-900 border-slate-700 text-white hover:border-slate-600' 
-                    : 'bg-white border-slate-300 hover:border-slate-400'
-                }`}
-              >
-                <span className={headerData.warehouseLocation ? '' : 'opacity-50'}>{headerData.warehouseLocation || 'Wählen...'}</span>
-                <ChevronDown size={18} />
-              </button>
+              <ComboboxSelect
+                label="Lagerort"
+                value={headerData.warehouseLocation}
+                onChange={(val) => setHeaderData(prev => ({ ...prev, warehouseLocation: val }))}
+                groups={lagerortCategories || [{ id: 'default', name: 'Alle', items: lagerortOptions }]}
+                placeholder="Wählen..."
+                theme={theme}
+                onAddNew={(val, groupId) => {
+                  // Add to local state
+                  setLagerortOptions(prev => [...prev, val]);
+                  // Propagate up to App.tsx
+                  if (onUpdateLagerortOptions) {
+                    onUpdateLagerortOptions([...lagerortOptions, val]);
+                  }
+                }}
+              />
             </div>
 
             <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
@@ -998,7 +985,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                 <span className="font-bold text-sm">Bestellung verknüpfen (optional)</span>
                 {linkedPoId && (
                   <button onClick={() => { setLinkedPoId(null); setHeaderData(prev => ({ ...prev, bestellNr: '', lieferant: '' })); setCart([]); }} className="text-xs font-bold text-red-500 hover:underline flex items-center gap-1">
-                    <X size={14}/> Trennen
+                    <X size={14} /> Trennen
                   </button>
                 )}
               </div>
@@ -1010,14 +997,14 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                   return (
                     <div className={`p-3 rounded-lg border ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
                       <div className="flex items-center gap-2 mb-1.5">
-                        <ClipboardList size={16} className="text-[#0077B5]"/>
+                        <ClipboardList size={16} className="text-[#0077B5]" />
                         <span className="font-mono font-bold">{linkedPoId}</span>
-                        {po && (isProject ? <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase flex items-center gap-1 ${isDark ? 'bg-blue-900/30 text-blue-400 border-blue-900' : 'bg-blue-100 text-blue-700 border-blue-200'}`}><Briefcase size={8}/> Projekt</span> : <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase flex items-center gap-1 ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}><Box size={8}/> Lager</span>)}
+                        {po && (isProject ? <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase flex items-center gap-1 ${isDark ? 'bg-blue-900/30 text-blue-400 border-blue-900' : 'bg-blue-100 text-blue-700 border-blue-200'}`}><Briefcase size={8} /> Projekt</span> : <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase flex items-center gap-1 ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}><Box size={8} /> Lager</span>)}
                       </div>
                       <div className="flex items-center gap-3 text-xs opacity-60 flex-wrap">
-                        <span className="flex items-center gap-1"><Truck size={11}/> {headerData.lieferant}</span>
-                        {po && <span className="flex items-center gap-1"><Calendar size={11}/> {fmtD(po.dateCreated)}</span>}
-                        {po?.expectedDeliveryDate && <span className="flex items-center gap-1"><Clock size={11}/> Lieferung: {fmtD(po.expectedDeliveryDate)}</span>}
+                        <span className="flex items-center gap-1"><Truck size={11} /> {headerData.lieferant}</span>
+                        {po && <span className="flex items-center gap-1"><Calendar size={11} /> {fmtD(po.dateCreated)}</span>}
+                        {po?.expectedDeliveryDate && <span className="flex items-center gap-1"><Clock size={11} /> Lieferung: {fmtD(po.expectedDeliveryDate)}</span>}
                         {po && <span className="font-mono opacity-70">{po.items.length} Pos.</span>}
                       </div>
                       {po?.externalRefs && po.externalRefs.length > 0 && (
@@ -1034,7 +1021,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                 })()
               ) : (
                 <button onClick={() => setShowPoModal(true)} className="w-full px-4 py-3 rounded-xl font-bold border-2 border-dashed transition-all hover:border-[#0077B5] hover:bg-[#0077B5]/5 dark:border-slate-700 dark:hover:border-blue-500 dark:hover:bg-blue-500/10">
-                  <Plus size={20} className="inline mr-2"/> Bestellung auswählen
+                  <Plus size={20} className="inline mr-2" /> Bestellung auswählen
                 </button>
               )}
             </div>
@@ -1043,11 +1030,10 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
             {linkedPoId && initialMode === 'standard' && onRefuseDelivery && (
               <button
                 onClick={() => setShowRefuseModal(true)}
-                className={`w-full p-4 rounded-xl border-2 border-dashed flex items-center justify-center gap-2 font-bold text-sm transition-all ${
-                  isDark 
-                    ? 'border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50' 
-                    : 'border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300'
-                }`}
+                className={`w-full p-4 rounded-xl border-2 border-dashed flex items-center justify-center gap-2 font-bold text-sm transition-all ${isDark
+                  ? 'border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50'
+                  : 'border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300'
+                  }`}
               >
                 <Ban size={18} /> Lieferung ablehnen (Annahmeverweigerung)
               </button>
@@ -1070,17 +1056,17 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Body */}
                   <div className="p-5 space-y-4">
                     <div className={`p-3 rounded-xl text-xs ${isDark ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                       <strong>Hinweis:</strong> Es wird kein Wareneingang erstellt. Die Bestellung bleibt offen für eine erneute Lieferung.
                     </div>
-                    
+
                     <div>
                       <label className={`text-sm font-bold block mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Grund der Ablehnung *</label>
-                      <select 
-                        value={refuseReason} 
+                      <select
+                        value={refuseReason}
                         onChange={e => setRefuseReason(e.target.value)}
                         className={`w-full px-4 py-3 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300'}`}
                       >
@@ -1092,11 +1078,11 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                         <option value="Sonstiges">Sonstiges</option>
                       </select>
                     </div>
-                    
+
                     <div>
                       <label className={`text-sm font-bold block mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Anmerkungen</label>
-                      <textarea 
-                        value={refuseNotes} 
+                      <textarea
+                        value={refuseNotes}
                         onChange={e => setRefuseNotes(e.target.value)}
                         placeholder="Zusätzliche Details zur Ablehnung..."
                         rows={3}
@@ -1104,16 +1090,16 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                       />
                     </div>
                   </div>
-                  
+
                   {/* Footer */}
                   <div className={`p-5 border-t flex gap-3 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-                    <button 
+                    <button
                       onClick={() => { setShowRefuseModal(false); setRefuseReason(''); setRefuseNotes(''); }}
                       className={`flex-1 py-3 rounded-xl font-bold text-sm ${isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                     >
                       Abbrechen
                     </button>
-                    <button 
+                    <button
                       onClick={() => {
                         if (linkedPoId && refuseReason && onRefuseDelivery) {
                           onRefuseDelivery(linkedPoId, refuseReason, refuseNotes);
@@ -1133,7 +1119,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
               </div>
             )}
 
-            </div>
+          </div>
         )}
 
         {/* STEP 2 - INSPECTION */}
@@ -1190,11 +1176,10 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                           <button
                             key={i}
                             onClick={() => setCardIdx(i)}
-                            className={`rounded-full transition-all duration-300 ${
-                              i === idx 
-                                ? 'w-6 h-2 bg-[#0077B5]' 
-                                : `w-2 h-2 ${isDark ? 'bg-slate-600' : 'bg-slate-300'}`
-                            }`}
+                            className={`rounded-full transition-all duration-300 ${i === idx
+                              ? 'w-6 h-2 bg-[#0077B5]'
+                              : `w-2 h-2 ${isDark ? 'bg-slate-600' : 'bg-slate-300'}`
+                              }`}
                           />
                         ))}
                       </div>
@@ -1202,7 +1187,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                   </div>
 
                   {/* Mobile Card View */}
-                  <div 
+                  <div
                     className="md:hidden touch-pan-y"
                     onTouchStart={(e) => {
                       touchStartX.current = e.touches[0].clientX;
@@ -1239,9 +1224,9 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                       setSwipeOffset(0);
                     }}
                   >
-                    <div 
+                    <div
                       className={`rounded-xl border overflow-hidden ${isDark ? 'bg-slate-800/40 border-slate-700/50 ring-1 ring-white/[0.02]' : 'bg-white border-slate-200'}`}
-                      style={{ 
+                      style={{
                         transform: `translateX(${swipeOffset}px)`,
                         transition: swipeOffset === 0 ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
                         willChange: 'transform'
@@ -1272,25 +1257,25 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                         </div>
                         {/* Beschädigt Stepper - Always visible */}
                         <div className="flex justify-between items-center gap-3">
-                          <span className={`text-[10px] uppercase tracking-wider flex items-center gap-1 ${line.qtyDamaged > 0 ? 'text-red-500 font-bold' : (isDark ? 'text-slate-500' : 'text-slate-400')}`}><AlertTriangle size={12}/> Beschädigt</span>
+                          <span className={`text-[10px] uppercase tracking-wider flex items-center gap-1 ${line.qtyDamaged > 0 ? 'text-red-500 font-bold' : (isDark ? 'text-slate-500' : 'text-slate-400')}`}><AlertTriangle size={12} /> Beschädigt</span>
                           <PlusMinusPicker value={line.qtyDamaged} onChange={v => updateCartItem(idx, 'qtyDamaged', v)} max={line.qtyReceived} disabled={false} isDark={isDark} />
                         </div>
                         {/* Falsch Stepper - Always visible */}
                         <div className="flex justify-between items-center gap-3">
-                          <span className={`text-[10px] uppercase tracking-wider flex items-center gap-1 ${line.qtyWrong > 0 ? 'text-orange-500 font-bold' : (isDark ? 'text-slate-500' : 'text-slate-400')}`}><XCircle size={12}/> Falsch geliefert</span>
+                          <span className={`text-[10px] uppercase tracking-wider flex items-center gap-1 ${line.qtyWrong > 0 ? 'text-orange-500 font-bold' : (isDark ? 'text-slate-500' : 'text-slate-400')}`}><XCircle size={12} /> Falsch geliefert</span>
                           <PlusMinusPicker value={line.qtyWrong} onChange={v => updateCartItem(idx, 'qtyWrong', v)} max={line.qtyReceived - line.qtyDamaged} disabled={false} isDark={isDark} />
                         </div>
                         {/* Offen - Read-only */}
                         {linkedPoId && c.offen > 0 && (
                           <div className="flex justify-between items-center">
-                            <span className={`${labelClass} text-amber-500 flex items-center gap-1`}><AlertTriangle size={12}/> Offen</span>
+                            <span className={`${labelClass} text-amber-500 flex items-center gap-1`}><AlertTriangle size={12} /> Offen</span>
                             <span className="font-mono text-sm font-bold text-amber-500">{c.offen}</span>
                           </div>
                         )}
                         {/* Zu viel - Read-only */}
                         {linkedPoId && c.zuViel > 0 && (
                           <div className="flex justify-between items-center">
-                            <span className={`${labelClass} text-orange-500 flex items-center gap-1`}><AlertTriangle size={12}/> Zu viel</span>
+                            <span className={`${labelClass} text-orange-500 flex items-center gap-1`}><AlertTriangle size={12} /> Zu viel</span>
                             <span className="font-mono text-sm font-bold text-orange-500">+{c.zuViel}</span>
                           </div>
                         )}
@@ -1305,11 +1290,11 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                             Rücksendung: {line.returnCarrier || '—'} — Tracking: {line.returnTrackingId || '—'}{line.rejectionNotes ? ` — Grund: ${line.rejectionNotes}` : ''}
                           </div>
                         )}
-                        
+
                         <div className={`flex justify-between items-center ${!linkedPoId || c.offen === 0 ? 'pt-2 border-t' : ''} ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
                           <span className={labelClass}>Buchung</span>
                           <div className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-lg border ${line.qtyAccepted > 0 ? (isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border-emerald-200') : line.qtyAccepted < 0 ? (isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-50 text-orange-700 border-orange-200') : (isDark ? 'bg-slate-800 text-slate-500 border-slate-700' : 'bg-slate-100 text-slate-400 border-slate-200')}`}>
-                            {line.qtyAccepted > 0 ? <CheckCircle2 size={12}/> : line.qtyAccepted < 0 ? <LogOut size={12}/> : <Minus size={12}/>}
+                            {line.qtyAccepted > 0 ? <CheckCircle2 size={12} /> : line.qtyAccepted < 0 ? <LogOut size={12} /> : <Minus size={12} />}
                             {line.qtyAccepted > 0 ? `+${line.qtyAccepted}` : line.qtyAccepted}
                           </div>
                         </div>
@@ -1320,19 +1305,19 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                         {showReturnBtn && (
                           <button onClick={() => setReturnPopup({ idx, qty: c.zuViel || 1, reason: c.zuViel > 0 ? 'Überzahl' : '', carrier: '', tracking: '' })}
                             className={`text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${isDark ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100'}`}>
-                            <RotateCcw size={12}/> Rücksendung
+                            <RotateCcw size={12} /> Rücksendung
                           </button>
                         )}
                         {line.qtyDamaged === 0 && line.qtyWrong === 0 && !line.showIssuePanel && (
                           <button onClick={() => updateCartItem(idx, 'showIssuePanel', true)}
                             className={`text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 ml-auto transition-all ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600'}`}>
-                            <AlertCircle size={12}/> Problem
+                            <AlertCircle size={12} /> Problem
                           </button>
                         )}
                         {(line.qtyDamaged > 0 || line.qtyWrong > 0 || line.showIssuePanel) && (
                           <button onClick={() => { updateCartItem(idx, 'qtyDamaged', 0); updateCartItem(idx, 'qtyWrong', 0); updateCartItem(idx, 'showIssuePanel', false); }}
                             className={`text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 ml-auto transition-all ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
-                            <AlertCircle size={12}/> Zurücksetzen
+                            <AlertCircle size={12} /> Zurücksetzen
                           </button>
                         )}
                       </div>
@@ -1399,15 +1384,15 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                   <div className="flex justify-between items-center"><span className={labelClass}>Bis heute</span><span className="font-mono text-sm opacity-60">{c.bisHeute}</span></div>
                                 )}
                                 {c.zuViel > 0 && (
-                                  <div className="flex justify-between items-center"><span className="text-[10px] uppercase tracking-wider text-orange-500 font-bold flex items-center gap-1"><AlertTriangle size={12}/> Zu viel</span><span className="font-mono text-sm font-bold text-orange-500">+{c.zuViel}</span></div>
+                                  <div className="flex justify-between items-center"><span className="text-[10px] uppercase tracking-wider text-orange-500 font-bold flex items-center gap-1"><AlertTriangle size={12} /> Zu viel</span><span className="font-mono text-sm font-bold text-orange-500">+{c.zuViel}</span></div>
                                 )}
                                 {c.offen > 0 && !forceClose && (
-                                  <div className="flex justify-between items-center"><span className="text-[10px] uppercase tracking-wider text-amber-500 font-bold flex items-center gap-1"><AlertCircle size={12}/> Offen</span><span className="font-mono text-sm font-bold text-amber-500">{c.offen}</span></div>
+                                  <div className="flex justify-between items-center"><span className="text-[10px] uppercase tracking-wider text-amber-500 font-bold flex items-center gap-1"><AlertCircle size={12} /> Offen</span><span className="font-mono text-sm font-bold text-amber-500">{c.offen}</span></div>
                                 )}
                                 <div className={`flex justify-between items-center px-3 py-2.5 rounded-lg border ${isDark ? 'bg-slate-700/30 border-slate-600/30' : 'bg-slate-50 border-slate-200'}`}>
                                   <span className={labelClass}>Buchung</span>
                                   <span className={`font-mono text-sm font-bold flex items-center gap-1.5 ${line.qtyAccepted >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                    <CheckCircle2 size={14}/> {line.qtyAccepted >= 0 ? '+' : ''}{line.qtyAccepted}
+                                    <CheckCircle2 size={14} /> {line.qtyAccepted >= 0 ? '+' : ''}{line.qtyAccepted}
                                   </span>
                                 </div>
                               </div>
@@ -1419,11 +1404,11 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                   <PlusMinusPicker value={line.qtyReceived} onChange={v => updateCartItem(idx, 'qtyReceived', v)} disabled={false} isDark={isDark} />
                                 </div>
                                 <div className="flex justify-between items-center gap-3">
-                                  <span className={`text-[10px] uppercase tracking-wider flex items-center gap-1 ${line.qtyDamaged > 0 ? 'text-red-500 font-bold' : (isDark ? 'text-slate-500' : 'text-slate-400')}`}><AlertTriangle size={12}/> Beschädigt</span>
+                                  <span className={`text-[10px] uppercase tracking-wider flex items-center gap-1 ${line.qtyDamaged > 0 ? 'text-red-500 font-bold' : (isDark ? 'text-slate-500' : 'text-slate-400')}`}><AlertTriangle size={12} /> Beschädigt</span>
                                   <PlusMinusPicker value={line.qtyDamaged} onChange={v => updateCartItem(idx, 'qtyDamaged', v)} max={line.qtyReceived} disabled={false} isDark={isDark} />
                                 </div>
                                 <div className="flex justify-between items-center gap-3">
-                                  <span className={`text-[10px] uppercase tracking-wider flex items-center gap-1 ${line.qtyWrong > 0 ? 'text-orange-500 font-bold' : (isDark ? 'text-slate-500' : 'text-slate-400')}`}><XCircle size={12}/> Falsch geliefert</span>
+                                  <span className={`text-[10px] uppercase tracking-wider flex items-center gap-1 ${line.qtyWrong > 0 ? 'text-orange-500 font-bold' : (isDark ? 'text-slate-500' : 'text-slate-400')}`}><XCircle size={12} /> Falsch geliefert</span>
                                   <PlusMinusPicker value={line.qtyWrong} onChange={v => updateCartItem(idx, 'qtyWrong', v)} max={line.qtyReceived - line.qtyDamaged} disabled={false} isDark={isDark} />
                                 </div>
                               </div>
@@ -1435,18 +1420,18 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                             {showReturnBtn && (
                               <button onClick={() => setReturnPopup({ idx, qty: c.zuViel > 0 ? c.zuViel : line.qtyRejected, reason: line.qtyDamaged > 0 ? 'Beschädigt' : line.qtyWrong > 0 ? 'Falsch geliefert' : 'Überzahl', carrier: '', tracking: '' })}
                                 className={`text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${isDark ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100'}`}>
-                                <RotateCcw size={12}/> Rücksendung
+                                <RotateCcw size={12} /> Rücksendung
                               </button>
                             )}
                             {(line.qtyDamaged > 0 || line.qtyWrong > 0) && (
                               <button onClick={() => { updateCartItem(idx, 'qtyDamaged', 0); updateCartItem(idx, 'qtyWrong', 0); }}
                                 className={`text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
-                                <AlertCircle size={12}/> Zurücksetzen
+                                <AlertCircle size={12} /> Zurücksetzen
                               </button>
                             )}
                             <button onClick={() => updateCartItem(idx, 'showIssuePanel', !line.showIssuePanel)}
                               className={`text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ml-auto ${line.showIssuePanel ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700') : (isDark ? 'text-slate-400 hover:text-slate-300 hover:bg-slate-800' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100')}`}>
-                              <AlertCircle size={12}/> {line.showIssuePanel ? 'Schließen' : 'Problem'}
+                              <AlertCircle size={12} /> {line.showIssuePanel ? 'Schließen' : 'Problem'}
                             </button>
                           </div>
 
@@ -1502,39 +1487,39 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                   {linkedPoId && <td className="px-4 py-3 text-center font-mono text-sm opacity-60">{calc.bisHeute}</td>}
                                   <td className="px-4 py-3 text-center">
                                     <div className="flex justify-center">
-                                      <PlusMinusPicker 
-                                        value={cartLine.qtyReceived} 
+                                      <PlusMinusPicker
+                                        value={cartLine.qtyReceived}
                                         onChange={v => updateCartItem(cartIdx, 'qtyReceived', v)}
                                         disabled={false}
-                isDark={isDark}
-            />
-          </div>
-        </td>
-        <td className="px-4 py-3 text-center">
-          <div className="flex justify-center">
-            <PlusMinusPicker
-              value={cartLine.qtyDamaged} 
-                                        onChange={v => updateCartItem(cartIdx, 'qtyDamaged', v)}
-                                        disabled={false}
-                isDark={isDark}
-                max={cartLine.qtyReceived}
+                                        isDark={isDark}
                                       />
                                     </div>
                                   </td>
                                   <td className="px-4 py-3 text-center">
                                     <div className="flex justify-center">
-                                      <PlusMinusPicker 
-                                        value={cartLine.qtyWrong} 
-                                        onChange={v => updateCartItem(cartIdx, 'qtyWrong', v)}
+                                      <PlusMinusPicker
+                                        value={cartLine.qtyDamaged}
+                                        onChange={v => updateCartItem(cartIdx, 'qtyDamaged', v)}
                                         disabled={false}
-                isDark={isDark}
-                max={cartLine.qtyReceived - cartLine.qtyDamaged}
+                                        isDark={isDark}
+                                        max={cartLine.qtyReceived}
                                       />
                                     </div>
                                   </td>
-                                  {linkedPoId && <td className="px-4 py-3 text-center">{calc.offen > 0 ? <span className="font-mono text-sm font-bold text-amber-500 flex items-center justify-center gap-1"><AlertTriangle size={12}/>{calc.offen}</span> : <span className="opacity-30 text-sm">—</span>}</td>}
+                                  <td className="px-4 py-3 text-center">
+                                    <div className="flex justify-center">
+                                      <PlusMinusPicker
+                                        value={cartLine.qtyWrong}
+                                        onChange={v => updateCartItem(cartIdx, 'qtyWrong', v)}
+                                        disabled={false}
+                                        isDark={isDark}
+                                        max={cartLine.qtyReceived - cartLine.qtyDamaged}
+                                      />
+                                    </div>
+                                  </td>
+                                  {linkedPoId && <td className="px-4 py-3 text-center">{calc.offen > 0 ? <span className="font-mono text-sm font-bold text-amber-500 flex items-center justify-center gap-1"><AlertTriangle size={12} />{calc.offen}</span> : <span className="opacity-30 text-sm">—</span>}</td>}
                                   {linkedPoId && <td className="px-4 py-3 text-center"><span className={`font-mono text-sm font-bold ${calc.zuViel > 0 ? 'text-orange-500' : 'opacity-30'}`}>{calc.zuViel > 0 ? `+${calc.zuViel}` : '0'}</span></td>}
-                                  
+
                                   <td className="px-4 py-3 text-center">
                                     <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-lg border ${cartLine.qtyAccepted > 0 ? (isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border-emerald-200') : cartLine.qtyAccepted < 0 ? (isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-50 text-orange-700 border-orange-200') : (isDark ? 'bg-slate-800 text-slate-500 border-slate-700' : 'bg-slate-100 text-slate-400 border-slate-200')}`}>
                                       {cartLine.qtyAccepted > 0 ? `+${cartLine.qtyAccepted}` : cartLine.qtyAccepted}
@@ -1547,22 +1532,22 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                     <div className="flex items-center justify-center gap-2">
                                       {/* Return Button - Shows for overdelivery, damage, or wrong */}
                                       {(calc.zuViel > 0 || cartLine.qtyDamaged > 0 || cartLine.qtyWrong > 0) && (
-                                        <button 
+                                        <button
                                           onClick={() => setReturnPopup({ idx: cartIdx, qty: cartLine.qtyDamaged + cartLine.qtyWrong || calc.zuViel || 1, reason: cartLine.qtyDamaged > 0 ? 'Beschädigt' : cartLine.qtyWrong > 0 ? 'Falsch geliefert' : 'Überzahl', carrier: '', tracking: '' })}
                                           className={`text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${isDark ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100'}`}
                                           title="Rücksendung erstellen"
                                         >
-                                          <RotateCcw size={12}/> Rücksendung
+                                          <RotateCcw size={12} /> Rücksendung
                                         </button>
                                       )}
-                                      
+
                                       {/* Problem Button - For notes */}
-                                      <button 
+                                      <button
                                         onClick={() => updateCartItem(cartIdx, 'showIssuePanel', !cartLine.showIssuePanel)}
                                         className={`text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${cartLine.showIssuePanel ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700') : (isDark ? 'text-slate-400 hover:text-slate-300 hover:bg-slate-800' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100')}`}
                                         title={cartLine.showIssuePanel ? 'Problem-Panel schließen' : 'Problem melden'}
                                       >
-                                        <AlertCircle size={12}/> {cartLine.showIssuePanel ? 'Schließen' : 'Problem'}
+                                        <AlertCircle size={12} /> {cartLine.showIssuePanel ? 'Schließen' : 'Problem'}
                                       </button>
                                     </div>
                                   </td>
@@ -1572,7 +1557,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                           </tbody>
                         </table>
                       </div>
-                      
+
                       {/* ISSUE PANELS - Desktop View (Shown Below Table When Active) */}
                       {cart.map((cartLine, cartIdx) => {
                         if (!cartLine.showIssuePanel) return null;
@@ -1583,14 +1568,14 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                 <AlertCircle size={16} className="text-amber-500" />
                                 Problem melden: {cartLine.item.name}
                               </div>
-                              <button 
+                              <button
                                 onClick={() => updateCartItem(cartIdx, 'showIssuePanel', false)}
                                 className={`p-1 rounded hover:bg-slate-500/10 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}
                               >
                                 <X size={16} />
                               </button>
                             </div>
-                            
+
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <label className="block text-xs font-bold mb-1.5 text-red-500">Beschädigt</label>
@@ -1601,10 +1586,10 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                                 <div className="text-sm font-mono font-bold text-orange-500">{cartLine.qtyWrong > 0 ? `${cartLine.qtyWrong} Stk` : '—'}</div>
                               </div>
                             </div>
-                            
+
                             <div>
                               <label className="block text-xs font-bold mb-1.5">Notizen</label>
-                              <textarea 
+                              <textarea
                                 value={cartLine.rejectionNotes || ''}
                                 onChange={e => updateCartItem(cartIdx, 'rejectionNotes', e.target.value)}
                                 placeholder="Details zum Problem..."
@@ -1635,15 +1620,14 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
         {step === 3 && (
           <div className="max-w-3xl mx-auto space-y-6 md:space-y-3">
             <div className="text-center space-y-3 md:space-y-1.5">
-              <div className={`inline-flex p-4 md:p-2.5 rounded-full ${
-                globalStats.totalOffen > 0 
-                  ? (isDark ? 'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/20' : 'bg-amber-100 text-amber-600') 
-                  : globalStats.totalZuViel > 0 
-                    ? (isDark ? 'bg-orange-500/15 text-orange-400 ring-1 ring-orange-500/20' : 'bg-orange-100 text-orange-600') 
-                    : (isDark ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20' : 'bg-emerald-100 text-emerald-600')
-              }`}>
-                {globalStats.totalOffen > 0 ? <AlertTriangle size={32} className="md:hidden"/> : globalStats.totalZuViel > 0 ? <Info size={32} className="md:hidden"/> : <CheckCircle2 size={32} className="md:hidden"/>}
-                {globalStats.totalOffen > 0 ? <AlertTriangle size={20} className="hidden md:block"/> : globalStats.totalZuViel > 0 ? <Info size={20} className="hidden md:block"/> : <CheckCircle2 size={20} className="hidden md:block"/>}
+              <div className={`inline-flex p-4 md:p-2.5 rounded-full ${globalStats.totalOffen > 0
+                ? (isDark ? 'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/20' : 'bg-amber-100 text-amber-600')
+                : globalStats.totalZuViel > 0
+                  ? (isDark ? 'bg-orange-500/15 text-orange-400 ring-1 ring-orange-500/20' : 'bg-orange-100 text-orange-600')
+                  : (isDark ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/20' : 'bg-emerald-100 text-emerald-600')
+                }`}>
+                {globalStats.totalOffen > 0 ? <AlertTriangle size={32} className="md:hidden" /> : globalStats.totalZuViel > 0 ? <Info size={32} className="md:hidden" /> : <CheckCircle2 size={32} className="md:hidden" />}
+                {globalStats.totalOffen > 0 ? <AlertTriangle size={20} className="hidden md:block" /> : globalStats.totalZuViel > 0 ? <Info size={20} className="hidden md:block" /> : <CheckCircle2 size={20} className="hidden md:block" />}
               </div>
               <h3 className="text-2xl md:text-lg font-bold">Zusammenfassung</h3>
               <div className="text-lg md:text-sm">Status: <span className="font-bold">{headerData.status}</span></div>
@@ -1658,7 +1642,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
 
             {cart.some(c => c.qtyRejected > 0) && (
               <div className={`p-4 rounded-xl text-sm ${isDark ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-                <strong>Hinweis:</strong> {cart.reduce((a,c) => a + c.qtyRejected, 0)} Artikel zurückgesendet. Ticket wird automatisch erstellt.
+                <strong>Hinweis:</strong> {cart.reduce((a, c) => a + c.qtyRejected, 0)} Artikel zurückgesendet. Ticket wird automatisch erstellt.
               </div>
             )}
 
@@ -1699,7 +1683,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
               </div>
             </div>
 
-            
+
           </div>
         )}
       </div>
@@ -1719,9 +1703,8 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
           )}
           {step === 1 ? (
             <button onClick={() => setStep(2 as any)} disabled={!headerData.lieferscheinNr}
-              className={`flex-1 md:flex-none md:px-8 py-3 md:py-[9px] rounded-xl md:rounded-lg font-bold md:font-semibold text-sm md:text-[13px] inline-flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] text-white ${
-                headerData.lieferscheinNr ? 'bg-[#0077B5] hover:bg-[#005f8f] shadow-md md:shadow-sm shadow-blue-500/25 md:shadow-blue-500/15' : 'bg-slate-300 dark:bg-slate-700 shadow-none cursor-not-allowed'
-              }`}>
+              className={`flex-1 md:flex-none md:px-8 py-3 md:py-[9px] rounded-xl md:rounded-lg font-bold md:font-semibold text-sm md:text-[13px] inline-flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] text-white ${headerData.lieferscheinNr ? 'bg-[#0077B5] hover:bg-[#005f8f] shadow-md md:shadow-sm shadow-blue-500/25 md:shadow-blue-500/15' : 'bg-slate-300 dark:bg-slate-700 shadow-none cursor-not-allowed'
+                }`}>
               Weiter <ArrowRight size={15} strokeWidth={2.5} />
             </button>
           ) : step === 2 ? (
@@ -1733,11 +1716,10 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                   if (isLastItem) { setStep(3 as any); }
                   else { setCardIdx(prev => prev + 1); }
                 }} disabled={!canProceed}
-                  className={`flex-1 md:flex-none md:px-8 py-3 md:py-[9px] rounded-xl md:rounded-lg font-bold md:font-semibold text-sm md:text-[13px] inline-flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] text-white ${
-                    !canProceed ? 'bg-slate-300 dark:bg-slate-700 shadow-none cursor-not-allowed' 
-                    : isLastItem ? 'bg-emerald-600 hover:bg-emerald-500 shadow-md md:shadow-sm shadow-emerald-500/25 md:shadow-emerald-500/15' 
-                    : 'bg-[#0077B5] hover:bg-[#005f8f] shadow-md md:shadow-sm shadow-blue-500/25 md:shadow-blue-500/15'
-                  }`}>
+                  className={`flex-1 md:flex-none md:px-8 py-3 md:py-[9px] rounded-xl md:rounded-lg font-bold md:font-semibold text-sm md:text-[13px] inline-flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] text-white ${!canProceed ? 'bg-slate-300 dark:bg-slate-700 shadow-none cursor-not-allowed'
+                    : isLastItem ? 'bg-emerald-600 hover:bg-emerald-500 shadow-md md:shadow-sm shadow-emerald-500/25 md:shadow-emerald-500/15'
+                      : 'bg-[#0077B5] hover:bg-[#005f8f] shadow-md md:shadow-sm shadow-blue-500/25 md:shadow-blue-500/15'
+                    }`}>
                   {isLastItem ? <><CheckCircle2 size={15} /> Prüfung abschließen</> : <>Weiter <ArrowRight size={15} strokeWidth={2.5} /></>}
                 </button>
               );
@@ -1753,129 +1735,6 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
 
       <POSelectionModal isOpen={showPoModal} onClose={() => setShowPoModal(false)} orders={purchaseOrders || MOCK_PURCHASE_ORDERS} receiptMasters={receiptMasters} onSelect={handleSelectPO} theme={theme} />
 
-      {/* LAGERORT BOTTOM SHEET */}
-      {showLagerortSheet && createPortal(
-        <div className="fixed inset-0 z-[100000] flex items-end md:items-center justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => { setShowLagerortSheet(false); setLagerortSheetSearch(''); setShowAddNewLagerort(false); setNewLagerortName(''); }} />
-          <div className={`relative w-full md:max-w-md rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300 ${isDark ? 'bg-slate-900 md:border md:border-slate-800' : 'bg-white md:border md:border-slate-200'}`} style={{ maxHeight: '85vh', minHeight: '40vh' }}>
-            {/* Handle bar */}
-            <div className="flex justify-center pt-3 pb-1">
-              <div className={`w-10 h-1 rounded-full ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`} />
-            </div>
-            {/* Header */}
-            <div className="px-5 pb-3 flex items-center justify-between">
-              <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Lagerort wählen</h3>
-              <button onClick={() => { setShowLagerortSheet(false); setLagerortSheetSearch(''); setShowAddNewLagerort(false); setNewLagerortName(''); }} className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
-                <ChevronDown size={20} />
-              </button>
-            </div>
-            {/* Search */}
-            <div className={`px-5 pb-3 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-              <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-                <Search size={16} className="opacity-50 shrink-0" />
-                <input
-                  type="text"
-                  value={lagerortSheetSearch}
-                  onChange={(e) => setLagerortSheetSearch(e.target.value)}
-                  placeholder="Suchen..."
-                  className="flex-1 bg-transparent outline-none text-sm"
-                  autoFocus
-                />
-                {lagerortSheetSearch && (
-                  <button onClick={() => setLagerortSheetSearch('')} className="opacity-50 hover:opacity-100"><X size={14} /></button>
-                )}
-              </div>
-            </div>
-            {/* Options list */}
-            <div className="flex-1 overflow-y-auto">
-              {(() => {
-                const filtered = lagerortSheetSearch
-                  ? lagerortOptions.filter(o => o.toLowerCase().includes(lagerortSheetSearch.toLowerCase()))
-                  : lagerortOptions;
-                return filtered.length > 0 ? filtered.map((opt, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setHeaderData(prev => ({ ...prev, warehouseLocation: opt }));
-                      setShowLagerortSheet(false);
-                      setLagerortSheetSearch('');
-                    }}
-                    className={`w-full px-5 py-3.5 text-left text-sm transition-colors flex items-center justify-between border-b ${
-                      headerData.warehouseLocation === opt
-                        ? isDark ? 'bg-blue-500/20 text-blue-400 border-slate-800' : 'bg-blue-50 text-blue-600 border-slate-100'
-                        : isDark ? 'hover:bg-slate-800 border-slate-800' : 'hover:bg-slate-50 border-slate-100'
-                    }`}
-                  >
-                    <span>{opt}</span>
-                    {headerData.warehouseLocation === opt && <Check size={16} />}
-                  </button>
-                )) : (
-                  <div className="p-6 text-center text-sm opacity-50">Keine Ergebnisse</div>
-                );
-              })()}
-            </div>
-            {/* Add new Lagerort */}
-            <div className={`p-4 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}
-              style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}>
-              {!showAddNewLagerort ? (
-                <button
-                  type="button"
-                  onClick={() => setShowAddNewLagerort(true)}
-                  className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border transition-colors ${
-                    isDark ? 'border-slate-700 hover:bg-slate-800 text-blue-400' : 'border-slate-200 hover:bg-slate-50 text-blue-600'
-                  }`}
-                >
-                  <Plus size={16} /> Neuer Lagerort
-                </button>
-              ) : (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newLagerortName}
-                    onChange={(e) => setNewLagerortName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newLagerortName.trim()) {
-                        const updated = [...lagerortOptions, newLagerortName.trim()];
-                        setLagerortOptions(updated);
-                        if (onUpdateLagerortOptions) onUpdateLagerortOptions(updated);
-                        setHeaderData(prev => ({ ...prev, warehouseLocation: newLagerortName.trim() }));
-                        setNewLagerortName('');
-                        setShowAddNewLagerort(false);
-                        setShowLagerortSheet(false);
-                        setLagerortSheetSearch('');
-                      }
-                    }}
-                    placeholder="Neuer Lagerort..."
-                    className={`flex-1 px-3 py-2.5 rounded-xl border text-sm outline-none ${
-                      isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
-                    }`}
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (newLagerortName.trim()) {
-                        setLagerortOptions(prev => [...prev, newLagerortName.trim()]);
-                        setHeaderData(prev => ({ ...prev, warehouseLocation: newLagerortName.trim() }));
-                        setNewLagerortName('');
-                        setShowAddNewLagerort(false);
-                        setShowLagerortSheet(false);
-                        setLagerortSheetSearch('');
-                      }
-                    }}
-                    disabled={!newLagerortName.trim()}
-                    className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-blue-500"
-                  >
-                    <Check size={16} />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
     </div>
   );
 };

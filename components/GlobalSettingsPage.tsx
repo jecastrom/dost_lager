@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Theme, ActiveModule, AuditEntry } from '../types';
-import { 
+import { Theme, ActiveModule, AuditEntry, LagerortCategory } from '../types';
+import {
   ArrowLeft, Shield, Sparkles, Calendar, Ticket, List,
   AlertTriangle, PlusCircle, AlertCircle, Ban, ChevronDown, ChevronUp,
-  Info, Clock, FileText, Eye, Lock, MapPin, GripVertical, 
-  Pencil, Trash2, Plus, Check, X, ArrowUp, ArrowDown
+  Info, Clock, FileText, Eye, Lock, MapPin, GripVertical,
+  Pencil, Trash2, Plus, Check, X, ArrowUp, ArrowDown, FolderOpen, Layers
 } from 'lucide-react';
 import { TicketConfig, TimelineConfig } from './SettingsPage';
 import { MessageSquare } from 'lucide-react';
@@ -28,9 +28,9 @@ interface GlobalSettingsPageProps {
   onSetTimelineConfig: (config: TimelineConfig) => void;
   // Audit Trail
   auditTrail?: AuditEntry[];
-  // Lagerorte
-  lagerortOptions: string[];
-  onSetLagerortOptions: (opts: string[]) => void;
+  // Lagerorte (categorized)
+  lagerortCategories: LagerortCategory[];
+  onSetLagerortCategories: (cats: LagerortCategory[]) => void;
 }
 
 export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
@@ -47,42 +47,61 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
   timelineConfig,
   onSetTimelineConfig,
   auditTrail = [],
-  lagerortOptions,
-  onSetLagerortOptions
+  lagerortCategories,
+  onSetLagerortCategories
 }) => {
   const isDark = theme === 'dark';
   const [isTicketConfigOpen, setIsTicketConfigOpen] = useState(false);
   const [isTimelineConfigOpen, setIsTimelineConfigOpen] = useState(false);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [isLagerorteOpen, setIsLagerorteOpen] = useState(false);
-  const [editingLagerortIdx, setEditingLagerortIdx] = useState<number | null>(null);
-  const [editingLagerortVal, setEditingLagerortVal] = useState('');
-  const [newLagerortVal, setNewLagerortVal] = useState('');
-  const [showAddLagerort, setShowAddLagerort] = useState(false);
+  // Category-level editing
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editingCatName, setEditingCatName] = useState('');
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  // Item-level editing (within a category)
+  const [editingItemKey, setEditingItemKey] = useState<string | null>(null); // "catId:idx"
+  const [editingItemVal, setEditingItemVal] = useState('');
+  const [addingItemCatId, setAddingItemCatId] = useState<string | null>(null);
+  const [newItemVal, setNewItemVal] = useState('');
+  // Drag state for items within a category
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [dragCatId, setDragCatId] = useState<string | null>(null);
+  // Collapsed categories
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
+  const toggleCatCollapse = (catId: string) => setCollapsedCats(prev => {
+    const next = new Set(prev);
+    next.has(catId) ? next.delete(catId) : next.add(catId);
+    return next;
+  });
+
+  // Helpers for category mutations
+  const totalLagerortCount = lagerortCategories.reduce((sum, c) => sum + c.items.length, 0);
+
+  const updateCategoryItems = (catId: string, newItems: string[]) => {
+    onSetLagerortCategories(lagerortCategories.map(c => c.id === catId ? { ...c, items: newItems } : c));
+  };
 
   // ── Reusable Sub-Components ──
 
   const Toggle = ({ checked, onChange }: { checked: boolean; onChange: (val: boolean) => void }) => (
     <button
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-        checked ? 'bg-[#0077B5]' : 'bg-slate-300 dark:bg-slate-700'
-      }`}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? 'bg-[#0077B5]' : 'bg-slate-300 dark:bg-slate-700'
+        }`}
     >
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-        checked ? 'translate-x-6' : 'translate-x-1'
-      }`} />
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'
+        }`} />
     </button>
   );
 
   const SettingRow = ({ icon, label, description, action }: {
     icon: React.ReactNode; label: string; description: string; action: React.ReactNode;
   }) => (
-    <div className={`flex items-center justify-between p-4 border-b last:border-b-0 ${
-      isDark ? 'border-slate-800' : 'border-slate-100'
-    }`}>
+    <div className={`flex items-center justify-between p-4 border-b last:border-b-0 ${isDark ? 'border-slate-800' : 'border-slate-100'
+      }`}>
       <div className="flex items-center gap-4">
         <div className={`p-2.5 rounded-xl ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}>
           {icon}
@@ -97,9 +116,8 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
   );
 
   const SectionHeader = ({ title, subtitle, icon }: { title: string; subtitle: string; icon: React.ReactNode }) => (
-    <div className={`px-6 py-3 border-b flex items-center gap-3 ${
-      isDark ? 'bg-[#0077B5]/5 border-[#0077B5]/20' : 'bg-[#0077B5]/5 border-[#0077B5]/10'
-    }`}>
+    <div className={`px-6 py-3 border-b flex items-center gap-3 ${isDark ? 'bg-[#0077B5]/5 border-[#0077B5]/20' : 'bg-[#0077B5]/5 border-[#0077B5]/10'
+      }`}>
       <div className={`p-1.5 rounded-lg ${isDark ? 'bg-[#0077B5]/20 text-[#0077B5]' : 'bg-[#0077B5]/10 text-[#0077B5]'}`}>
         {icon}
       </div>
@@ -121,9 +139,8 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
       <div className="mb-8">
         <button
           onClick={() => onNavigate('settings')}
-          className={`flex items-center gap-2 text-sm font-bold mb-4 transition-colors ${
-            isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
-          }`}
+          className={`flex items-center gap-2 text-sm font-bold mb-4 transition-colors ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+            }`}
         >
           <ArrowLeft size={16} /> Zurück zu Einstellungen
         </button>
@@ -140,11 +157,10 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
           </div>
         </div>
 
-        <div className={`mt-4 rounded-xl px-4 py-2.5 flex items-center gap-3 text-xs ${
-          isDark
+        <div className={`mt-4 rounded-xl px-4 py-2.5 flex items-center gap-3 text-xs ${isDark
             ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
             : 'bg-amber-50 border border-amber-200 text-amber-800'
-        }`}>
+          }`}>
           <Lock size={14} className="shrink-0" />
           <span>In Zukunft nur für Administratoren sichtbar. Änderungen wirken sich sofort auf alle Benutzer aus.</span>
         </div>
@@ -153,9 +169,8 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
       {/* ═══════════════════════════════════════════════════════
           CATEGORY 1: TABELLEN & ANZEIGE
           ═══════════════════════════════════════════════════════ */}
-      <div className={`rounded-2xl border overflow-hidden mb-6 ${
-        isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
+      <div className={`rounded-2xl border overflow-hidden mb-6 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        }`}>
         <SectionHeader
           title="Tabellen & Anzeige"
           subtitle="Spaltenreihenfolge und Darstellung in Listen"
@@ -172,9 +187,8 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
       {/* ═══════════════════════════════════════════════════════
           CATEGORY 2: EINKAUF & BESTELLUNGEN
           ═══════════════════════════════════════════════════════ */}
-      <div className={`rounded-2xl border overflow-hidden mb-6 ${
-        isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
+      <div className={`rounded-2xl border overflow-hidden mb-6 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        }`}>
         <SectionHeader
           title="Einkauf & Bestellungen"
           subtitle="Import-Funktionen und Pflichtfelder für neue Bestellungen"
@@ -194,21 +208,19 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
             <div className={`flex p-1 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
               <button
                 onClick={() => onSetRequireDeliveryDate(true)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
-                  requireDeliveryDate
+                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${requireDeliveryDate
                     ? 'bg-[#0077B5] text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
+                  }`}
               >
                 Pflicht
               </button>
               <button
                 onClick={() => onSetRequireDeliveryDate(false)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
-                  !requireDeliveryDate
+                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${!requireDeliveryDate
                     ? 'bg-[#0077B5] text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
+                  }`}
               >
                 Optional
               </button>
@@ -220,16 +232,14 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
       {/* ═══════════════════════════════════════════════════════
           CATEGORY 3: TICKET-AUTOMATISIERUNG
           ═══════════════════════════════════════════════════════ */}
-      <div className={`rounded-2xl border overflow-hidden mb-6 ${
-        isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
+      <div className={`rounded-2xl border overflow-hidden mb-6 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        }`}>
         <button
           onClick={() => setIsTicketConfigOpen(!isTicketConfigOpen)}
           className={`w-full transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}
         >
-          <div className={`px-6 py-3 flex items-center justify-between ${
-            isDark ? 'bg-[#0077B5]/5' : 'bg-[#0077B5]/5'
-          } ${isTicketConfigOpen ? 'border-b ' + (isDark ? 'border-slate-800' : 'border-slate-200') : ''}`}>
+          <div className={`px-6 py-3 flex items-center justify-between ${isDark ? 'bg-[#0077B5]/5' : 'bg-[#0077B5]/5'
+            } ${isTicketConfigOpen ? 'border-b ' + (isDark ? 'border-slate-800' : 'border-slate-200') : ''}`}>
             <div className="flex items-center gap-3">
               <div className={`p-1.5 rounded-lg ${isDark ? 'bg-[#0077B5]/20 text-[#0077B5]' : 'bg-[#0077B5]/10 text-[#0077B5]'}`}>
                 <Ticket size={16} />
@@ -244,9 +254,8 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                isDark ? 'bg-[#0077B5]/20 text-[#0077B5]' : 'bg-[#0077B5]/10 text-[#0077B5]'
-              }`}>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDark ? 'bg-[#0077B5]/20 text-[#0077B5]' : 'bg-[#0077B5]/10 text-[#0077B5]'
+                }`}>
                 {Object.values(ticketConfig).filter(Boolean).length}/5 aktiv
               </span>
               {isTicketConfigOpen
@@ -259,9 +268,8 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
 
         {isTicketConfigOpen && (
           <div>
-            <div className={`mx-4 mt-4 mb-3 p-3 rounded-xl border text-xs ${
-              isDark ? 'border-slate-700 text-slate-400 bg-slate-800/50' : 'border-slate-200 text-slate-600 bg-slate-50'
-            }`}>
+            <div className={`mx-4 mt-4 mb-3 p-3 rounded-xl border text-xs ${isDark ? 'border-slate-700 text-slate-400 bg-slate-800/50' : 'border-slate-200 text-slate-600 bg-slate-50'
+              }`}>
               <div className="flex gap-3">
                 <Info size={16} className="shrink-0 mt-0.5 text-[#0077B5]" />
                 <p>
@@ -309,16 +317,14 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
       {/* ═══════════════════════════════════════════════════════
           CATEGORY 3b: TIMELINE AUTO-POSTS (HISTORIE & NOTIZEN)
           ═══════════════════════════════════════════════════════ */}
-      <div className={`rounded-2xl border overflow-hidden mb-6 ${
-        isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
+      <div className={`rounded-2xl border overflow-hidden mb-6 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        }`}>
         <button
           onClick={() => setIsTimelineConfigOpen(!isTimelineConfigOpen)}
           className={`w-full transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}
         >
-          <div className={`px-6 py-3 flex items-center justify-between ${
-            isDark ? 'bg-emerald-500/5' : 'bg-emerald-500/5'
-          } ${isTimelineConfigOpen ? 'border-b ' + (isDark ? 'border-slate-800' : 'border-slate-200') : ''}`}>
+          <div className={`px-6 py-3 flex items-center justify-between ${isDark ? 'bg-emerald-500/5' : 'bg-emerald-500/5'
+            } ${isTimelineConfigOpen ? 'border-b ' + (isDark ? 'border-slate-800' : 'border-slate-200') : ''}`}>
             <div className="flex items-center gap-3">
               <div className={`p-1.5 rounded-lg ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-500/10 text-emerald-600'}`}>
                 <MessageSquare size={16} />
@@ -333,9 +339,8 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-500/10 text-emerald-600'
-              }`}>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-500/10 text-emerald-600'
+                }`}>
                 {Object.values(timelineConfig).filter(Boolean).length}/5 aktiv
               </span>
               {isTimelineConfigOpen
@@ -348,9 +353,8 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
 
         {isTimelineConfigOpen && (
           <div>
-            <div className={`mx-4 mt-4 mb-3 p-3 rounded-xl border text-xs ${
-              isDark ? 'border-slate-700 text-slate-400 bg-slate-800/50' : 'border-slate-200 text-slate-600 bg-slate-50'
-            }`}>
+            <div className={`mx-4 mt-4 mb-3 p-3 rounded-xl border text-xs ${isDark ? 'border-slate-700 text-slate-400 bg-slate-800/50' : 'border-slate-200 text-slate-600 bg-slate-50'
+              }`}>
               <div className="flex gap-3">
                 <Info size={16} className="shrink-0 mt-0.5 text-emerald-500" />
                 <p>
@@ -396,18 +400,16 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
       </div>
 
       {/* ═══════════════════════════════════════════════════════
-          CATEGORY 4: LAGERORTE VERWALTUNG
+          CATEGORY 4: LAGERORTE VERWALTUNG (GROUPED)
           ═══════════════════════════════════════════════════════ */}
-      <div className={`rounded-2xl border overflow-hidden mb-6 ${
-        isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
+      <div className={`rounded-2xl border overflow-hidden mb-6 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        }`}>
         <button
           onClick={() => setIsLagerorteOpen(!isLagerorteOpen)}
           className={`w-full transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}
         >
-          <div className={`px-6 py-3 flex items-center justify-between ${
-            isDark ? 'bg-purple-500/5' : 'bg-purple-500/5'
-          } ${isLagerorteOpen ? 'border-b ' + (isDark ? 'border-slate-800' : 'border-slate-200') : ''}`}>
+          <div className={`px-6 py-3 flex items-center justify-between ${isDark ? 'bg-purple-500/5' : 'bg-purple-500/5'
+            } ${isLagerorteOpen ? 'border-b ' + (isDark ? 'border-slate-800' : 'border-slate-200') : ''}`}>
             <div className="flex items-center gap-3">
               <div className={`p-1.5 rounded-lg ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-500/10 text-purple-600'}`}>
                 <MapPin size={16} />
@@ -417,15 +419,14 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
                   Lagerorte verwalten
                 </span>
                 <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Hinzufügen, bearbeiten, löschen und Reihenfolge anpassen
+                  Kategorien, Lagerorte und Reihenfolge verwalten
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-500/10 text-purple-600'
-              }`}>
-                {lagerortOptions.length} Orte
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-500/10 text-purple-600'
+                }`}>
+                {lagerortCategories.length} Kategorien · {totalLagerortCount} Orte
               </span>
               {isLagerorteOpen
                 ? <ChevronUp size={16} className="text-slate-400" />
@@ -437,182 +438,289 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
 
         {isLagerorteOpen && (
           <div>
-            <div className={`mx-4 mt-4 mb-3 p-3 rounded-xl border text-xs ${
-              isDark ? 'border-slate-700 text-slate-400 bg-slate-800/50' : 'border-slate-200 text-slate-600 bg-slate-50'
-            }`}>
+            <div className={`mx-4 mt-4 mb-3 p-3 rounded-xl border text-xs ${isDark ? 'border-slate-700 text-slate-400 bg-slate-800/50' : 'border-slate-200 text-slate-600 bg-slate-50'
+              }`}>
               <div className="flex gap-3">
                 <Info size={16} className="shrink-0 mt-0.5 text-purple-500" />
                 <p>
-                  Ordnen Sie die am häufigsten genutzten Lagerorte nach oben. Auf Desktop können Sie per Drag & Drop sortieren, auf Mobil mit den Pfeiltasten.
+                  Lagerorte sind in Kategorien gruppiert. Innerhalb jeder Kategorie können Sie per Drag & Drop (Desktop) oder Pfeiltasten (Mobil) sortieren.
                 </p>
               </div>
             </div>
 
-            {/* Lagerort List */}
-            <div className="max-h-[50vh] overflow-y-auto">
-              {lagerortOptions.map((opt, idx) => (
-                <div
-                  key={`${opt}-${idx}`}
-                  draggable
-                  onDragStart={() => setDragIdx(idx)}
-                  onDragOver={(e) => { e.preventDefault(); setDragOverIdx(idx); }}
-                  onDragLeave={() => setDragOverIdx(null)}
-                  onDrop={() => {
-                    if (dragIdx !== null && dragIdx !== idx) {
-                      const updated = [...lagerortOptions];
-                      const [moved] = updated.splice(dragIdx, 1);
-                      updated.splice(idx, 0, moved);
-                      onSetLagerortOptions(updated);
-                    }
-                    setDragIdx(null);
-                    setDragOverIdx(null);
-                  }}
-                  onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
-                  className={`flex items-center gap-2 px-4 py-2.5 border-b transition-all ${
-                    isDark ? 'border-slate-800' : 'border-slate-100'
-                  } ${dragOverIdx === idx ? (isDark ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200') : ''
-                  } ${dragIdx === idx ? 'opacity-40' : ''}`}
-                >
-                  {/* Drag Handle */}
-                  <div className={`cursor-grab active:cursor-grabbing p-1 rounded ${isDark ? 'text-slate-600 hover:text-slate-400' : 'text-slate-300 hover:text-slate-500'}`}>
-                    <GripVertical size={16} />
+            {/* Categories */}
+            <div className="max-h-[60vh] overflow-y-auto">
+              {lagerortCategories.map((cat, catIdx) => {
+                const isCollapsed = collapsedCats.has(cat.id);
+
+                return (
+                  <div key={cat.id} className={catIdx > 0 ? `border-t ${isDark ? 'border-slate-700' : 'border-slate-200'}` : ''}>
+                    {/* Category Header */}
+                    <div className={`flex items-center gap-2 px-4 py-2.5 ${isDark ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
+                      <button
+                        onClick={() => toggleCatCollapse(cat.id)}
+                        className={`p-1 rounded transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-200 text-slate-500'}`}
+                      >
+                        {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                      </button>
+
+                      <FolderOpen size={14} className="text-purple-500" />
+
+                      {editingCatId === cat.id ? (
+                        <div className="flex-1 flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={editingCatName}
+                            onChange={(e) => setEditingCatName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && editingCatName.trim()) {
+                                onSetLagerortCategories(lagerortCategories.map(c => c.id === cat.id ? { ...c, name: editingCatName.trim() } : c));
+                                setEditingCatId(null);
+                              }
+                              if (e.key === 'Escape') setEditingCatId(null);
+                            }}
+                            className={`flex-1 px-2 py-0.5 rounded-lg border text-xs font-bold outline-none ${isDark ? 'bg-slate-900 border-slate-600 text-white focus:border-purple-500' : 'bg-white border-slate-300 focus:border-purple-500'
+                              }`}
+                            autoFocus
+                          />
+                          <button onClick={() => {
+                            if (editingCatName.trim()) onSetLagerortCategories(lagerortCategories.map(c => c.id === cat.id ? { ...c, name: editingCatName.trim() } : c));
+                            setEditingCatId(null);
+                          }} className="p-0.5 rounded text-emerald-500 hover:bg-emerald-500/10"><Check size={12} /></button>
+                          <button onClick={() => setEditingCatId(null)} className={`p-0.5 rounded ${isDark ? 'text-slate-500' : 'text-slate-400'}`}><X size={12} /></button>
+                        </div>
+                      ) : (
+                        <span className={`flex-1 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                          {cat.name}
+                        </span>
+                      )}
+
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-500'}`}>
+                        {cat.items.length}
+                      </span>
+
+                      {editingCatId !== cat.id && (
+                        <div className="flex items-center gap-0.5">
+                          {/* Move category up/down */}
+                          <button
+                            onClick={() => {
+                              if (catIdx > 0) {
+                                const updated = [...lagerortCategories];
+                                [updated[catIdx - 1], updated[catIdx]] = [updated[catIdx], updated[catIdx - 1]];
+                                onSetLagerortCategories(updated);
+                              }
+                            }}
+                            disabled={catIdx === 0}
+                            className={`p-1 rounded transition-colors ${catIdx === 0 ? 'opacity-20' : isDark ? 'text-slate-500 hover:bg-slate-700' : 'text-slate-400 hover:bg-slate-200'}`}
+                          ><ArrowUp size={12} /></button>
+                          <button
+                            onClick={() => {
+                              if (catIdx < lagerortCategories.length - 1) {
+                                const updated = [...lagerortCategories];
+                                [updated[catIdx], updated[catIdx + 1]] = [updated[catIdx + 1], updated[catIdx]];
+                                onSetLagerortCategories(updated);
+                              }
+                            }}
+                            disabled={catIdx === lagerortCategories.length - 1}
+                            className={`p-1 rounded transition-colors ${catIdx === lagerortCategories.length - 1 ? 'opacity-20' : isDark ? 'text-slate-500 hover:bg-slate-700' : 'text-slate-400 hover:bg-slate-200'}`}
+                          ><ArrowDown size={12} /></button>
+
+                          <button
+                            onClick={() => { setEditingCatId(cat.id); setEditingCatName(cat.name); }}
+                            className={`p-1 rounded transition-colors ${isDark ? 'text-slate-500 hover:bg-slate-700 hover:text-blue-400' : 'text-slate-400 hover:bg-slate-200 hover:text-blue-600'}`}
+                          ><Pencil size={12} /></button>
+
+                          {lagerortCategories.length > 1 && (
+                            <button
+                              onClick={() => {
+                                if (confirm(`Kategorie "${cat.name}" und alle ${cat.items.length} Lagerorte darin löschen?`)) {
+                                  onSetLagerortCategories(lagerortCategories.filter(c => c.id !== cat.id));
+                                }
+                              }}
+                              className={`p-1 rounded transition-colors ${isDark ? 'text-slate-500 hover:bg-red-500/10 hover:text-red-400' : 'text-slate-400 hover:bg-red-50 hover:text-red-600'}`}
+                            ><Trash2 size={12} /></button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Category Items */}
+                    {!isCollapsed && (
+                      <div>
+                        {cat.items.map((item, idx) => {
+                          const itemKey = `${cat.id}:${idx}`;
+                          const isEditing = editingItemKey === itemKey;
+
+                          return (
+                            <div
+                              key={itemKey}
+                              draggable={!isEditing}
+                              onDragStart={() => { setDragIdx(idx); setDragCatId(cat.id); }}
+                              onDragOver={(e) => { e.preventDefault(); if (dragCatId === cat.id) setDragOverIdx(idx); }}
+                              onDragLeave={() => setDragOverIdx(null)}
+                              onDrop={() => {
+                                if (dragCatId === cat.id && dragIdx !== null && dragIdx !== idx) {
+                                  const updated = [...cat.items];
+                                  const [moved] = updated.splice(dragIdx, 1);
+                                  updated.splice(idx, 0, moved);
+                                  updateCategoryItems(cat.id, updated);
+                                }
+                                setDragIdx(null); setDragOverIdx(null); setDragCatId(null);
+                              }}
+                              onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); setDragCatId(null); }}
+                              className={`flex items-center gap-2 px-4 pl-10 py-2 border-b transition-all ${isDark ? 'border-slate-800/50' : 'border-slate-100'
+                                } ${dragCatId === cat.id && dragOverIdx === idx ? (isDark ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200') : ''
+                                } ${dragCatId === cat.id && dragIdx === idx ? 'opacity-40' : ''}`}
+                            >
+                              <div className={`cursor-grab active:cursor-grabbing p-0.5 rounded ${isDark ? 'text-slate-600 hover:text-slate-400' : 'text-slate-300 hover:text-slate-500'}`}>
+                                <GripVertical size={14} />
+                              </div>
+
+                              <span className={`text-[10px] font-mono font-bold w-4 text-center shrink-0 ${isDark ? 'text-slate-600' : 'text-slate-300'}`}>{idx + 1}</span>
+
+                              {isEditing ? (
+                                <div className="flex-1 flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={editingItemVal}
+                                    onChange={(e) => setEditingItemVal(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && editingItemVal.trim()) {
+                                        const updated = [...cat.items]; updated[idx] = editingItemVal.trim();
+                                        updateCategoryItems(cat.id, updated);
+                                        setEditingItemKey(null);
+                                      }
+                                      if (e.key === 'Escape') setEditingItemKey(null);
+                                    }}
+                                    className={`flex-1 px-2 py-0.5 rounded-lg border text-sm outline-none ${isDark ? 'bg-slate-800 border-slate-600 text-white focus:border-purple-500' : 'bg-white border-slate-300 focus:border-purple-500'
+                                      }`}
+                                    autoFocus
+                                  />
+                                  <button onClick={() => {
+                                    if (editingItemVal.trim()) { const u = [...cat.items]; u[idx] = editingItemVal.trim(); updateCategoryItems(cat.id, u); }
+                                    setEditingItemKey(null);
+                                  }} className="p-0.5 rounded text-emerald-500 hover:bg-emerald-500/10"><Check size={12} /></button>
+                                  <button onClick={() => setEditingItemKey(null)} className={`p-0.5 rounded ${isDark ? 'text-slate-500' : 'text-slate-400'}`}><X size={12} /></button>
+                                </div>
+                              ) : (
+                                <span className={`flex-1 text-sm truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{item}</span>
+                              )}
+
+                              {!isEditing && (
+                                <div className="flex items-center gap-0.5 shrink-0">
+                                  <button
+                                    onClick={() => { if (idx > 0) { const u = [...cat.items];[u[idx - 1], u[idx]] = [u[idx], u[idx - 1]]; updateCategoryItems(cat.id, u); } }}
+                                    disabled={idx === 0}
+                                    className={`md:hidden p-1 rounded transition-colors ${idx === 0 ? 'opacity-20' : isDark ? 'text-slate-500 hover:bg-slate-800' : 'text-slate-400 hover:bg-slate-100'}`}
+                                  ><ArrowUp size={12} /></button>
+                                  <button
+                                    onClick={() => { if (idx < cat.items.length - 1) { const u = [...cat.items];[u[idx], u[idx + 1]] = [u[idx + 1], u[idx]]; updateCategoryItems(cat.id, u); } }}
+                                    disabled={idx === cat.items.length - 1}
+                                    className={`md:hidden p-1 rounded transition-colors ${idx === cat.items.length - 1 ? 'opacity-20' : isDark ? 'text-slate-500 hover:bg-slate-800' : 'text-slate-400 hover:bg-slate-100'}`}
+                                  ><ArrowDown size={12} /></button>
+                                  <button
+                                    onClick={() => { setEditingItemKey(itemKey); setEditingItemVal(item); }}
+                                    className={`p-1 rounded transition-colors ${isDark ? 'text-slate-500 hover:bg-slate-800 hover:text-blue-400' : 'text-slate-400 hover:bg-slate-100 hover:text-blue-600'}`}
+                                  ><Pencil size={12} /></button>
+                                  <button
+                                    onClick={() => updateCategoryItems(cat.id, cat.items.filter((_, i) => i !== idx))}
+                                    className={`p-1 rounded transition-colors ${isDark ? 'text-slate-500 hover:bg-red-500/10 hover:text-red-400' : 'text-slate-400 hover:bg-red-50 hover:text-red-600'}`}
+                                  ><Trash2 size={12} /></button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* Add item to this category */}
+                        <div className={`px-4 pl-10 py-2 ${isDark ? '' : ''}`}>
+                          {addingItemCatId === cat.id ? (
+                            <div className="flex gap-1.5">
+                              <input
+                                type="text"
+                                value={newItemVal}
+                                onChange={(e) => setNewItemVal(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && newItemVal.trim()) {
+                                    updateCategoryItems(cat.id, [...cat.items, newItemVal.trim()]);
+                                    setNewItemVal('');
+                                    // Keep open for rapid adding
+                                  }
+                                  if (e.key === 'Escape') { setAddingItemCatId(null); setNewItemVal(''); }
+                                }}
+                                placeholder="Neuer Lagerort..."
+                                className={`flex-1 px-2 py-1.5 rounded-lg border text-sm outline-none ${isDark ? 'bg-slate-800 border-slate-600 text-white focus:border-purple-500' : 'bg-white border-slate-300 focus:border-purple-500'
+                                  }`}
+                                autoFocus
+                              />
+                              <button onClick={() => {
+                                if (newItemVal.trim()) { updateCategoryItems(cat.id, [...cat.items, newItemVal.trim()]); setNewItemVal(''); }
+                              }} disabled={!newItemVal.trim()} className="px-2 py-1 bg-purple-600 text-white rounded-lg text-sm font-bold disabled:opacity-40 hover:bg-purple-500"><Check size={12} /></button>
+                              <button onClick={() => { setAddingItemCatId(null); setNewItemVal(''); }} className={`px-2 py-1 rounded-lg ${isDark ? 'text-slate-400 hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-100'}`}><X size={12} /></button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setAddingItemCatId(cat.id); setNewItemVal(''); }}
+                              className={`text-xs font-bold flex items-center gap-1.5 transition-colors ${isDark ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'}`}
+                            >
+                              <Plus size={12} /> Lagerort hinzufügen
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-
-                  {/* Position Number */}
-                  <span className={`text-[10px] font-mono font-bold w-5 text-center shrink-0 ${isDark ? 'text-slate-600' : 'text-slate-300'}`}>{idx + 1}</span>
-
-                  {/* Name (editable) */}
-                  {editingLagerortIdx === idx ? (
-                    <div className="flex-1 flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        value={editingLagerortVal}
-                        onChange={(e) => setEditingLagerortVal(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && editingLagerortVal.trim()) {
-                            const updated = [...lagerortOptions];
-                            updated[idx] = editingLagerortVal.trim();
-                            onSetLagerortOptions(updated);
-                            setEditingLagerortIdx(null);
-                          }
-                          if (e.key === 'Escape') setEditingLagerortIdx(null);
-                        }}
-                        className={`flex-1 px-2 py-1 rounded-lg border text-sm outline-none ${
-                          isDark ? 'bg-slate-800 border-slate-600 text-white focus:border-purple-500' : 'bg-white border-slate-300 focus:border-purple-500'
-                        }`}
-                        autoFocus
-                      />
-                      <button onClick={() => {
-                        if (editingLagerortVal.trim()) {
-                          const updated = [...lagerortOptions];
-                          updated[idx] = editingLagerortVal.trim();
-                          onSetLagerortOptions(updated);
-                        }
-                        setEditingLagerortIdx(null);
-                      }} className="p-1 rounded text-emerald-500 hover:bg-emerald-500/10"><Check size={14} /></button>
-                      <button onClick={() => setEditingLagerortIdx(null)} className={`p-1 rounded ${isDark ? 'text-slate-500 hover:bg-slate-800' : 'text-slate-400 hover:bg-slate-100'}`}><X size={14} /></button>
-                    </div>
-                  ) : (
-                    <span className={`flex-1 text-sm truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{opt}</span>
-                  )}
-
-                  {/* Action Buttons */}
-                  {editingLagerortIdx !== idx && (
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      {/* Mobile Up/Down */}
-                      <button
-                        onClick={() => {
-                          if (idx > 0) {
-                            const updated = [...lagerortOptions];
-                            [updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]];
-                            onSetLagerortOptions(updated);
-                          }
-                        }}
-                        disabled={idx === 0}
-                        className={`md:hidden p-1.5 rounded transition-colors ${idx === 0 ? 'opacity-20' : isDark ? 'text-slate-500 hover:bg-slate-800 hover:text-slate-300' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
-                      ><ArrowUp size={14} /></button>
-                      <button
-                        onClick={() => {
-                          if (idx < lagerortOptions.length - 1) {
-                            const updated = [...lagerortOptions];
-                            [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
-                            onSetLagerortOptions(updated);
-                          }
-                        }}
-                        disabled={idx === lagerortOptions.length - 1}
-                        className={`md:hidden p-1.5 rounded transition-colors ${idx === lagerortOptions.length - 1 ? 'opacity-20' : isDark ? 'text-slate-500 hover:bg-slate-800 hover:text-slate-300' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
-                      ><ArrowDown size={14} /></button>
-
-                      {/* Edit */}
-                      <button
-                        onClick={() => { setEditingLagerortIdx(idx); setEditingLagerortVal(opt); }}
-                        className={`p-1.5 rounded transition-colors ${isDark ? 'text-slate-500 hover:bg-slate-800 hover:text-blue-400' : 'text-slate-400 hover:bg-slate-100 hover:text-blue-600'}`}
-                      ><Pencil size={14} /></button>
-
-                      {/* Delete */}
-                      <button
-                        onClick={() => {
-                          const updated = lagerortOptions.filter((_, i) => i !== idx);
-                          onSetLagerortOptions(updated);
-                        }}
-                        className={`p-1.5 rounded transition-colors ${isDark ? 'text-slate-500 hover:bg-red-500/10 hover:text-red-400' : 'text-slate-400 hover:bg-red-50 hover:text-red-600'}`}
-                      ><Trash2 size={14} /></button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            {/* Add New */}
+            {/* Add New Category */}
             <div className={`p-4 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-              {!showAddLagerort ? (
+              {!showAddCategory ? (
                 <button
-                  onClick={() => setShowAddLagerort(true)}
-                  className={`w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border transition-colors ${
-                    isDark ? 'border-slate-700 hover:bg-slate-800 text-purple-400' : 'border-slate-200 hover:bg-slate-50 text-purple-600'
-                  }`}
+                  onClick={() => setShowAddCategory(true)}
+                  className={`w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border transition-colors ${isDark ? 'border-slate-700 hover:bg-slate-800 text-purple-400' : 'border-slate-200 hover:bg-slate-50 text-purple-600'
+                    }`}
                 >
-                  <Plus size={16} /> Neuer Lagerort
+                  <Layers size={16} /> Neue Kategorie
                 </button>
               ) : (
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    value={newLagerortVal}
-                    onChange={(e) => setNewLagerortVal(e.target.value)}
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newLagerortVal.trim()) {
-                        onSetLagerortOptions([...lagerortOptions, newLagerortVal.trim()]);
-                        setNewLagerortVal('');
-                        setShowAddLagerort(false);
+                      if (e.key === 'Enter' && newCategoryName.trim()) {
+                        onSetLagerortCategories([...lagerortCategories, {
+                          id: `cat-${Date.now()}`,
+                          name: newCategoryName.trim(),
+                          items: []
+                        }]);
+                        setNewCategoryName('');
+                        setShowAddCategory(false);
                       }
-                      if (e.key === 'Escape') { setShowAddLagerort(false); setNewLagerortVal(''); }
+                      if (e.key === 'Escape') { setShowAddCategory(false); setNewCategoryName(''); }
                     }}
-                    placeholder="Name des Lagerorts..."
-                    className={`flex-1 px-3 py-2.5 rounded-xl border text-sm outline-none ${
-                      isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-purple-500' : 'bg-white border-slate-300 focus:border-purple-500'
-                    }`}
+                    placeholder="Kategoriename..."
+                    className={`flex-1 px-3 py-2.5 rounded-xl border text-sm outline-none ${isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-purple-500' : 'bg-white border-slate-300 focus:border-purple-500'
+                      }`}
                     autoFocus
                   />
                   <button
                     onClick={() => {
-                      if (newLagerortVal.trim()) {
-                        onSetLagerortOptions([...lagerortOptions, newLagerortVal.trim()]);
-                        setNewLagerortVal('');
-                        setShowAddLagerort(false);
+                      if (newCategoryName.trim()) {
+                        onSetLagerortCategories([...lagerortCategories, { id: `cat-${Date.now()}`, name: newCategoryName.trim(), items: [] }]);
+                        setNewCategoryName(''); setShowAddCategory(false);
                       }
                     }}
-                    disabled={!newLagerortVal.trim()}
+                    disabled={!newCategoryName.trim()}
                     className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-purple-500"
-                  >
-                    <Check size={16} />
-                  </button>
+                  ><Check size={16} /></button>
                   <button
-                    onClick={() => { setShowAddLagerort(false); setNewLagerortVal(''); }}
+                    onClick={() => { setShowAddCategory(false); setNewCategoryName(''); }}
                     className={`px-3 py-2 rounded-xl text-sm ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}
-                  >
-                    <X size={16} />
-                  </button>
+                  ><X size={16} /></button>
                 </div>
               )}
             </div>
@@ -623,16 +731,14 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
       {/* ═══════════════════════════════════════════════════════
           CATEGORY 5: AUDIT TRAIL
           ═══════════════════════════════════════════════════════ */}
-      <div className={`rounded-2xl border overflow-hidden mb-6 ${
-        isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
+      <div className={`rounded-2xl border overflow-hidden mb-6 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        }`}>
         <button
           onClick={() => setIsAuditOpen(!isAuditOpen)}
           className={`w-full transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}
         >
-          <div className={`px-6 py-3 flex items-center justify-between ${
-            isDark ? 'bg-[#0077B5]/5' : 'bg-[#0077B5]/5'
-          } ${isAuditOpen ? 'border-b ' + (isDark ? 'border-slate-800' : 'border-slate-200') : ''}`}>
+          <div className={`px-6 py-3 flex items-center justify-between ${isDark ? 'bg-[#0077B5]/5' : 'bg-[#0077B5]/5'
+            } ${isAuditOpen ? 'border-b ' + (isDark ? 'border-slate-800' : 'border-slate-200') : ''}`}>
             <div className="flex items-center gap-3">
               <div className={`p-1.5 rounded-lg ${isDark ? 'bg-[#0077B5]/20 text-[#0077B5]' : 'bg-[#0077B5]/10 text-[#0077B5]'}`}>
                 <Clock size={16} />
@@ -647,9 +753,8 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'
-              }`}>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'
+                }`}>
                 {auditTrail.length} Einträge
               </span>
               {isAuditOpen

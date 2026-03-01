@@ -57,17 +57,17 @@ export type Theme = 'light' | 'dark' | 'soft';
 export type ActiveModule = 'dashboard' | 'inventory' | 'create-order' | 'goods-receipt' | 'receipt-management' | 'order-management' | 'suppliers' | 'settings' | 'global-settings' | 'documentation' | 'stock-logs' | 'debug';
 
 export const TRANSACTION_STATUS_OPTIONS = [
-  'In Bearbeitung', 
-  'Geprüft', 
+  'In Bearbeitung',
+  'Geprüft',
   'Projekt',
-  'Quarantäne', 
-  'Beschädigt', 
-  'Übermenge', 
-  'Untermenge', 
-  'Teillieferung', 
-  'Reklamation', 
-  'Abgelehnt', 
-  'Rücklieferung', 
+  'Quarantäne',
+  'Beschädigt',
+  'Übermenge',
+  'Untermenge',
+  'Teillieferung',
+  'Reklamation',
+  'Abgelehnt',
+  'Rücklieferung',
   'Falsch geliefert',
   'Gebucht',
   'Storniert'
@@ -111,11 +111,11 @@ export interface PurchaseOrder {
 export interface DeliveryLogItem {
   sku: string;
   receivedQty: number; // Total physical count (Accepted + Rejected)
-  
+
   // Split-Math (New Logistics)
   quantityAccepted: number; // Good / Stock
   quantityRejected: number; // Bad / Returned / Quarantined
-  
+
   // Return Logistics
   rejectionReason?: 'Damaged' | 'Wrong' | 'Overdelivery' | 'Other';
   returnCarrier?: string;
@@ -123,11 +123,11 @@ export interface DeliveryLogItem {
 
   // Notes from inspection
   notes?: string;
-  
+
   // Legacy / Flags (Kept for backward compatibility)
   damageFlag: boolean;
   manualAddFlag: boolean;
-  
+
   // Snapshot Fields (History Correction)
   orderedQty?: number;
   previousReceived?: number;
@@ -188,6 +188,14 @@ export interface AuditEntry {
   timestamp: number;
   ip: string;
   details: Record<string, any>;
+}
+
+// --- Lagerort (Warehouse Location) Grouping ---
+
+export interface LagerortCategory {
+  id: string;
+  name: string;
+  items: string[];
 }
 
 export interface StockLog {

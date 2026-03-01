@@ -6,7 +6,7 @@ import {
 } from './data';
 import {
   StockItem, ReceiptHeader, ReceiptItem, ReceiptComment, ViewMode, Theme,
-  ActiveModule, PurchaseOrder, ReceiptMaster, Ticket, DeliveryLog, StockLog, ReceiptMasterStatus, AuditEntry
+  ActiveModule, PurchaseOrder, ReceiptMaster, Ticket, DeliveryLog, StockLog, ReceiptMasterStatus, AuditEntry, LagerortCategory
 } from './types';
 import { getDeliveryDateBadge } from './components/ReceiptStatusConfig';
 import { Header } from './components/Header';
@@ -169,23 +169,75 @@ export default function App() {
     return { missing: true, extra: true, damage: true, wrong: true, rejected: true };
   });
 
-  // Lagerort Options (managed in Global Settings)
-  const DEFAULT_LAGERORT_OPTIONS: string[] = [
-    "Akku Service", "Brandt, Service, B DI 446E", "Dallmann, Service", "EKZFK", "GERAS", "HaB", "HAB",
-    "HaB Altbestand Kunde", "HLU", "HTW", "KEH", "Kitas", "Koplin, Service, B DI 243", "KWF",
-    "Lavrenz, Service", "LHW", "MPC", "Pfefferwerk/WAB", "RAS_Zubehör", "RBB", "RBB_SSP",
-    "Stöwhaas,Service", "Tau13", "Trittel, Service", "ukb", "UKB Lager", "UKB Service", "Wartungsklebchen"
-  ];
-  const [lagerortOptions, setLagerortOptions] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lagerortOptions');
-      if (saved) return JSON.parse(saved);
+  // Lagerort Categories (managed in Global Settings)
+  const DEFAULT_LAGERORT_CATEGORIES: LagerortCategory[] = [
+    {
+      id: 'cat-objekte',
+      name: 'Objekte',
+      items: [
+        "EKZFK", "GERAS", "HaB", "HAB", "HaB Altbestand Kunde", "HLU", "HTW", "KEH",
+        "Kitas", "KWF", "LHW", "MPC", "Pfefferwerk/WAB", "RAS_Zubehör", "RBB", "RBB_SSP",
+        "Tau13", "ukb", "UKB Lager"
+      ]
+    },
+    {
+      id: 'cat-service',
+      name: 'Service',
+      items: [
+        "Akku Service", "Brandt, Service, B DI 446E", "Dallmann, Service",
+        "Koplin, Service, B DI 243", "Lavrenz, Service", "Stöwhaas,Service",
+        "Trittel, Service", "UKB Service", "Wartungsklebchen"
+      ]
     }
-    return DEFAULT_LAGERORT_OPTIONS;
+  ];
+
+  // Migration helper: convert old flat string[] from localStorage to LagerortCategory[]
+  const migrateFlatToCategories = (flat: string[]): LagerortCategory[] => {
+    const serviceKeywords = ['service', 'wartungsklebchen'];
+    const serviceItems: string[] = [];
+    const objekteItems: string[] = [];
+    flat.forEach(item => {
+      if (serviceKeywords.some(kw => item.toLowerCase().includes(kw))) {
+        serviceItems.push(item);
+      } else {
+        objekteItems.push(item);
+      }
+    });
+    return [
+      { id: 'cat-objekte', name: 'Objekte', items: objekteItems },
+      { id: 'cat-service', name: 'Service', items: serviceItems }
+    ];
+  };
+
+  const [lagerortCategories, setLagerortCategories] = useState<LagerortCategory[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('lagerortCategories');
+      if (saved) {
+        try { return JSON.parse(saved); } catch { /* fall through */ }
+      }
+      // Migrate from old flat format if it exists
+      const oldFlat = localStorage.getItem('lagerortOptions');
+      if (oldFlat) {
+        try {
+          const flat: string[] = JSON.parse(oldFlat);
+          if (Array.isArray(flat) && flat.length > 0 && typeof flat[0] === 'string') {
+            const migrated = migrateFlatToCategories(flat);
+            localStorage.setItem('lagerortCategories', JSON.stringify(migrated));
+            localStorage.removeItem('lagerortOptions'); // Clean up old key
+            return migrated;
+          }
+        } catch { /* fall through */ }
+      }
+    }
+    return DEFAULT_LAGERORT_CATEGORIES;
   });
-  const handleSetLagerortOptions = (opts: string[]) => {
-    setLagerortOptions(opts);
-    localStorage.setItem('lagerortOptions', JSON.stringify(opts));
+
+  // Flat helper — used by components that still need a simple string[]
+  const lagerortOptionsFlat = lagerortCategories.flatMap(c => c.items);
+
+  const handleSetLagerortCategories = (cats: LagerortCategory[]) => {
+    setLagerortCategories(cats);
+    localStorage.setItem('lagerortCategories', JSON.stringify(cats));
   };
 
   // Data State
@@ -1681,8 +1733,18 @@ export default function App() {
                   existingItems={inventory}
                   onClose={() => handleNavigation('receipt-management')}
                   onSuccess={handleReceiptSuccess}
-                  lagerortOptions={lagerortOptions}
-                  onUpdateLagerortOptions={handleSetLagerortOptions}
+                  lagerortOptions={lagerortOptionsFlat}
+                  onUpdateLagerortOptions={(opts: string[]) => {
+                    // When GoodsReceiptFlow adds a new lagerort, append to first category
+                    const newItems = opts.filter(o => !lagerortOptionsFlat.includes(o));
+                    if (newItems.length > 0) {
+                      const updated = lagerortCategories.map((cat, idx) =>
+                        idx === 0 ? { ...cat, items: [...cat.items, ...newItems] } : cat
+                      );
+                      handleSetLagerortCategories(updated);
+                    }
+                  }}
+                  lagerortCategories={lagerortCategories}
                   // onLogStock removed to prevent double logging - handled in onSuccess
                   purchaseOrders={purchaseOrders}
                   initialPoId={selectedPoId}
@@ -1788,8 +1850,8 @@ export default function App() {
                   timelineConfig={timelineConfig}
                   onSetTimelineConfig={handleSetTimelineConfig}
                   auditTrail={auditTrail}
-                  lagerortOptions={lagerortOptions}
-                  onSetLagerortOptions={handleSetLagerortOptions}
+                  lagerortCategories={lagerortCategories}
+                  onSetLagerortCategories={handleSetLagerortCategories}
                 />
               )}
 
