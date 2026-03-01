@@ -1443,7 +1443,10 @@ export default function App() {
         const anyReceived = updatedItems.some(i => i.quantityReceived > 0);
         nextStatus = allReceived ? 'Abgeschlossen' : anyReceived ? 'Teilweise geliefert' : 'Offen';
       }
-      return { ...p, items: updatedItems, status: nextStatus };
+      const updatedPO = { ...p, items: updatedItems, status: nextStatus };
+      // API write-through — persist PO update inline (avoids stale closure)
+      ordersApi.upsert(updatedPO).catch(console.warn);
+      return updatedPO;
     }));
 
     // 4. Create receipt header for the return
