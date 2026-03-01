@@ -1271,9 +1271,10 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                     )}
                 </div>
 
-                <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                {/* Table */}
+                <div className={`rounded-2xl border overflow-hidden flex-1 min-h-0 md:flex-none flex flex-col ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                     {/* MOBILE CARD VIEW */}
-                    <div className="md:hidden divide-y divide-slate-500/10">
+                    <div className="md:hidden divide-y divide-slate-500/10 flex-1 overflow-y-auto">
                         {filteredRows.length === 0 ? (
                             <div className="p-8 text-center text-slate-500">
                                 <Package size={32} className="mx-auto mb-3 opacity-30" />
