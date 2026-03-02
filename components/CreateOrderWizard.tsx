@@ -272,9 +272,13 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
       let created = 0;
       allParsed.forEach(r => {
         if (r.items.length === 0) return;
+        // Derive supplier: parsed text → first item's manufacturer → 'Unbekannt'
+        const derivedSupplier = r.supplier
+          || r.items[0]?.name && items.find(i => i.sku === r.items[0].sku)?.manufacturer
+          || 'Unbekannt';
         const order: PurchaseOrder = {
           id: r.orderId || `PO-IMP-${Date.now()}-${created}`,
-          supplier: r.supplier || 'Unbekannt',
+          supplier: derivedSupplier,
           dateCreated: r.orderDate,
           expectedDeliveryDate: r.expectedDeliveryDate || '',
           status: (r as any).poType === 'project' ? 'Projekt' : 'Lager',
@@ -298,6 +302,11 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
     setShowImportModal(false); setImportText('');
   };
   const handleSubmit = async () => {
+    // Validation: supplier must not be empty
+    if (!formData.supplier.trim()) {
+      alert('Bitte einen Lieferanten angeben.');
+      return;
+    }
     setSubmissionStatus('submitting');
     try {
       await new Promise(r => setTimeout(r, 600));

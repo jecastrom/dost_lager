@@ -312,6 +312,10 @@ export default function App() {
   const [dataSource, setDataSource] = useState<DataSource | null>(null);
   const [pendingWrites, setPendingWrites] = useState(0);
 
+  // K14 Fix: Write-cooldown prevents sync polling from overwriting optimistic updates
+  const lastWriteTimestampRef = useRef<number>(0);
+  const markWrite = () => { lastWriteTimestampRef.current = Date.now(); };
+
   // Logging State
   const [stockLogs, setStockLogs] = useState<StockLog[]>(() => {
     if (typeof window !== 'undefined') {
@@ -428,6 +432,12 @@ export default function App() {
     // Shared sync function — reusable for visibility + polling
     const syncFromApi = () => {
       if (cancelled) return;
+      // K14 Fix: Skip sync if a local write happened within last 15 seconds
+      // This prevents the poll from overwriting optimistic UI updates before the API write lands
+      if (Date.now() - lastWriteTimestampRef.current < 15000) {
+        console.debug('[Sync] Skipped — write cooldown active');
+        return;
+      }
       loadAllData().then(result => {
         if (cancelled || !result) return;
         const { data, source } = result;
@@ -581,6 +591,7 @@ export default function App() {
   };
 
   const handleStockUpdate = (id: string, newLevel: number) => {
+    markWrite(); // K14: Prevent sync overwrite
     setInventory(prev => {
       const updated = prev.map(item => item.id === id ? { ...item, stockLevel: newLevel, lastUpdated: Date.now() } : item);
       // API write-through
@@ -591,6 +602,7 @@ export default function App() {
   };
 
   const handleUpdateItem = (updatedItem: StockItem) => {
+    markWrite(); // K14: Prevent sync overwrite
     setInventory(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
     stockApi.upsert(updatedItem).catch(console.warn);
   };
@@ -605,6 +617,7 @@ export default function App() {
   };
 
   const handleReceiptStatusUpdate = (batchId: string, newStatus: string) => {
+    markWrite(); // K14: Prevent sync overwrite
     const oldHeader = receiptHeaders.find(h => h.batchId === batchId);
     addAudit('Status Changed', { receiptId: batchId, po: oldHeader?.bestellNr || '-', oldStatus: oldHeader?.status || '-', newStatus });
     setReceiptHeaders(prev => prev.map(h => h.batchId === batchId ? { ...h, status: newStatus } : h));
@@ -691,6 +704,7 @@ export default function App() {
   };
 
   const handleCreateOrder = (order: PurchaseOrder) => {
+    markWrite(); // K14: Prevent sync overwrite
     const exists = purchaseOrders.some(o => o.id === order.id);
     addAudit(exists ? 'Order Updated' : 'Order Created', { po: order.id, supplier: order.supplier, itemCount: order.items.length, status: order.status });
 
@@ -752,8 +766,18 @@ export default function App() {
       order = { ...order, linkedReceiptId: batchId };
     }
 
-    // --- RECALCULATE RECEIPT STATUS on EDIT ---
+    // --- RECALCULATE RECEIPT STATUS + CASCADE SUPPLIER on EDIT ---
     if (exists) {
+      // Always cascade supplier name to linked receipt headers (fixes "-" supplier bug)
+      setReceiptHeaders(prev => {
+        const updated = prev.map(h => h.bestellNr === order.id ? { ...h, lieferant: order.supplier } : h);
+        // API write-through for updated headers
+        updated.filter(h => h.bestellNr === order.id).forEach(h => {
+          receiptsApi.upsert({ ...h, id: h.batchId, docType: 'header', poId: order.id }).catch(console.warn);
+        });
+        return updated;
+      });
+
       const linkedMaster = receiptMasters.find(m => m.poId === order.id);
       if (linkedMaster) {
         const currentStatus = linkedMaster.status;
@@ -762,6 +786,7 @@ export default function App() {
           const dateBadge = getDeliveryDateBadge(order.expectedDeliveryDate, 'Offen');
           const newStatus: string = dateBadge || 'Wartet auf Lieferung';
           setReceiptMasters(prev => prev.map(m => m.poId === order.id ? { ...m, status: newStatus as ReceiptMasterStatus } : m));
+          // Status already cascaded in setReceiptHeaders above, but update status too
           setReceiptHeaders(prev => prev.map(h => h.bestellNr === order.id ? { ...h, status: newStatus } : h));
         }
       }
@@ -783,11 +808,13 @@ export default function App() {
   };
 
   const handleUpdateOrder = (updatedOrder: PurchaseOrder) => {
+    markWrite(); // K14: Prevent sync overwrite
     setPurchaseOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
     ordersApi.upsert(updatedOrder).catch(console.warn);
   };
 
   const handleArchiveOrder = (id: string) => {
+    markWrite(); // K14: Prevent sync overwrite
     addAudit('Order Archived', { po: id });
     setPurchaseOrders(prev => prev.map(o => o.id === id ? { ...o, isArchived: true } : o));
 
@@ -824,6 +851,7 @@ export default function App() {
   };
 
   const handleCancelOrder = (id: string) => {
+    markWrite(); // K14: Prevent sync overwrite
     addAudit('Order Cancelled', { po: id });
 
     // 1. Cancel + auto-archive PO
@@ -1534,6 +1562,7 @@ export default function App() {
 
   // --- DIRECT RETURN PROCESSING (No wizard) ---
   const handleProcessReturn = (poId: string, data: { quantity: number; reason: string; carrier: string; trackingId: string }) => {
+    markWrite(); // K14: Prevent sync overwrite
     const po = purchaseOrders.find(p => p.id === poId);
     if (!po) return;
     addAudit('Return Processed', { po: poId, quantity: data.quantity, reason: data.reason, carrier: data.carrier || '-', trackingId: data.trackingId || '-' });
