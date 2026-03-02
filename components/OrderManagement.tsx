@@ -484,7 +484,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                     {/* Search — compact */}
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                        <input type="text" placeholder="Suche nach PO Nummer oder Lieferant..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className={`w-full border rounded-lg pl-9 pr-3 py-2 text-xs transition-all focus:outline-none focus:ring-2 ${isDark ? 'bg-slate-900 border-slate-800 text-slate-100 focus:ring-blue-500/30' : 'bg-white border-slate-200 text-[#313335] focus:ring-[#0077B5]/20'}`} />
+                        <input type="text" placeholder="Suche nach Bestellnummer oder Lieferant..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className={`w-full border rounded-lg pl-9 pr-3 py-2 text-xs transition-all focus:outline-none focus:ring-2 ${isDark ? 'bg-slate-900 border-slate-800 text-slate-100 focus:ring-blue-500/30' : 'bg-white border-slate-200 text-[#313335] focus:ring-[#0077B5]/20'}`} />
                     </div>
 
                     {/* Filters + Archive icon — compact row */}
