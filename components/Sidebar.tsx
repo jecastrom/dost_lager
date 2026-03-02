@@ -33,12 +33,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'suppliers', label: 'Lieferanten', icon: <Users size={20} /> },
   ];
 
-  const bg = isDark ? 'bg-[#1e293b]' : isSoft ? 'bg-[#F5F5F6]' : 'bg-white';
-  const border = isDark ? 'border-slate-800' : isSoft ? 'border-[#E6E7EB]' : 'border-slate-200';
+  const bg = isDark ? 'bg-[#1e293b]' : isSoft ? 'bg-[#E2E7EB]' : 'bg-white';
+  const border = isDark ? 'border-slate-800' : isSoft ? 'border-[#D4DDE2]' : 'border-slate-200';
   const activeBg = 'bg-[#0077B5] text-white shadow-md shadow-blue-500/25';
-  const inactiveTxt = isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900';
-  const settingsActive = isDark ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-900';
-  const settingsInactive = isDark ? 'text-slate-400 hover:bg-slate-800/60' : 'text-slate-500 hover:bg-slate-100';
+  const inactiveTxt = isDark ? 'text-slate-400 hover:bg-slate-800/60 hover:text-white' : isSoft ? 'text-[#5C7E8F] hover:bg-[#D4DDE2] hover:text-[#2C3E47]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900';
+  const settingsActive = isDark ? 'bg-slate-800 text-white' : isSoft ? 'bg-[#D4DDE2] text-[#2C3E47]' : 'bg-slate-100 text-slate-900';
+  const settingsInactive = isDark ? 'text-slate-400 hover:bg-slate-800/60' : isSoft ? 'text-[#5C7E8F] hover:bg-[#D4DDE2]' : 'text-slate-500 hover:bg-slate-100';
 
   return (
     <>

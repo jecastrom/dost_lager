@@ -27,7 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [showSyncDetail, setShowSyncDetail] = useState(false);
 
   return (
-    <header className={`sticky top-0 z-40 backdrop-blur-xl border-b transition-all duration-500 ${isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white/50 border-[#CACCCE]/60 shadow-sm shadow-slate-200/20'
+    <header className={`sticky top-0 z-40 backdrop-blur-xl border-b transition-all duration-500 ${isDark ? 'bg-slate-900/80 border-slate-800' : isSoft ? 'bg-[#E8EDF0]/80 border-[#D4DDE2] shadow-sm shadow-[#5C7E8F]/5' : 'bg-white/50 border-[#CACCCE]/60 shadow-sm shadow-slate-200/20'
       }`}>
       <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4">
         <div className="flex items-center justify-between gap-4">
@@ -88,7 +88,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {showSyncDetail && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowSyncDetail(false)} />
-                    <div className={`absolute right-0 top-full mt-2 z-50 w-64 rounded-xl border shadow-xl p-3 ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-white border-[#E6E7EB]' : 'bg-white border-slate-200'
+                    <div className={`absolute right-0 top-full mt-2 z-50 w-64 rounded-xl border shadow-xl p-3 ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'
                       }`}>
                       {/* Connection status */}
                       <div className="flex items-center gap-2.5 mb-2.5">
@@ -126,8 +126,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={toggleTheme}
               className={`p-2.5 rounded-xl transition-all ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  : isSoft ? 'text-[#86888A] hover:text-[#323338] hover:bg-[#E6E7EB]'
-                    : 'text-[#86888A] hover:text-[#000000] hover:bg-white/60'
+                : isSoft ? 'text-[#86888A] hover:text-[#323338] hover:bg-[#E6E7EB]'
+                  : 'text-[#86888A] hover:text-[#000000] hover:bg-white/60'
                 }`}
               title={theme === 'light' ? 'Soft Mode' : theme === 'soft' ? 'Dark Mode' : 'Light Mode'}
             >
@@ -137,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Mobile: "More" menu → opens sidebar for secondary nav (Settings, Suppliers, etc.) */}
             <button
               onClick={onToggleSidebar}
-              className={`p-2.5 rounded-xl transition-all lg:hidden ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-[#86888A] hover:text-[#000000] hover:bg-white/60'
+              className={`p-2.5 rounded-xl transition-all lg:hidden ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : isSoft ? 'text-[#5C7E8F] hover:text-[#2C3E47] hover:bg-[#D4DDE2]' : 'text-[#86888A] hover:text-[#000000] hover:bg-white/60'
                 }`}
               style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
             >
@@ -145,7 +145,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Profile */}
-            <div className={`hidden md:block w-10 h-10 rounded-full border-2 overflow-hidden ml-2 ring-2 transition-all ${isDark ? 'border-slate-700 ring-blue-500/20' : 'border-white ring-[#CACCCE] shadow-md shadow-slate-200/40'
+            <div className={`hidden md:block w-10 h-10 rounded-full border-2 overflow-hidden ml-2 ring-2 transition-all ${isDark ? 'border-slate-700 ring-blue-500/20' : isSoft ? 'border-[#F0F3F6] ring-[#D4DDE2] shadow-md shadow-[#5C7E8F]/10' : 'border-white ring-[#CACCCE] shadow-md shadow-slate-200/40'
               }`}>
               <img src="https://picsum.photos/seed/user/100" alt="Profile" className="w-full h-full object-cover" />
             </div>

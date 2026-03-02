@@ -1773,7 +1773,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className={`min-h-screen flex transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0f172a] text-slate-100' :
-        theme === 'soft' ? 'bg-[#F5F5F6] text-[#323338]' :
+        theme === 'soft' ? 'theme-soft bg-[#E8EDF0] text-[#2C3E47]' :
           'bg-[#f8fafc] text-slate-900'
         }`}>
 

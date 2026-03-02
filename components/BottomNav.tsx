@@ -22,9 +22,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({ theme, activeModule, onNav
     const isDark = theme === 'dark';
     const isSoft = theme === 'soft';
 
-    const bg = isDark ? 'bg-[#1e293b]/95' : isSoft ? 'bg-[#F5F5F6]/95' : 'bg-white/95';
-    const border = isDark ? 'border-slate-800' : isSoft ? 'border-[#E6E7EB]' : 'border-slate-200';
-    const inactiveColor = isDark ? 'text-slate-500' : 'text-slate-400';
+    const bg = isDark ? 'bg-[#1e293b]/95' : isSoft ? 'bg-[#E2E7EB]/95' : 'bg-white/95';
+    const border = isDark ? 'border-slate-800' : isSoft ? 'border-[#D4DDE2]' : 'border-slate-200';
+    const inactiveColor = isDark ? 'text-slate-500' : isSoft ? 'text-[#A2A2A2]' : 'text-slate-400';
     const activeColor = 'text-[#0077B5]';
 
     return (

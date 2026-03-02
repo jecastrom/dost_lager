@@ -1,0 +1,50 @@
+/* ═══ FROSTED AURA — Soft Theme Global Overrides ═══
+ * Catches the hundreds of bg-white / bg-slate-50 / border-slate-200
+ * that fall through from isDark ternary without needing isSoft branches
+ * in every component. Activated by .theme-soft class on root wrapper.
+ */
+
+.theme-soft .bg-white {
+    background-color: #F0F3F6 !important;
+}
+
+.theme-soft .bg-slate-50 {
+    background-color: #E2E7EB !important;
+}
+
+.theme-soft .bg-slate-100 {
+    background-color: #D4DDE2 !important;
+}
+
+.theme-soft .border-slate-200 {
+    border-color: #D4DDE2 !important;
+}
+
+.theme-soft .border-slate-100 {
+    border-color: #D4DDE2 !important;
+}
+
+.theme-soft .hover\:bg-slate-50:hover {
+    background-color: #E2E7EB !important;
+}
+
+.theme-soft .hover\:bg-slate-100:hover {
+    background-color: #D4DDE2 !important;
+}
+
+.theme-soft input,
+.theme-soft textarea,
+.theme-soft select {
+    background-color: #F0F3F6;
+    border-color: #D4DDE2;
+}
+
+.theme-soft input:focus,
+.theme-soft textarea:focus,
+.theme-soft select:focus {
+    border-color: #5C7E8F;
+}
+
+.theme-soft .divide-slate-500\/10> :not([hidden])~ :not([hidden]) {
+    border-color: #D4DDE2;
+}

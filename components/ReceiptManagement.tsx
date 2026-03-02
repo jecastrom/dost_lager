@@ -1093,7 +1093,7 @@ export const ReceiptManagement: React.FC<ReceiptManagementProps> = ({
                 {closeConfirmPortal}
 
                 {/* Mobile sticky header zone */}
-                <div className={`md:hidden sticky top-0 z-20 pt-1 pb-2 space-y-2 ${isDark ? 'bg-[#0f172a]' : theme === 'soft' ? 'bg-[#F5F5F6]' : 'bg-[#f8fafc]'}`}>
+                <div className={`md:hidden sticky top-0 z-20 pt-1 pb-2 space-y-2 ${isDark ? 'bg-[#0f172a]' : theme === 'soft' ? 'bg-[#E8EDF0]' : 'bg-[#f8fafc]'}`}>
                     <div className="flex items-center justify-between gap-2">
                         <h2 className="text-base font-bold">Wareneingang Verwaltung</h2>
                         <button

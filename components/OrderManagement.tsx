@@ -467,7 +467,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
 
             {/* Sticky mobile header zone */}
             <div className="flex-none md:contents sticky top-0 z-20 space-y-2 pb-2 md:pb-0 md:space-y-6" style={{ background: 'inherit' }}>
-                <div className={`md:hidden sticky top-0 z-20 pt-1 pb-2 space-y-2 ${isDark ? 'bg-[#0f172a]' : theme === 'soft' ? 'bg-[#F5F5F6]' : 'bg-[#f8fafc]'}`}>
+                <div className={`md:hidden sticky top-0 z-20 pt-1 pb-2 space-y-2 ${isDark ? 'bg-[#0f172a]' : theme === 'soft' ? 'bg-[#E8EDF0]' : 'bg-[#f8fafc]'}`}>
                     {/* Header — compact on mobile */}
                     <div className="flex items-center justify-between gap-2">
                         <h2 className="text-base font-bold flex items-center gap-1.5">

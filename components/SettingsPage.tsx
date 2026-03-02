@@ -130,8 +130,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     <button
       onClick={() => onClick(mode)}
       className={`h-9 px-4 rounded-lg text-xs font-bold border transition-all duration-200 flex items-center justify-center ${styleClass} ${currentTheme === mode
-          ? 'ring-2 ring-[#0077B5] ring-offset-1 dark:ring-offset-slate-900 scale-105 shadow-md'
-          : 'opacity-70 hover:opacity-100 hover:scale-105'
+        ? 'ring-2 ring-[#0077B5] ring-offset-1 dark:ring-offset-slate-900 scale-105 shadow-md'
+        : 'opacity-70 hover:opacity-100 hover:scale-105'
         }`}
     >
       {label}
@@ -169,7 +169,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 label="Soft"
                 currentTheme={theme}
                 onClick={onSetTheme}
-                styleClass="bg-[#F5F5F6] border-[#E6E7EB] text-[#323338]"
+                styleClass="bg-[#E8EDF0] border-[#D4DDE2] text-[#2C3E47]"
               />
               <ThemeOption
                 mode="dark"
@@ -191,8 +191,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <button
                 onClick={() => onSetInventoryViewMode('grid')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all ${inventoryViewMode === 'grid'
-                    ? 'bg-[#0077B5] text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  ? 'bg-[#0077B5] text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                   }`}
               >
                 <LayoutGrid size={14} /> Grid
@@ -200,8 +200,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <button
                 onClick={() => onSetInventoryViewMode('list')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all ${inventoryViewMode === 'list'
-                    ? 'bg-[#0077B5] text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  ? 'bg-[#0077B5] text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                   }`}
               >
                 <List size={14} /> List
@@ -215,8 +215,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       <button
         onClick={() => onNavigate('global-settings')}
         className={`w-full rounded-2xl border overflow-hidden mb-8 text-left transition-all group ${isDark
-            ? 'bg-[#0077B5]/5 border-[#0077B5]/20 hover:bg-[#0077B5]/10 hover:border-[#0077B5]/30'
-            : 'bg-[#0077B5]/5 border-[#0077B5]/15 hover:bg-[#0077B5]/10 shadow-sm'
+          ? 'bg-[#0077B5]/5 border-[#0077B5]/20 hover:bg-[#0077B5]/10 hover:border-[#0077B5]/30'
+          : 'bg-[#0077B5]/5 border-[#0077B5]/15 hover:bg-[#0077B5]/10 shadow-sm'
           }`}
       >
         <div className="flex items-center justify-between p-5">
