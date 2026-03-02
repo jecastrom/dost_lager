@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sun, Moon, MoreVertical, Package, Wifi, WifiOff, Cloud, CloudOff, RefreshCw, Database } from 'lucide-react';
+import { Sun, Moon, SunMedium, MoreVertical, Package, Wifi, WifiOff, Cloud, CloudOff, RefreshCw, Database } from 'lucide-react';
 import { Theme } from '../types';
 import { DataSource } from '../api';
 
@@ -55,12 +55,12 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={() => setShowSyncDetail(prev => !prev)}
                   className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all text-[11px] font-bold ${dataSource === 'api'
-                      ? pendingWrites > 0
-                        ? isDark ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : isSoft ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                        : isDark ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' : isSoft ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                      : dataSource === 'cache'
-                        ? isDark ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : isSoft ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
-                        : isDark ? 'bg-slate-800 text-slate-500 hover:bg-slate-700' : isSoft ? 'bg-slate-200 text-slate-500 hover:bg-slate-300' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    ? pendingWrites > 0
+                      ? isDark ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : isSoft ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                      : isDark ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' : isSoft ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                    : dataSource === 'cache'
+                      ? isDark ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : isSoft ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+                      : isDark ? 'bg-slate-800 text-slate-500 hover:bg-slate-700' : isSoft ? 'bg-slate-200 text-slate-500 hover:bg-slate-300' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                     }`}
                   style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
                 >
@@ -125,10 +125,13 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={toggleTheme}
-              className={`p-2.5 rounded-xl transition-all ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-[#86888A] hover:text-[#000000] hover:bg-white/60'
+              className={`p-2.5 rounded-xl transition-all ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                : isSoft ? 'text-[#86888A] hover:text-[#323338] hover:bg-[#E6E7EB]'
+                  : 'text-[#86888A] hover:text-[#000000] hover:bg-white/60'
                 }`}
+              title={theme === 'light' ? 'Dark Mode' : theme === 'dark' ? 'Soft Mode' : 'Light Mode'}
             >
-              {isDark ? <Sun size={20} /> : <Moon size={20} />}
+              {theme === 'dark' ? <Sun size={20} /> : theme === 'soft' ? <Moon size={20} /> : <SunMedium size={20} />}
             </button>
 
             {/* Mobile: "More" menu → opens sidebar for secondary nav (Settings, Suppliers, etc.) */}
