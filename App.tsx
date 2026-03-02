@@ -358,7 +358,7 @@ export default function App() {
 
   // Toggle Theme
   const toggleTheme = () => setTheme(prev => {
-    const next = prev === 'light' ? 'dark' : prev === 'dark' ? 'soft' : 'light';
+    const next = prev === 'light' ? 'soft' : prev === 'soft' ? 'dark' : 'light';
     localStorage.setItem('theme', next);
     return next;
   });

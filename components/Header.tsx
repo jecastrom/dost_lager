@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sun, Moon, SunMedium, MoreVertical, Package, Wifi, WifiOff, Cloud, CloudOff, RefreshCw, Database } from 'lucide-react';
+import { Sun, Moon, Sunrise, MoreVertical, Package, Wifi, WifiOff, Cloud, CloudOff, RefreshCw, Database } from 'lucide-react';
 import { Theme } from '../types';
 import { DataSource } from '../api';
 
@@ -126,12 +126,12 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={toggleTheme}
               className={`p-2.5 rounded-xl transition-all ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                : isSoft ? 'text-[#86888A] hover:text-[#323338] hover:bg-[#E6E7EB]'
-                  : 'text-[#86888A] hover:text-[#000000] hover:bg-white/60'
+                  : isSoft ? 'text-[#86888A] hover:text-[#323338] hover:bg-[#E6E7EB]'
+                    : 'text-[#86888A] hover:text-[#000000] hover:bg-white/60'
                 }`}
-              title={theme === 'light' ? 'Dark Mode' : theme === 'dark' ? 'Soft Mode' : 'Light Mode'}
+              title={theme === 'light' ? 'Soft Mode' : theme === 'soft' ? 'Dark Mode' : 'Light Mode'}
             >
-              {theme === 'dark' ? <Sun size={20} /> : theme === 'soft' ? <Moon size={20} /> : <SunMedium size={20} />}
+              {theme === 'light' ? <Sunrise size={20} /> : theme === 'soft' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
 
             {/* Mobile: "More" menu → opens sidebar for secondary nav (Settings, Suppliers, etc.) */}
