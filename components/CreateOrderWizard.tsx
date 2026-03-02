@@ -596,8 +596,8 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
                 <div>
                   <button type="button" onClick={() => setShowExternalRefs(!showExternalRefs)}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${showExternalRefs
-                        ? (isDark ? 'bg-slate-800/50 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-600')
-                        : (isDark ? 'border-slate-800 text-slate-500 hover:border-slate-700' : 'border-slate-200 text-slate-400 hover:border-slate-300')
+                      ? (isDark ? 'bg-slate-800/50 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-600')
+                      : (isDark ? 'border-slate-800 text-slate-500 hover:border-slate-700' : 'border-slate-200 text-slate-400 hover:border-slate-300')
                       }`}>
                     <span className="flex items-center gap-1.5"><Hash size={12} /> Externe Referenzen {externalRefs.length > 0 && <span className={`px-1.5 py-0.5 rounded-full text-[9px] ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>{externalRefs.length}</span>}</span>
                     <ChevronDown size={14} className={`transition-transform ${showExternalRefs ? 'rotate-180' : ''}`} />
