@@ -76,10 +76,12 @@ const parsePOText = (text: string, inventory: StockItem[]) => {
   inventory.forEach(i => { if (i.sku) skuMap.set(cleanSku(i.sku), i); if (i.manufacturer) supplierHintMap.set(i.manufacturer.toLowerCase(), i.manufacturer); });
   const dateRegex = /(\d{1,2})\.(\d{1,2})\.(\d{2,4})/;
   const idRegex = /(?:Nr\.?|#|Bestellung|Order|Auftrag)\s*[:.]?\s*([A-Za-z0-9\-\/]{3,})/i;
+  const supplierRegex = /(?:Lieferant|Supplier|Kreditor|Vendor)\s*[:.]?\s*(.+)/i;
   const qtyRegex = /(\d+)\s*(?:x|stk|st|pcs|Pack)/i;
   lines.forEach(line => {
     if (!orderDate) { const d = line.match(dateRegex); if (d) { let y = d[3]; if (y.length === 2) y = '20' + y; orderDate = `${y}-${d[2].padStart(2, '0')}-${d[1].padStart(2, '0')}`; } }
     if (!orderId) { const id = line.match(idRegex); if (id) orderId = id[1]; }
+    if (!supplier) { const sm = line.match(supplierRegex); if (sm) { supplier = sm[1].trim(); } }
     if (!supplier) { for (const [k, v] of supplierHintMap.entries()) { if (line.toLowerCase().includes(k)) { supplier = v; break; } } }
     const words = line.replace(/[^a-zA-Z0-9]/g, ' ').split(/\s+/);
     let found: StockItem | undefined;
@@ -129,7 +131,7 @@ const parseBulkPOText = (text: string, inventory: StockItem[]): ReturnType<typeo
   for (const line of lines) {
     const isSep = separatorRegex.test(line.trim());
     const isNewPO = poHeaderRegex.test(line.trim()) && current.some(l => l.trim().length > 0);
-    
+
     if (isSep) {
       if (current.some(l => l.trim())) blocks.push(current.join('\n'));
       current = [];
@@ -147,7 +149,7 @@ const parseBulkPOText = (text: string, inventory: StockItem[]): ReturnType<typeo
 
   // Parse each block
   const results = blocks.map(block => parsePOText(block, inventory)).filter(r => r.items.length > 0 || r.orderId);
-  
+
   // Auto-generate missing IDs
   results.forEach((r, i) => {
     if (!r.orderId) r.orderId = `PO-IMP-${Date.now()}-${i + 1}`;
@@ -176,7 +178,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
     const labels = new Set<string>();
     // Collect previously used labels from all orders for autocomplete
     if (typeof window !== 'undefined') {
-      try { const stored = localStorage.getItem('procureflow_ref_labels'); if (stored) JSON.parse(stored).forEach((l: string) => labels.add(l)); } catch {}
+      try { const stored = localStorage.getItem('procureflow_ref_labels'); if (stored) JSON.parse(stored).forEach((l: string) => labels.add(l)); } catch { }
     }
     ['Lieferanten-Bestellnr.', 'Amazon Bestellnr.', 'Rahmenvertrag-Nr.', 'Projekt-Nr.', 'Kostenstelle'].forEach(l => labels.add(l));
     return Array.from(labels);
@@ -302,7 +304,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
       const cleanedRefs = externalRefs.filter(r => r.label.trim() && r.value.trim());
       // Persist used labels for future autocomplete
       if (cleanedRefs.length > 0) {
-        try { const prev = JSON.parse(localStorage.getItem('procureflow_ref_labels') || '[]'); const all = Array.from(new Set([...prev, ...cleanedRefs.map(r => r.label)])).slice(0, 50); localStorage.setItem('procureflow_ref_labels', JSON.stringify(all)); } catch {}
+        try { const prev = JSON.parse(localStorage.getItem('procureflow_ref_labels') || '[]'); const all = Array.from(new Set([...prev, ...cleanedRefs.map(r => r.label)])).slice(0, 50); localStorage.setItem('procureflow_ref_labels', JSON.stringify(all)); } catch { }
       }
       const order: PurchaseOrder = {
         id: formData.orderId, supplier: formData.supplier, dateCreated: formData.orderDate, expectedDeliveryDate: formData.expectedDeliveryDate,
@@ -533,120 +535,119 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
           SCROLLABLE CONTENT — only this region scrolls
           ══════════════════════════════════════════════════════ */}
       <div className={`flex-1 min-h-0 ${step === 1 ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-          <div className={`max-w-xl mx-auto ${step !== 1 ? 'h-full flex flex-col' : ''}`}>
+        <div className={`max-w-xl mx-auto ${step !== 1 ? 'h-full flex flex-col' : ''}`}>
 
-            {/* ── STEP 1: Fixed, no scroll ── */}
-            {step === 1 && (
-              <div className="px-4 pt-3 pb-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{initialOrder ? 'Bestellung bearbeiten' : 'Kopfdaten'}</h3>
-                    <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Basisdaten der Bestellung.</p>
+          {/* ── STEP 1: Fixed, no scroll ── */}
+          {step === 1 && (
+            <div className="px-4 pt-3 pb-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{initialOrder ? 'Bestellung bearbeiten' : 'Kopfdaten'}</h3>
+                  <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Basisdaten der Bestellung.</p>
+                </div>
+                {enableSmartImport && !initialOrder && (
+                  <button onClick={() => setShowImportModal(true)} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border ${isDark ? 'text-slate-400 border-slate-700 hover:text-white hover:border-slate-500' : 'text-slate-500 border-slate-300 hover:text-slate-800 hover:border-slate-400'}`}><FileText size={12} /> Import</button>
+                )}
+              </div>
+              <div className="space-y-3">
+                {/* PO Type */}
+                <div>
+                  <label className={`text-[11px] font-bold uppercase tracking-wider mb-1.5 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Art <span className="text-red-500">*</span></label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => setFormData({ ...formData, poType: 'normal' })} className={`flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95 ${formData.poType === 'normal' ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm shadow-emerald-500/20' : isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}><Box size={14} /> Lager</button>
+                    <button onClick={() => setFormData({ ...formData, poType: 'project' })} className={`flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95 ${formData.poType === 'project' ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-500/20' : isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}><Briefcase size={14} /> Projekt</button>
                   </div>
-                  {enableSmartImport && !initialOrder && (
-                    <button onClick={() => setShowImportModal(true)} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border ${isDark ? 'text-slate-400 border-slate-700 hover:text-white hover:border-slate-500' : 'text-slate-500 border-slate-300 hover:text-slate-800 hover:border-slate-400'}`}><FileText size={12} /> Import</button>
+                </div>
+                {/* Order Number */}
+                <div>
+                  <label className={`text-[11px] font-bold uppercase tracking-wider mb-1 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Bestell Nr. <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40" size={14} />
+                    <input value={formData.orderId} onChange={e => setFormData({ ...formData, orderId: e.target.value })} className={`${inputCls} pl-9 py-2`} placeholder="PO-202X-..." disabled={!!initialOrder} />
+                  </div>
+                </div>
+                {/* Supplier */}
+                <div>
+                  <label className={`text-[11px] font-bold uppercase tracking-wider mb-1 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Lieferant <span className="text-red-500">*</span></label>
+                  <button type="button" onClick={() => setShowSupplierSheet(true)}
+                    className={`w-full px-3 py-2 rounded-xl border flex items-center justify-between text-sm transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white hover:border-slate-600' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                    <span className={formData.supplier ? '' : 'opacity-40'}>{formData.supplier || 'Lieferant wählen...'}</span>
+                    <ChevronDown size={16} className="opacity-40" />
+                  </button>
+                </div>
+                {/* Date row */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div>
+                    <label className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Datum <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <Calendar className="absolute left-1.5 top-1/2 -translate-y-1/2 opacity-40 pointer-events-none z-10" size={10} />
+                      <input type="date" value={formData.orderDate} onChange={e => setFormData({ ...formData, orderDate: e.target.value })} className={`${inputCls} pl-5 pr-1 py-0.5 text-[11px] w-full`} style={{ colorScheme: isDark ? 'dark' : 'light', fontSize: '11px', height: '30px', minHeight: '0', WebkitAppearance: 'none', lineHeight: '1' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Liefertermin {requireDeliveryDate && <span className="text-red-500">*</span>}</label>
+                    <div className="relative">
+                      <Clock className="absolute left-1.5 top-1/2 -translate-y-1/2 opacity-40 pointer-events-none z-10" size={10} />
+                      <input type="date" value={formData.expectedDeliveryDate} onChange={e => setFormData({ ...formData, expectedDeliveryDate: e.target.value })} className={`${inputCls} pl-5 pr-1 py-0.5 text-[11px] w-full`} style={{ colorScheme: isDark ? 'dark' : 'light', fontSize: '11px', height: '30px', minHeight: '0', WebkitAppearance: 'none', lineHeight: '1' }} />
+                    </div>
+                  </div>
+                </div>
+                {/* External References (Collapsible) */}
+                <div>
+                  <button type="button" onClick={() => setShowExternalRefs(!showExternalRefs)}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${showExternalRefs
+                        ? (isDark ? 'bg-slate-800/50 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-600')
+                        : (isDark ? 'border-slate-800 text-slate-500 hover:border-slate-700' : 'border-slate-200 text-slate-400 hover:border-slate-300')
+                      }`}>
+                    <span className="flex items-center gap-1.5"><Hash size={12} /> Externe Referenzen {externalRefs.length > 0 && <span className={`px-1.5 py-0.5 rounded-full text-[9px] ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>{externalRefs.length}</span>}</span>
+                    <ChevronDown size={14} className={`transition-transform ${showExternalRefs ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showExternalRefs && (
+                    <div className="mt-2 space-y-2">
+                      {externalRefs.map((ref, ri) => (
+                        <div key={ri} className="flex items-center gap-1.5">
+                          <div className="relative flex-1 min-w-0">
+                            <input
+                              value={ref.label}
+                              onChange={e => setExternalRefs(prev => prev.map((r, i) => i === ri ? { ...r, label: e.target.value } : r))}
+                              placeholder="z.B. Lieferanten-Nr."
+                              list={`ref-labels-${ri}`}
+                              className={`${inputCls} text-[11px] py-1.5`}
+                            />
+                            <datalist id={`ref-labels-${ri}`}>
+                              {refLabelSuggestions.filter(s => !externalRefs.some((r, i) => i !== ri && r.label === s)).map(s => <option key={s} value={s} />)}
+                            </datalist>
+                          </div>
+                          <input
+                            value={ref.value}
+                            onChange={e => setExternalRefs(prev => prev.map((r, i) => i === ri ? { ...r, value: e.target.value } : r))}
+                            placeholder="Referenznummer"
+                            className={`${inputCls} flex-1 min-w-0 text-[11px] py-1.5`}
+                          />
+                          <button type="button" onClick={() => setExternalRefs(prev => prev.filter((_, i) => i !== ri))}
+                            className={`p-1.5 rounded-lg shrink-0 transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-500' : 'hover:bg-slate-100 text-slate-400'}`}>
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => setExternalRefs(prev => [...prev, { label: '', value: '' }])}
+                        className={`w-full py-1.5 rounded-lg border border-dashed text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${isDark ? 'border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400' : 'border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-500'}`}>
+                        <Plus size={12} /> Referenz hinzufügen
+                      </button>
+                    </div>
                   )}
                 </div>
-                <div className="space-y-3">
-                  {/* PO Type */}
-                  <div>
-                    <label className={`text-[11px] font-bold uppercase tracking-wider mb-1.5 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Art <span className="text-red-500">*</span></label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button onClick={() => setFormData({ ...formData, poType: 'normal' })} className={`flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95 ${formData.poType === 'normal' ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm shadow-emerald-500/20' : isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}><Box size={14} /> Lager</button>
-                      <button onClick={() => setFormData({ ...formData, poType: 'project' })} className={`flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95 ${formData.poType === 'project' ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-500/20' : isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'}`}><Briefcase size={14} /> Projekt</button>
-                    </div>
-                  </div>
-                  {/* Order Number */}
-                  <div>
-                    <label className={`text-[11px] font-bold uppercase tracking-wider mb-1 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Bestell Nr. <span className="text-red-500">*</span></label>
-                    <div className="relative">
-                      <Hash className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40" size={14} />
-                      <input value={formData.orderId} onChange={e => setFormData({ ...formData, orderId: e.target.value })} className={`${inputCls} pl-9 py-2`} placeholder="PO-202X-..." disabled={!!initialOrder} />
-                    </div>
-                  </div>
-                  {/* Supplier */}
-                  <div>
-                    <label className={`text-[11px] font-bold uppercase tracking-wider mb-1 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Lieferant <span className="text-red-500">*</span></label>
-                    <button type="button" onClick={() => setShowSupplierSheet(true)}
-                      className={`w-full px-3 py-2 rounded-xl border flex items-center justify-between text-sm transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white hover:border-slate-600' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
-                      <span className={formData.supplier ? '' : 'opacity-40'}>{formData.supplier || 'Lieferant wählen...'}</span>
-                      <ChevronDown size={16} className="opacity-40" />
-                    </button>
-                  </div>
-                  {/* Date row */}
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <div>
-                      <label className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Datum <span className="text-red-500">*</span></label>
-                      <div className="relative">
-                        <Calendar className="absolute left-1.5 top-1/2 -translate-y-1/2 opacity-40 pointer-events-none z-10" size={10} />
-                        <input type="date" value={formData.orderDate} onChange={e => setFormData({ ...formData, orderDate: e.target.value })} className={`${inputCls} pl-5 pr-1 py-0.5 text-[11px] w-full`} style={{ colorScheme: isDark ? 'dark' : 'light', fontSize: '11px', height: '30px', minHeight: '0', WebkitAppearance: 'none', lineHeight: '1' }} />
-                      </div>
-                    </div>
-                    <div>
-                      <label className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Liefertermin {requireDeliveryDate && <span className="text-red-500">*</span>}</label>
-                      <div className="relative">
-                        <Clock className="absolute left-1.5 top-1/2 -translate-y-1/2 opacity-40 pointer-events-none z-10" size={10} />
-                        <input type="date" value={formData.expectedDeliveryDate} onChange={e => setFormData({ ...formData, expectedDeliveryDate: e.target.value })} className={`${inputCls} pl-5 pr-1 py-0.5 text-[11px] w-full`} style={{ colorScheme: isDark ? 'dark' : 'light', fontSize: '11px', height: '30px', minHeight: '0', WebkitAppearance: 'none', lineHeight: '1' }} />
-                      </div>
-                    </div>
-                  </div>
-                  {/* External References (Collapsible) */}
-                  <div>
-                    <button type="button" onClick={() => setShowExternalRefs(!showExternalRefs)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
-                        showExternalRefs 
-                          ? (isDark ? 'bg-slate-800/50 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-600')
-                          : (isDark ? 'border-slate-800 text-slate-500 hover:border-slate-700' : 'border-slate-200 text-slate-400 hover:border-slate-300')
-                      }`}>
-                      <span className="flex items-center gap-1.5"><Hash size={12} /> Externe Referenzen {externalRefs.length > 0 && <span className={`px-1.5 py-0.5 rounded-full text-[9px] ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>{externalRefs.length}</span>}</span>
-                      <ChevronDown size={14} className={`transition-transform ${showExternalRefs ? 'rotate-180' : ''}`} />
-                    </button>
-                    {showExternalRefs && (
-                      <div className="mt-2 space-y-2">
-                        {externalRefs.map((ref, ri) => (
-                          <div key={ri} className="flex items-center gap-1.5">
-                            <div className="relative flex-1 min-w-0">
-                              <input
-                                value={ref.label}
-                                onChange={e => setExternalRefs(prev => prev.map((r, i) => i === ri ? { ...r, label: e.target.value } : r))}
-                                placeholder="z.B. Lieferanten-Nr."
-                                list={`ref-labels-${ri}`}
-                                className={`${inputCls} text-[11px] py-1.5`}
-                              />
-                              <datalist id={`ref-labels-${ri}`}>
-                                {refLabelSuggestions.filter(s => !externalRefs.some((r, i) => i !== ri && r.label === s)).map(s => <option key={s} value={s} />)}
-                              </datalist>
-                            </div>
-                            <input
-                              value={ref.value}
-                              onChange={e => setExternalRefs(prev => prev.map((r, i) => i === ri ? { ...r, value: e.target.value } : r))}
-                              placeholder="Referenznummer"
-                              className={`${inputCls} flex-1 min-w-0 text-[11px] py-1.5`}
-                            />
-                            <button type="button" onClick={() => setExternalRefs(prev => prev.filter((_, i) => i !== ri))}
-                              className={`p-1.5 rounded-lg shrink-0 transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-500' : 'hover:bg-slate-100 text-slate-400'}`}>
-                              <X size={14} />
-                            </button>
-                          </div>
-                        ))}
-                        <button type="button" onClick={() => setExternalRefs(prev => [...prev, { label: '', value: '' }])}
-                          className={`w-full py-1.5 rounded-lg border border-dashed text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${isDark ? 'border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400' : 'border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-500'}`}>
-                          <Plus size={12} /> Referenz hinzufügen
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* ── STEP 2: Only list scrolls ── */}
-            {step === 2 && (
-              <div className="px-4 pt-3 pb-4 flex-1 min-h-0 flex flex-col">
-                <h4 className={`text-xs font-bold uppercase tracking-wider mb-2 flex-none ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Positionen ({cart.filter(c => !c.isDeleted).length})
-                </h4>
-                <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
+          {/* ── STEP 2: Only list scrolls ── */}
+          {step === 2 && (
+            <div className="px-4 pt-3 pb-4 flex-1 min-h-0 flex flex-col">
+              <h4 className={`text-xs font-bold uppercase tracking-wider mb-2 flex-none ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                Positionen ({cart.filter(c => !c.isDeleted).length})
+              </h4>
+              <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
                 {cart.length === 0 ? (
                   <div className={`p-6 border rounded-xl border-dashed text-center text-sm ${isDark ? 'text-slate-500 border-slate-700' : 'text-slate-400 border-slate-300'}`}>Keine Artikel ausgewählt.</div>
                 ) : (
@@ -675,17 +676,17 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
                     })}
                   </div>
                 )}
-                </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* ── STEP 3: Only list scrolls ── */}
-            {step === 3 && (
-              <div className="px-4 pt-3 pb-4 flex-1 min-h-0 flex flex-col">
-                <h4 className={`text-xs font-bold uppercase tracking-wider mb-2 flex-none ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Positionen ({cart.filter(c => !c.isDeleted).length})
-                </h4>
-                <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
+          {/* ── STEP 3: Only list scrolls ── */}
+          {step === 3 && (
+            <div className="px-4 pt-3 pb-4 flex-1 min-h-0 flex flex-col">
+              <h4 className={`text-xs font-bold uppercase tracking-wider mb-2 flex-none ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                Positionen ({cart.filter(c => !c.isDeleted).length})
+              </h4>
+              <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
                 <div className="space-y-2">
                   {cart.map((line, idx) => {
                     const isDel = line.isDeleted;
@@ -708,12 +709,12 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
                     );
                   })}
                 </div>
-                </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {(step === 2 || step === 3) && <div className="hidden md:block h-6" />}
-          </div>
+          {(step === 2 || step === 3) && <div className="hidden md:block h-6" />}
+        </div>
       </div>
 
       {/* ══════════════════════════════════════════════════════
