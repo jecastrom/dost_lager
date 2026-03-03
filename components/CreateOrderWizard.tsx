@@ -4,7 +4,7 @@ import {
   X, Search, Plus, Calendar, Truck,
   Hash, Info, CheckCircle2, ChevronDown,
   ArrowRight, ArrowLeft, Trash2, Loader2, AlertTriangle, FileText,
-  Briefcase, Box, Download, Clock, Undo2, Sparkles, Import
+  Briefcase, Box, Download, Clock, Undo2, Sparkles, Import, Copy
 } from 'lucide-react';
 import { StockItem, Theme, PurchaseOrder, ActiveModule } from '../types';
 
@@ -174,64 +174,6 @@ const findMatchingSupplier = (input: string, supplierList: string[]): string | n
   return exact || null;
 };
 
-const promptForSupplier = (context: string, prefill: string, supplierList: string[]): string | null => {
-  const listStr = supplierList.join('\n  • ');
-  const userInput = prompt(
-    `${context}\n\nVerfügbare Lieferanten:\n  • ${listStr}\n\nLieferant eingeben:`,
-    prefill
-  );
-  if (userInput === null) return null;
-  const matched = findMatchingSupplier(userInput, supplierList);
-  if (!matched) {
-    alert(`"${userInput}" ist kein bekannter Lieferant.\n\nBitte exakten Namen aus der Liste verwenden.`);
-    return null;
-  }
-  return matched;
-};
-
-// ── Item Validation Helper ──────────────────────────────────
-const validateImportItems = (text: string, inventory: StockItem[]): { valid: boolean; unknownLines: string[] } => {
-  const skuSet = new Set(inventory.map(i => i.sku.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()));
-  const unknownLines: string[] = [];
-  const qtyRegex = /(\d+)\s*(?:x|stk|st|pcs|Pack)/i;
-  const lines = text.split('\n');
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    // Skip metadata lines (dates, supplier, order nr, type, delivery date, separators)
-    if (/^(?:Bestellung|Order|Auftrag|Nr|Lieferant|Supplier|Kreditor|Vendor|Art|Type|Typ|Liefertermin|Lieferdatum|Delivery|ETA|Erwartet|Expected)/i.test(trimmed)) continue;
-    if (/^[-=]{3,}$/.test(trimmed)) continue;
-    if (/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(trimmed)) continue;
-    if (/^(Lager|Projekt|Normal|Stock|Project)$/i.test(trimmed)) continue;
-
-    // Check if this line looks like an item line (contains a number that could be a SKU or qty)
-    const words = trimmed.replace(/[^a-zA-Z0-9]/g, ' ').split(/\s+/);
-    let hasSkuCandidate = false;
-
-    for (const w of words) {
-      if (w.length < 3) continue;
-      const cleaned = w.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-      if (skuSet.has(cleaned)) {
-        hasSkuCandidate = true;
-        break;
-      }
-      // Check if it looks like a product number (digits, 4+ chars)
-      if (/^\d{4,}$/.test(w)) {
-        hasSkuCandidate = true;
-        // It looks like a SKU but wasn't found — this is an unknown item
-        if (!skuSet.has(cleaned)) {
-          unknownLines.push(w);
-        }
-        break;
-      }
-    }
-  }
-
-  return { valid: unknownLines.length === 0, unknownLines };
-};
-
 // ═════════════════════════════════════════════════════════════
 export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
   theme, items, onNavigate, onCreateOrder, initialOrder, requireDeliveryDate, enableSmartImport = false, existingOrderIds = []
@@ -257,6 +199,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
+  const [importErrors, setImportErrors] = useState<string[] | null>(null);
   const [newItemData, setNewItemData] = useState({ name: '', sku: '', system: '' });
   const [showSupplierSheet, setShowSupplierSheet] = useState(false);
   const [supplierSheetSearch, setSupplierSheetSearch] = useState('');
@@ -334,128 +277,104 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
 
   const handleParseImport = () => {
     const allParsed = parseBulkPOText(importText, items);
+    const blocksWithItems = allParsed.filter(r => r.items.length > 0);
+    const isBulk = allParsed.length >= 2 && blocksWithItems.length >= 2;
+    const blocks = isBulk ? blocksWithItems : (allParsed.length > 0 ? [allParsed[0] || parsePOText(importText, items)] : []);
 
-    // BULK MODE: 2+ PO blocks with items → create all silently
-    if (allParsed.length >= 2 && allParsed.filter(r => r.items.length > 0).length >= 2) {
-      // Validate ALL items in entire text exist in catalog
-      const itemCheck = validateImportItems(importText, items);
-      if (!itemCheck.valid) {
-        alert(`Import abgebrochen — unbekannte Artikel gefunden:\n\n${itemCheck.unknownLines.map(s => `  • ${s}`).join('\n')}\n\nBitte nur vorhandene Artikelnummern verwenden.`);
-        return;
+    if (blocks.length === 0 || blocks.every(b => b.items.length === 0)) {
+      setImportErrors(['Keine bekannten Artikel im Text gefunden. Bitte nur vorhandene Artikelnummern verwenden.']);
+      return;
+    }
+
+    // ── VALIDATION PASS — collect ALL errors before rejecting ──
+    const errors: string[] = [];
+    const skuSet = new Set(items.map(i => i.sku.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()));
+
+    blocks.forEach((block, idx) => {
+      const orderId = block.orderId || `Block ${idx + 1}`;
+      const blockErrors: string[] = [];
+
+      // 1. Supplier validation
+      const parsedSupplier = block.supplier?.trim() || '';
+      if (!parsedSupplier) {
+        blockErrors.push(`Kein Lieferant angegeben`);
+      } else {
+        const matched = findMatchingSupplier(parsedSupplier, supplierOptions);
+        if (!matched) {
+          blockErrors.push(`Lieferant "${parsedSupplier}" nicht in der Liste`);
+        }
       }
-      const blocksWithItems = allParsed.filter(r => r.items.length > 0);
 
-      // Step 1: Check for duplicate IDs
-      const duplicates = blocksWithItems
-        .map(r => r.orderId || '')
-        .filter(id => id && existingOrderIds.includes(id));
-      if (duplicates.length > 0) {
-        alert(`Folgende Bestell-Nr. existieren bereits:\n${duplicates.join(', ')}\n\nBitte Nummern ändern und erneut importieren.`);
-        return;
+      // 2. Duplicate ID check
+      if (block.orderId && existingOrderIds.includes(block.orderId)) {
+        blockErrors.push(`Bestell-Nr. "${block.orderId}" existiert bereits`);
       }
 
-      // Step 2: Resolve suppliers per block — auto-accept exact matches, prompt per unmatched
-      const resolvedSuppliers = new Map<number, string>();
-      const unmatchedBlocks: Array<{ idx: number; orderId: string; parsedSupplier: string }> = [];
+      // 3. Unknown SKU check — scan original text for SKU-like numbers not in catalog
+      const textBlock = isBulk ? importText : importText; // full text for single
+      const lines = (isBulk ? importText.split(/[-=]{3,}/) : [importText]);
+      const blockText = lines[idx] || importText;
+      const blockLines = blockText.split('\n');
+      blockLines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        if (/^(?:Bestellung|Order|Auftrag|Nr|Lieferant|Supplier|Kreditor|Vendor|Art|Type|Typ|Liefertermin|Lieferdatum|Delivery|ETA|Erwartet|Expected)/i.test(trimmed)) return;
+        if (/^[-=]{3,}$/.test(trimmed)) return;
+        if (/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(trimmed)) return;
+        if (/^(Lager|Projekt|Normal|Stock|Project)$/i.test(trimmed)) return;
 
-      blocksWithItems.forEach((r, idx) => {
-        const parsedSupp = r.supplier?.trim() || '';
-        const matched = findMatchingSupplier(parsedSupp, supplierOptions);
-        if (matched) {
-          resolvedSuppliers.set(idx, matched);
-        } else {
-          unmatchedBlocks.push({ idx, orderId: r.orderId || `PO-${idx + 1}`, parsedSupplier: parsedSupp });
+        // Look for product-number-like tokens (4+ digit numbers)
+        const words = trimmed.replace(/[^a-zA-Z0-9]/g, ' ').split(/\s+/);
+        for (const w of words) {
+          if (/^\d{4,}$/.test(w)) {
+            const cleaned = w.toUpperCase();
+            if (!skuSet.has(cleaned)) {
+              blockErrors.push(`Artikel "${w}" nicht im Katalog`);
+            }
+            break; // Only check first SKU-like token per line
+          }
         }
       });
 
-      // Prompt individually for each unmatched block
-      for (const block of unmatchedBlocks) {
-        const label = block.parsedSupplier
-          ? `Bestellung ${block.orderId}: "${block.parsedSupplier}" ist kein bekannter Lieferant.`
-          : `Bestellung ${block.orderId}: Kein Lieferant erkannt.`;
-        const supplier = promptForSupplier(label, block.parsedSupplier, supplierOptions);
-        if (!supplier) return; // User cancelled → abort entire import
-        resolvedSuppliers.set(block.idx, supplier);
+      // 4. No items parsed
+      if (block.items.length === 0) {
+        blockErrors.push(`Keine erkannten Artikel`);
       }
 
-      // Step 3: Create all orders
-      let created = 0;
-      blocksWithItems.forEach((r, idx) => {
-        const supplier = resolvedSuppliers.get(idx);
-        if (!supplier) return;
-        const orderId = r.orderId || `PO-IMP-${Date.now()}-${created}`;
-        const order: PurchaseOrder = {
-          id: orderId,
-          supplier,
-          dateCreated: r.orderDate || new Date().toISOString().split('T')[0],
-          expectedDeliveryDate: r.expectedDeliveryDate || '',
-          status: (r as any).poType === 'project' ? 'Projekt' : 'Lager',
-          isArchived: false,
-          items: r.items.map(c => ({ sku: c.sku, name: c.name, quantityExpected: c.quantity, quantityReceived: 0 }))
-        };
-        onCreateOrder(order);
-        created++;
-      });
-      alert(`Bulk-Import: ${created} Bestellungen erstellt.`);
-      setShowImportModal(false); setImportText('');
-      onNavigate('order-management');
+      if (blockErrors.length > 0) {
+        errors.push(`⛔ ${orderId}:\n${blockErrors.map(e => `   • ${e}`).join('\n')}`);
+      }
+    });
+
+    // ── REJECT if any errors ──
+    if (errors.length > 0) {
+      setImportErrors(errors);
       return;
     }
 
-    // SINGLE MODE: create directly if items found
-    const r = allParsed[0] || parsePOText(importText, items);
-    const parsedType = (r as any).poType === 'project' ? 'project' : (r as any).poType === 'normal' ? 'normal' : null;
-
-    // Validate ALL items in text exist in catalog before proceeding
-    const itemCheck = validateImportItems(importText, items);
-    if (!itemCheck.valid) {
-      alert(`Import abgebrochen — unbekannte Artikel gefunden:\n\n${itemCheck.unknownLines.map(s => `  • ${s}`).join('\n')}\n\nBitte nur vorhandene Artikelnummern verwenden.`);
-      return;
-    }
-
-    if (r.items.length > 0) {
-      // Duplicate check
-      let orderId = r.orderId || `PO-IMP-${Date.now()}`;
-      if (existingOrderIds.includes(orderId)) {
-        alert(`Bestellung "${orderId}" existiert bereits.\nBitte eine andere Bestell-Nr. verwenden.`);
-        return;
-      }
-
-      // Resolve supplier against known list
-      const parsedSupplier = r.supplier?.trim() || '';
-      const mfgFallback = items.find(i => i.sku === r.items[0]?.sku)?.manufacturer || '';
-      const prefill = parsedSupplier || mfgFallback || '';
-      let supplier = findMatchingSupplier(prefill, supplierOptions);
-
-      if (!supplier) {
-        supplier = promptForSupplier(
-          `Bestellung ${orderId} — ${r.items.length} Positionen erkannt.${prefill ? `\n\n"${prefill}" ist kein bekannter Lieferant.` : ''}`,
-          prefill,
-          supplierOptions
-        );
-        if (!supplier) return;
-      }
+    // ── ALL VALID — create orders ──
+    let created = 0;
+    blocks.forEach((block, idx) => {
+      const orderId = block.orderId || `PO-IMP-${Date.now()}-${idx}`;
+      const supplier = findMatchingSupplier(block.supplier?.trim() || '', supplierOptions)!;
+      const parsedType = (block as any).poType === 'project' ? 'project' : 'normal';
 
       const order: PurchaseOrder = {
         id: orderId,
         supplier,
-        dateCreated: r.orderDate || new Date().toISOString().split('T')[0],
-        expectedDeliveryDate: r.expectedDeliveryDate || '',
+        dateCreated: block.orderDate || new Date().toISOString().split('T')[0],
+        expectedDeliveryDate: block.expectedDeliveryDate || '',
         status: parsedType === 'project' ? 'Projekt' : 'Lager',
         isArchived: false,
-        items: r.items.map(c => ({ sku: c.sku, name: c.name, quantityExpected: c.quantity, quantityReceived: 0 }))
+        items: block.items.map(c => ({ sku: c.sku, name: c.name, quantityExpected: c.quantity, quantityReceived: 0 }))
       };
       onCreateOrder(order);
-      alert(`Bestellung ${order.id} erstellt (${r.items.length} Positionen, Lieferant: ${supplier}).`);
-      setShowImportModal(false); setImportText('');
-      onNavigate('order-management');
-      return;
-    }
+      created++;
+    });
 
-    // No items found — fall back to filling wizard manually
-    setFormData(p => ({ ...p, orderId: r.orderId || p.orderId, orderDate: r.orderDate || p.orderDate, supplier: r.supplier || p.supplier, expectedDeliveryDate: r.expectedDeliveryDate || p.expectedDeliveryDate, poType: parsedType || p.poType }));
-    alert("Keine bekannten Artikel im Text gefunden. Bitte manuell hinzufügen.");
-    setShowImportModal(false); setImportText('');
+    alert(`${created} Bestellung${created > 1 ? 'en' : ''} erfolgreich erstellt.`);
+    setShowImportModal(false); setImportText(''); setImportErrors(null);
+    onNavigate('order-management');
   };
   const handleSubmit = async () => {
     if (!formData.supplier.trim()) {
@@ -531,10 +450,38 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
           <div className={`w-full max-w-lg rounded-t-3xl md:rounded-3xl p-6 max-h-[80vh] flex flex-col animate-in slide-in-from-bottom-4 duration-300 ${isDark ? 'bg-slate-900 border border-slate-800' : 'bg-white border border-slate-200'}`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className={`text-lg font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}><Sparkles size={20} className="text-amber-500" /> Smart Import</h3>
-              <button onClick={() => { setShowImportModal(false); setImportText(''); }} className={`p-2 rounded-full ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}><X size={20} /></button>
+              <button onClick={() => { setShowImportModal(false); setImportText(''); setImportErrors(null); }} className={`p-2 rounded-full ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}><X size={20} /></button>
             </div>
-            <textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder={"Bestelltext hier einfügen…\n\nEinzel-Import: Text einer Bestellung einfügen.\nBulk-Import: Mehrere Bestellungen mit --- trennen.\n\nBeispiel:\nBestellung Nr. PO-001\nLieferant: Battery Kutter\nLiefertermin: 25.03.2026\n4000069 10x\n2030855 4 stk\n---\nBestellung Nr. PO-002\nLieferant: Würth\n…"} className={`flex-1 min-h-[200px] p-4 rounded-xl border text-sm resize-none outline-none focus:ring-2 ${isDark ? 'bg-slate-800 border-slate-700 text-white focus:ring-blue-500/30' : 'bg-slate-50 border-slate-200 focus:ring-[#0077B5]/20'}`} autoFocus />
-            <p className={`mt-2 text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Einzelne Bestellung → füllt den Wizard. Mehrere Blöcke (getrennt mit ---) → Bulk-Erstellung.</p>
+            <textarea value={importText} onChange={e => { setImportText(e.target.value); setImportErrors(null); }} placeholder={"Bestelltext hier einfügen…\n\nEinzel-Import: Text einer Bestellung einfügen.\nBulk-Import: Mehrere Bestellungen mit --- trennen.\n\nBeispiel:\nBestellung Nr. PO-001\nLieferant: Battery Kutter\nLiefertermin: 25.03.2026\n4000069 10x\n2030855 4 stk\n---\nBestellung Nr. PO-002\nLieferant: Würth\n…"} className={`flex-1 min-h-[200px] p-4 rounded-xl border text-sm resize-none outline-none focus:ring-2 ${isDark ? 'bg-slate-800 border-slate-700 text-white focus:ring-blue-500/30' : 'bg-slate-50 border-slate-200 focus:ring-[#0077B5]/20'}`} autoFocus />
+            {!importErrors && <p className={`mt-2 text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Einzelne Bestellung → direkt erstellen. Mehrere Blöcke (getrennt mit ---) → Bulk-Erstellung.</p>}
+
+            {/* ── ERROR REPORT ── */}
+            {importErrors && (
+              <div className={`mt-3 rounded-xl border p-4 ${isDark ? 'bg-red-500/10 border-red-500/30' : 'bg-red-50 border-red-200'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-xs font-bold flex items-center gap-1.5 ${isDark ? 'text-red-400' : 'text-red-600'}`}>
+                    <AlertTriangle size={14} /> Import abgelehnt
+                  </span>
+                  <button
+                    onClick={() => {
+                      const text = `Smart Import — Fehler:\n\n${importErrors.join('\n\n')}`;
+                      navigator.clipboard.writeText(text).then(() => {
+                        const btn = document.getElementById('import-copy-btn');
+                        if (btn) { btn.textContent = '✓ Kopiert'; setTimeout(() => { btn.textContent = 'Kopieren'; }, 2000); }
+                      });
+                    }}
+                    id="import-copy-btn"
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all flex items-center gap-1 ${isDark ? 'text-slate-400 border-slate-700 hover:text-white hover:border-slate-500' : 'text-slate-500 border-slate-300 hover:text-slate-800 hover:border-slate-400'}`}
+                  >
+                    <Copy size={10} /> Kopieren
+                  </button>
+                </div>
+                <div className={`text-xs whitespace-pre-wrap font-mono leading-relaxed max-h-[200px] overflow-y-auto ${isDark ? 'text-red-300' : 'text-red-700'}`}>
+                  {importErrors.join('\n\n')}
+                </div>
+              </div>
+            )}
+
             <button onClick={handleParseImport} disabled={!importText.trim()} className="mt-3 w-full py-3 bg-[#0077B5] hover:bg-[#00A0DC] text-white rounded-2xl font-bold disabled:opacity-50 flex items-center justify-center gap-2 transition-all"><Download size={18} /> Importieren</button>
           </div>
         </div>, document.body

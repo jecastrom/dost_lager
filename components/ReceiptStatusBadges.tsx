@@ -53,59 +53,60 @@ export const ReceiptStatusBadges: React.FC<ReceiptStatusBadgesProps> = ({
 
   if (isProject) {
     badges.push(
-      <span 
-        key="id-projekt" 
-        className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 uppercase tracking-wider ${
-          isDark ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200'
-        }`}
+      <span
+        key="id-projekt"
+        className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 uppercase tracking-wider ${isDark ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200'
+          }`}
       >
         <Briefcase size={10} /> Projekt
       </span>
     );
   } else {
     badges.push(
-      <span 
-        key="id-lager" 
-        className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 uppercase tracking-wider ${
-          isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'
-        }`}
+      <span
+        key="id-lager"
+        className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 uppercase tracking-wider ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'
+          }`}
       >
         <Box size={10} /> Lager
       </span>
     );
   }
 
+  // --- PRE-COMPUTE delivery timing so Badge 2 can react to it ---
+  const isAlreadyDeliveryStatus = ['Lieferung morgen', 'Lieferung heute', 'Verspätet'].includes(effectiveStatus);
+  const deliveryBadge = isAlreadyDeliveryStatus ? null : getDeliveryDateBadge(linkedPO?.expectedDeliveryDate, effectiveStatus);
+
   // --- BADGE 2: STATUS (USING CONFIG) ---
-  const statusConfig = getStatusConfig(effectiveStatus);
-  
-  if (statusConfig) {
-    const badgeColors = isDark ? statusConfig.colorClass.dark.badge : statusConfig.colorClass.light.badge;
-    badges.push(
-      <span 
-        key="st-main" 
-        className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider whitespace-nowrap ${badgeColors}`}
-      >
-        {statusConfig.displayName}
-      </span>
-    );
-  } else {
-    // Fallback: Display raw status if no config found
-    badges.push(
-      <span 
-        key="st-generic" 
-        className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${
-          isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'
-        }`}
-      >
-        {effectiveStatus}
-      </span>
-    );
+  // Suppress "Wartet auf Lieferung" when a more specific delivery timing badge exists
+  const suppressStatus = effectiveStatus === 'Wartet auf Lieferung' && deliveryBadge !== null;
+
+  if (!suppressStatus) {
+    const statusConfig = getStatusConfig(effectiveStatus);
+    if (statusConfig) {
+      const badgeColors = isDark ? statusConfig.colorClass.dark.badge : statusConfig.colorClass.light.badge;
+      badges.push(
+        <span
+          key="st-main"
+          className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider whitespace-nowrap ${badgeColors}`}
+        >
+          {statusConfig.displayName}
+        </span>
+      );
+    } else {
+      badges.push(
+        <span
+          key="st-generic"
+          className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'
+            }`}
+        >
+          {effectiveStatus}
+        </span>
+      );
+    }
   }
 
   // --- BADGE 3: DELIVERY TIMING (COMPUTED FROM DATE) ---
-  // Skip if Badge 2 already shows a delivery-date status (avoid duplicate pill)
-  const isAlreadyDeliveryStatus = ['Lieferung morgen', 'Lieferung heute', 'Verspätet'].includes(effectiveStatus);
-  const deliveryBadge = isAlreadyDeliveryStatus ? null : getDeliveryDateBadge(linkedPO?.expectedDeliveryDate, effectiveStatus);
   if (deliveryBadge) {
     const dConfig = getStatusConfig(deliveryBadge);
     if (dConfig) {
@@ -126,11 +127,10 @@ export const ReceiptStatusBadges: React.FC<ReceiptStatusBadgesProps> = ({
     const openTicketsCount = tickets.filter(t => t.status === 'Open').length;
     if (openTicketsCount > 0) {
       badges.push(
-        <span 
-          key="tickets" 
-          className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 uppercase tracking-wider ${
-            isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200'
-          }`}
+        <span
+          key="tickets"
+          className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 uppercase tracking-wider ${isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200'
+            }`}
         >
           <TicketIcon size={10} /> {openTicketsCount} Offen
         </span>
