@@ -52,6 +52,32 @@ export interface ReceiptComment {
   message: string;
 }
 
+// --- Authentication & User Types ---
+
+export type UserRole = 'admin' | 'team';
+
+export interface AuthUser {
+  userId: string;           // From Azure SWA clientPrincipal.userId
+  identityProvider: string; // 'aad'
+  userDetails: string;      // Email address
+  displayName: string;      // Full name (from claims or user-profiles DB)
+  role: UserRole;           // App-level role from Cosmos DB
+  featureAccess?: string[]; // Feature toggles for team members e.g. ['stock', 'audit', 'receipts', 'orders']
+}
+
+export interface UserProfile {
+  id: string;               // Same as AuthUser.userId
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  featureAccess: string[];  // Which modules this user can access
+  isActive: boolean;        // Can be deactivated without deletion
+  createdAt: number;
+  createdBy: string;        // userId of admin who created
+  lastLogin?: number;
+}
+
 export type ViewMode = 'grid' | 'list';
 export type Theme = 'light' | 'dark' | 'soft';
 export type ActiveModule = 'dashboard' | 'inventory' | 'create-order' | 'goods-receipt' | 'receipt-management' | 'order-management' | 'suppliers' | 'settings' | 'global-settings' | 'documentation' | 'stock-logs' | 'debug';

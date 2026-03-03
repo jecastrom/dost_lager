@@ -305,6 +305,36 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 
 ---
 
+## ✅ SMART IMPORT OVERHAUL (March 2026)
+
+### Problems fixed
+1. **Supplier not assigned on import** — parser silently fell through, leaving "-" as supplier
+2. **Duplicate PO IDs silently overwritten** — no existence check on import
+3. **Unknown SKUs silently skipped** — POs created with only partial items
+4. **Misspelled suppliers accepted** — fuzzy matching auto-assigned wrong supplier
+5. **Redundant "Wartet auf Lieferung" badge** — shown alongside "Lieferung heute/morgen"
+6. **K14 sync race condition** — polling overwrote optimistic UI updates
+7. **K5 aggressive polling** — 10s interval wasting Cosmos RU/s budget
+
+### New behavior (validation-first, zero-prompt import)
+- All validation runs before any PO creation (supplier, SKU, duplicate ID)
+- Errors shown inline in Smart Import modal with per-order breakdown + copy button
+- Supplier matching: exact only (case-insensitive), no fuzzy/partial
+- Unknown SKUs: entire import rejected, invalid article numbers listed per order
+- Duplicate PO IDs: entire import rejected, existing IDs listed
+- Single + bulk import use identical validation pipeline
+- `existingOrderIds` prop passed from App.tsx for real-time duplicate detection
+- `ReceiptStatusBadges.tsx`: "Wartet auf Lieferung" suppressed when delivery timing badge present
+- `OrderManagement.tsx`: Same suppression applied to order status badges
+
+### Files changed
+- `CreateOrderWizard.tsx` — Unified handleParseImport with validation-first pipeline, error report UI, findMatchingSupplier helper, Copy import error to clipboard
+- `App.tsx` — Write-cooldown infrastructure (markWrite + lastWriteTimestampRef), polling 10s→60s, existingOrderIds prop, receipt header supplier cascade on edit
+- `OrderManagement.tsx` — Badge 3 suppresses "Wartet auf Lieferung" when delivery timing badge exists
+- `ReceiptStatusBadges.tsx` — Badge 2 suppresses "Wartet auf Lieferung" when delivery timing badge will appear in Badge 3
+
+---
+
 ## 🔮 ROADMAP — Prioritized by dependency chain & developer efficiency
 
 ### PHASE B: Product & UX Overhaul (do next — most daily-use impact)
@@ -383,13 +413,13 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 - All API endpoints are publicly accessible
 - **Fix:** Wire Entra ID app registration into SWA auth, add `/.auth/login/aad` flow, protect API with `x-ms-client-principal` header validation
 
-**K5. Aggressive 10-second polling** 🟡
-- Wastes Cosmos RU/s budget on free tier (1000 RU/s shared)
-- **Fix:** Switch to 60s polling or event-driven (Cosmos change feed → SignalR)
+**~~K5. Aggressive 10-second polling~~** ✅ RESOLVED
+- ~~Wastes Cosmos RU/s budget on free tier (1000 RU/s shared)~~
+- **Fix applied:** Polling interval increased to 60s. Combined with K14 write-cooldown, reads reduced by 83% (72 reads/min → 12 reads/min for 3 users).
 
-**K14. Sync polling overwrites local optimistic updates** 🔴
-- Race condition: user action → optimistic UI → 10s poll fires before API write lands → fetches old data → overwrites user's change
-- **Fix:** Add "dirty flag" or debounce polling after local writes
+**~~K14. Sync polling overwrites local optimistic updates~~** ✅ RESOLVED
+- ~~Race condition: user action → optimistic UI → 10s poll fires before API write lands → fetches old data → overwrites user's change~~
+- **Fix applied:** Write-cooldown (15s) via `lastWriteTimestampRef` + `markWrite()` injected into 8 handlers. `syncFromApi` skips poll if write occurred within cooldown window.
 
 ### 🟡 MEDIUM — Should fix for reliability
 
