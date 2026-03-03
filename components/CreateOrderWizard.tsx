@@ -169,13 +169,9 @@ const SUPPLIER_OPTIONS = [
 const findMatchingSupplier = (input: string, supplierList: string[]): string | null => {
   if (!input.trim()) return null;
   const normalized = input.trim().toLowerCase();
+  // Only exact match (case-insensitive) — no fuzzy/partial matching
   const exact = supplierList.find(s => s.toLowerCase() === normalized);
-  if (exact) return exact;
-  const startsWith = supplierList.find(s => s.toLowerCase().startsWith(normalized));
-  if (startsWith) return startsWith;
-  const contains = supplierList.find(s => s.toLowerCase().includes(normalized));
-  if (contains) return contains;
-  return null;
+  return exact || null;
 };
 
 const promptForSupplier = (context: string, prefill: string, supplierList: string[]): string | null => {
@@ -191,6 +187,49 @@ const promptForSupplier = (context: string, prefill: string, supplierList: strin
     return null;
   }
   return matched;
+};
+
+// ── Item Validation Helper ──────────────────────────────────
+const validateImportItems = (text: string, inventory: StockItem[]): { valid: boolean; unknownLines: string[] } => {
+  const skuSet = new Set(inventory.map(i => i.sku.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()));
+  const unknownLines: string[] = [];
+  const qtyRegex = /(\d+)\s*(?:x|stk|st|pcs|Pack)/i;
+  const lines = text.split('\n');
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Skip metadata lines (dates, supplier, order nr, type, delivery date, separators)
+    if (/^(?:Bestellung|Order|Auftrag|Nr|Lieferant|Supplier|Kreditor|Vendor|Art|Type|Typ|Liefertermin|Lieferdatum|Delivery|ETA|Erwartet|Expected)/i.test(trimmed)) continue;
+    if (/^[-=]{3,}$/.test(trimmed)) continue;
+    if (/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(trimmed)) continue;
+    if (/^(Lager|Projekt|Normal|Stock|Project)$/i.test(trimmed)) continue;
+
+    // Check if this line looks like an item line (contains a number that could be a SKU or qty)
+    const words = trimmed.replace(/[^a-zA-Z0-9]/g, ' ').split(/\s+/);
+    let hasSkuCandidate = false;
+
+    for (const w of words) {
+      if (w.length < 3) continue;
+      const cleaned = w.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      if (skuSet.has(cleaned)) {
+        hasSkuCandidate = true;
+        break;
+      }
+      // Check if it looks like a product number (digits, 4+ chars)
+      if (/^\d{4,}$/.test(w)) {
+        hasSkuCandidate = true;
+        // It looks like a SKU but wasn't found — this is an unknown item
+        if (!skuSet.has(cleaned)) {
+          unknownLines.push(w);
+        }
+        break;
+      }
+    }
+  }
+
+  return { valid: unknownLines.length === 0, unknownLines };
 };
 
 // ═════════════════════════════════════════════════════════════
@@ -298,6 +337,12 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
 
     // BULK MODE: 2+ PO blocks with items → create all silently
     if (allParsed.length >= 2 && allParsed.filter(r => r.items.length > 0).length >= 2) {
+      // Validate ALL items in entire text exist in catalog
+      const itemCheck = validateImportItems(importText, items);
+      if (!itemCheck.valid) {
+        alert(`Import abgebrochen — unbekannte Artikel gefunden:\n\n${itemCheck.unknownLines.map(s => `  • ${s}`).join('\n')}\n\nBitte nur vorhandene Artikelnummern verwenden.`);
+        return;
+      }
       const blocksWithItems = allParsed.filter(r => r.items.length > 0);
 
       // Step 1: Check for duplicate IDs
@@ -363,6 +408,13 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
     // SINGLE MODE: create directly if items found
     const r = allParsed[0] || parsePOText(importText, items);
     const parsedType = (r as any).poType === 'project' ? 'project' : (r as any).poType === 'normal' ? 'normal' : null;
+
+    // Validate ALL items in text exist in catalog before proceeding
+    const itemCheck = validateImportItems(importText, items);
+    if (!itemCheck.valid) {
+      alert(`Import abgebrochen — unbekannte Artikel gefunden:\n\n${itemCheck.unknownLines.map(s => `  • ${s}`).join('\n')}\n\nBitte nur vorhandene Artikelnummern verwenden.`);
+      return;
+    }
 
     if (r.items.length > 0) {
       // Duplicate check
