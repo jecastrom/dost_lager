@@ -270,37 +270,54 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
 
     // BULK MODE: 2+ PO blocks with items → create all silently
     if (allParsed.length >= 2 && allParsed.filter(r => r.items.length > 0).length >= 2) {
-      // Check for missing suppliers before creating
       const blocksWithItems = allParsed.filter(r => r.items.length > 0);
-      const missingSuppCount = blocksWithItems.filter(r => !r.supplier?.trim()).length;
 
-      let defaultSupplier = '';
-      if (missingSuppCount > 0) {
-        const firstItemSku = blocksWithItems.find(r => !r.supplier?.trim())?.items[0]?.sku;
-        const mfgFallback = firstItemSku ? items.find(i => i.sku === firstItemSku)?.manufacturer : '';
-        const promptMsg = missingSuppCount === blocksWithItems.length
-          ? `Kein Lieferant in ${missingSuppCount} Bestellungen erkannt.\nLieferant für alle eingeben:`
-          : `${missingSuppCount} von ${blocksWithItems.length} Bestellungen ohne Lieferant.\nStandard-Lieferant eingeben:`;
-        const userInput = prompt(promptMsg, mfgFallback || '');
-        if (userInput === null) return; // User cancelled
-        defaultSupplier = userInput.trim() || 'Unbekannt';
+      // Step 1: Check for duplicate IDs
+      const duplicates = blocksWithItems
+        .map(r => r.orderId || '')
+        .filter(id => id && existingOrderIds.includes(id));
+      if (duplicates.length > 0) {
+        alert(`Folgende Bestell-Nr. existieren bereits:\n${duplicates.join(', ')}\n\nBitte Nummern ändern und erneut importieren.`);
+        return;
       }
 
-      let created = 0;
-      const skippedDuplicates: string[] = [];
-      blocksWithItems.forEach(r => {
-        const supplier = r.supplier?.trim() || defaultSupplier;
-        if (!supplier) return;
-        // Duplicate check
-        const orderId = r.orderId || `PO-IMP-${Date.now()}-${created}`;
-        if (existingOrderIds.includes(orderId)) {
-          skippedDuplicates.push(orderId);
-          return;
+      // Step 2: Resolve suppliers — try auto-match first, then prompt for unmatched
+      const resolvedSuppliers = new Map<number, string>(); // index → supplier
+      const unmatchedBlocks: number[] = [];
+
+      blocksWithItems.forEach((r, idx) => {
+        const parsedSupp = r.supplier?.trim() || '';
+        const mfgFallback = items.find(i => i.sku === r.items[0]?.sku)?.manufacturer || '';
+        const prefill = parsedSupp || mfgFallback || '';
+        const matched = findMatchingSupplier(prefill, supplierOptions);
+        if (matched) {
+          resolvedSuppliers.set(idx, matched);
+        } else {
+          unmatchedBlocks.push(idx);
         }
+      });
+
+      // Prompt for unmatched blocks
+      if (unmatchedBlocks.length > 0) {
+        const defaultSupplier = promptForSupplier(
+          `${unmatchedBlocks.length} von ${blocksWithItems.length} Bestellungen ohne erkannten Lieferanten.`,
+          '',
+          supplierOptions
+        );
+        if (!defaultSupplier) return; // User cancelled or invalid
+        unmatchedBlocks.forEach(idx => resolvedSuppliers.set(idx, defaultSupplier));
+      }
+
+      // Step 3: Create all orders
+      let created = 0;
+      blocksWithItems.forEach((r, idx) => {
+        const supplier = resolvedSuppliers.get(idx);
+        if (!supplier) return;
+        const orderId = r.orderId || `PO-IMP-${Date.now()}-${created}`;
         const order: PurchaseOrder = {
-          id: r.orderId || `PO-IMP-${Date.now()}-${created}`,
+          id: orderId,
           supplier,
-          dateCreated: r.orderDate,
+          dateCreated: r.orderDate || new Date().toISOString().split('T')[0],
           expectedDeliveryDate: r.expectedDeliveryDate || '',
           status: (r as any).poType === 'project' ? 'Projekt' : 'Lager',
           isArchived: false,
@@ -309,53 +326,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
         onCreateOrder(order);
         created++;
       });
-      const dupMsg = skippedDuplicates.length > 0
-        ? `\n\n${skippedDuplicates.length} übersprungen (existieren bereits): ${skippedDuplicates.join(', ')}`
-        : '';
-      alert(`Bulk-Import: ${created} Bestellungen erstellt.${dupMsg}`);
-      setShowImportModal(false); setImportText('');
-      onNavigate('order-management');
-      return;
-    }
-
-    // SINGLE MODE: create directly (same as bulk) if items found, otherwise fill wizard
-    const r = allParsed[0] || parsePOText(importText, items);
-    const parsedType = (r as any).poType === 'project' ? 'project' : (r as any).poType === 'normal' ? 'normal' : null;
-
-    if (r.items.length > 0) {
-      // Resolve order ID + duplicate check
-      let orderId = r.orderId || `PO-IMP-${Date.now()}`;
-      if (existingOrderIds.includes(orderId)) {
-        alert(`Bestellung "${orderId}" existiert bereits.\nBitte eine andere Bestell-Nr. verwenden.`);
-        return;
-      }
-
-      // Always prompt for supplier — pre-fill with parsed value or manufacturer fallback
-      const parsedSupplier = r.supplier?.trim() || '';
-      const mfgFallback = items.find(i => i.sku === r.items[0]?.sku)?.manufacturer || '';
-      const prefill = parsedSupplier || mfgFallback || '';
-      const userInput = prompt(
-        `Bestellung ${orderId} — ${r.items.length} Positionen erkannt.\n\nLieferant:`,
-        prefill
-      );
-      if (userInput === null) return; // User cancelled
-      const supplier = userInput.trim();
-      if (!supplier) {
-        alert('Kein Lieferant angegeben. Import abgebrochen.');
-        return;
-      }
-
-      const order: PurchaseOrder = {
-        id: orderId,
-        supplier,
-        dateCreated: r.orderDate || new Date().toISOString().split('T')[0],
-        expectedDeliveryDate: r.expectedDeliveryDate || '',
-        status: parsedType === 'project' ? 'Projekt' : 'Lager',
-        isArchived: false,
-        items: r.items.map(c => ({ sku: c.sku, name: c.name, quantityExpected: c.quantity, quantityReceived: 0 }))
-      };
-      onCreateOrder(order);
-      alert(`Bestellung ${order.id} erstellt (${r.items.length} Positionen, Lieferant: ${supplier}).`);
+      alert(`Bulk-Import: ${created} Bestellungen erstellt.`);
       setShowImportModal(false); setImportText('');
       onNavigate('order-management');
       return;
@@ -371,6 +342,13 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
       alert('Bitte einen Lieferanten angeben.');
       return;
     }
+    // Validate supplier against known list
+    const matchedSupplier = findMatchingSupplier(formData.supplier, supplierOptions);
+    if (!matchedSupplier) {
+      alert(`"${formData.supplier}" ist kein bekannter Lieferant.\n\nBitte einen Lieferanten aus der Liste wählen.`);
+      return;
+    }
+    formData.supplier = matchedSupplier; // Normalize to exact match
     // Duplicate check (skip if editing existing order)
     if (!initialOrder && existingOrderIds.includes(formData.orderId)) {
       alert(`Bestellung "${formData.orderId}" existiert bereits.\nBitte eine andere Bestell-Nr. verwenden.`);
