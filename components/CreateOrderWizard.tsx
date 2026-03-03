@@ -354,31 +354,28 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
         return;
       }
 
-      // Step 2: Resolve suppliers — try auto-match first, then prompt for unmatched
-      const resolvedSuppliers = new Map<number, string>(); // index → supplier
-      const unmatchedBlocks: number[] = [];
+      // Step 2: Resolve suppliers per block — auto-accept exact matches, prompt per unmatched
+      const resolvedSuppliers = new Map<number, string>();
+      const unmatchedBlocks: Array<{ idx: number; orderId: string; parsedSupplier: string }> = [];
 
       blocksWithItems.forEach((r, idx) => {
         const parsedSupp = r.supplier?.trim() || '';
-        const mfgFallback = items.find(i => i.sku === r.items[0]?.sku)?.manufacturer || '';
-        const prefill = parsedSupp || mfgFallback || '';
-        const matched = findMatchingSupplier(prefill, supplierOptions);
+        const matched = findMatchingSupplier(parsedSupp, supplierOptions);
         if (matched) {
           resolvedSuppliers.set(idx, matched);
         } else {
-          unmatchedBlocks.push(idx);
+          unmatchedBlocks.push({ idx, orderId: r.orderId || `PO-${idx + 1}`, parsedSupplier: parsedSupp });
         }
       });
 
-      // Prompt for unmatched blocks
-      if (unmatchedBlocks.length > 0) {
-        const defaultSupplier = promptForSupplier(
-          `${unmatchedBlocks.length} von ${blocksWithItems.length} Bestellungen ohne erkannten Lieferanten.`,
-          '',
-          supplierOptions
-        );
-        if (!defaultSupplier) return; // User cancelled or invalid
-        unmatchedBlocks.forEach(idx => resolvedSuppliers.set(idx, defaultSupplier));
+      // Prompt individually for each unmatched block
+      for (const block of unmatchedBlocks) {
+        const label = block.parsedSupplier
+          ? `Bestellung ${block.orderId}: "${block.parsedSupplier}" ist kein bekannter Lieferant.`
+          : `Bestellung ${block.orderId}: Kein Lieferant erkannt.`;
+        const supplier = promptForSupplier(label, block.parsedSupplier, supplierOptions);
+        if (!supplier) return; // User cancelled → abort entire import
+        resolvedSuppliers.set(block.idx, supplier);
       }
 
       // Step 3: Create all orders
