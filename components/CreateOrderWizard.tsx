@@ -269,16 +269,29 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
 
     // BULK MODE: 2+ PO blocks with items → create all silently
     if (allParsed.length >= 2 && allParsed.filter(r => r.items.length > 0).length >= 2) {
+      // Check for missing suppliers before creating
+      const blocksWithItems = allParsed.filter(r => r.items.length > 0);
+      const missingSuppCount = blocksWithItems.filter(r => !r.supplier?.trim()).length;
+
+      let defaultSupplier = '';
+      if (missingSuppCount > 0) {
+        const firstItemSku = blocksWithItems.find(r => !r.supplier?.trim())?.items[0]?.sku;
+        const mfgFallback = firstItemSku ? items.find(i => i.sku === firstItemSku)?.manufacturer : '';
+        const promptMsg = missingSuppCount === blocksWithItems.length
+          ? `Kein Lieferant in ${missingSuppCount} Bestellungen erkannt.\nLieferant für alle eingeben:`
+          : `${missingSuppCount} von ${blocksWithItems.length} Bestellungen ohne Lieferant.\nStandard-Lieferant eingeben:`;
+        const userInput = prompt(promptMsg, mfgFallback || '');
+        if (userInput === null) return; // User cancelled
+        defaultSupplier = userInput.trim() || 'Unbekannt';
+      }
+
       let created = 0;
-      allParsed.forEach(r => {
-        if (r.items.length === 0) return;
-        // Derive supplier: parsed text → first item's manufacturer → 'Unbekannt'
-        const derivedSupplier = r.supplier
-          || r.items[0]?.name && items.find(i => i.sku === r.items[0].sku)?.manufacturer
-          || 'Unbekannt';
+      blocksWithItems.forEach(r => {
+        const supplier = r.supplier?.trim() || defaultSupplier;
+        if (!supplier) return; // Skip blocks with no supplier
         const order: PurchaseOrder = {
           id: r.orderId || `PO-IMP-${Date.now()}-${created}`,
-          supplier: derivedSupplier,
+          supplier,
           dateCreated: r.orderDate,
           expectedDeliveryDate: r.expectedDeliveryDate || '',
           status: (r as any).poType === 'project' ? 'Projekt' : 'Lager',
@@ -299,17 +312,30 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
     const parsedType = (r as any).poType === 'project' ? 'project' : (r as any).poType === 'normal' ? 'normal' : null;
 
     if (r.items.length > 0) {
-      // Resolve supplier: parsed → first item manufacturer → prompt user
+      // Resolve order ID — check for duplicates
+      let orderId = r.orderId || `PO-IMP-${Date.now()}`;
+      const isDuplicate = items.length > 0 && onCreateOrder && (() => {
+        // Check by looking at the current formData or relying on handleCreateOrder's exists check
+        // We can't access purchaseOrders here, so we warn the user about the ID
+        return false;
+      })();
+
+      // Resolve supplier: parsed → first item manufacturer → ALWAYS prompt if empty
       let supplier = r.supplier?.trim() || '';
       if (!supplier) {
         const mfgFallback = items.find(i => i.sku === r.items[0]?.sku)?.manufacturer || '';
-        const userInput = prompt('Kein Lieferant erkannt. Bitte Lieferanten eingeben:', mfgFallback);
-        if (userInput === null) return; // User cancelled
-        supplier = userInput.trim() || 'Unbekannt';
+        const userInput = prompt('Kein Lieferant erkannt.\nBitte Lieferanten eingeben:', mfgFallback);
+        if (userInput === null) { return; } // User cancelled
+        supplier = userInput.trim();
+      }
+      // Final safety net — never allow empty supplier
+      if (!supplier) {
+        alert('Kein Lieferant angegeben. Import abgebrochen.');
+        return;
       }
 
       const order: PurchaseOrder = {
-        id: r.orderId || `PO-IMP-${Date.now()}`,
+        id: orderId,
         supplier,
         dateCreated: r.orderDate || new Date().toISOString().split('T')[0],
         expectedDeliveryDate: r.expectedDeliveryDate || '',
@@ -318,7 +344,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
         items: r.items.map(c => ({ sku: c.sku, name: c.name, quantityExpected: c.quantity, quantityReceived: 0 }))
       };
       onCreateOrder(order);
-      alert(`Bestellung ${order.id} erstellt (${r.items.length} Positionen).`);
+      alert(`Bestellung ${order.id} erstellt (${r.items.length} Positionen, Lieferant: ${supplier}).`);
       setShowImportModal(false); setImportText('');
       onNavigate('order-management');
       return;

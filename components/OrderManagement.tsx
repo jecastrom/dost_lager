@@ -129,7 +129,11 @@ const OrderStatusBadges = ({ order, linkedReceipt, theme }: { order: PurchaseOrd
     // --- BADGE 3: RECEIPT PROCESS ---
     if (linkedReceipt) {
         const s = linkedReceipt.status as string;
-        if (s === 'Wartet auf Lieferung') {
+        // Compute delivery timing first — suppress "Wartet auf Lieferung" if a more specific badge exists
+        const effectiveStatusForBadge3 = linkedReceipt?.status as string || (isOrderComplete(order) || order.isForceClosed ? 'Abgeschlossen' : order.status === 'Storniert' ? 'Storniert' : '');
+        const hasTiming = getDeliveryDateBadge(order.expectedDeliveryDate, effectiveStatusForBadge3);
+        if (s === 'Wartet auf Lieferung' && !hasTiming) {
+            // Only show "Wartet auf Lieferung" when NO delivery timing badge will appear
             badges.push(
                 <span key="proc-check" className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border uppercase tracking-wider ${isDark ? 'bg-[#6264A7]/20 text-[#9ea0e6] border-[#6264A7]/40' : 'bg-[#6264A7]/10 text-[#6264A7] border-[#6264A7]/20'
                     }`}>
