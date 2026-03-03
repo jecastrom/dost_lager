@@ -4,7 +4,8 @@ import {
   ArrowLeft, Shield, Sparkles, Calendar, Ticket, List,
   AlertTriangle, PlusCircle, AlertCircle, Ban, ChevronDown, ChevronUp,
   Info, Clock, FileText, Eye, Lock, MapPin, GripVertical,
-  Pencil, Trash2, Plus, Check, X, ArrowUp, ArrowDown, FolderOpen, Layers
+  Pencil, Trash2, Plus, Check, X, ArrowUp, ArrowDown, FolderOpen, Layers,
+  Users, ChevronRight
 } from 'lucide-react';
 import { TicketConfig, TimelineConfig } from './SettingsPage';
 import { MessageSquare } from 'lucide-react';
@@ -156,10 +157,31 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
             </p>
           </div>
         </div>
-
+        {/* ═══ TEAM MANAGEMENT LINK ═══ */}
+        <button
+          onClick={() => onNavigate('team-management')}
+          className={`w-full rounded-2xl border overflow-hidden mb-6 text-left transition-all group ${isDark ? 'bg-slate-900/50 border-slate-800 hover:bg-slate-800/80 hover:border-slate-700'
+            : 'bg-white border-slate-200 hover:bg-slate-50 shadow-sm hover:shadow-md'
+            }`}
+        >
+          <div className="flex items-center justify-between p-5">
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-xl ${isDark ? 'bg-[#0077B5]/20' : 'bg-[#0077B5]/10'}`}>
+                <Users size={22} className="text-[#0077B5]" />
+              </div>
+              <div>
+                <div className={`font-bold text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>Team-Verwaltung</div>
+                <div className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Benutzer hinzufügen, Rollen & Zugriffsrechte verwalten
+                </div>
+              </div>
+            </div>
+            <ChevronRight size={20} className="transition-transform group-hover:translate-x-1 text-[#0077B5]" />
+          </div>
+        </button>
         <div className={`mt-4 rounded-xl px-4 py-2.5 flex items-center gap-3 text-xs ${isDark
-            ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
-            : 'bg-amber-50 border border-amber-200 text-amber-800'
+          ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+          : 'bg-amber-50 border border-amber-200 text-amber-800'
           }`}>
           <Lock size={14} className="shrink-0" />
           <span>In Zukunft nur für Administratoren sichtbar. Änderungen wirken sich sofort auf alle Benutzer aus.</span>
@@ -209,8 +231,8 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
               <button
                 onClick={() => onSetRequireDeliveryDate(true)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${requireDeliveryDate
-                    ? 'bg-[#0077B5] text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  ? 'bg-[#0077B5] text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                   }`}
               >
                 Pflicht
@@ -218,8 +240,8 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
               <button
                 onClick={() => onSetRequireDeliveryDate(false)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${!requireDeliveryDate
-                    ? 'bg-[#0077B5] text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  ? 'bg-[#0077B5] text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                   }`}
               >
                 Optional

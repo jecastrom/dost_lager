@@ -26,6 +26,7 @@ import { LogicInspector } from './components/LogicInspector';
 import { SupplierView } from './components/SupplierView';
 import { BottomNav } from './components/BottomNav';
 import { LoginPage } from './components/LoginPage';
+import { TeamManagement } from './components/TeamManagement';
 import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi, DataSource } from './api';
 import { flushQueue, onQueueChange } from './offlineQueue';
 
@@ -2135,6 +2136,15 @@ export default function App() {
                   auditTrail={auditTrail}
                   lagerortCategories={lagerortCategories}
                   onSetLagerortCategories={handleSetLagerortCategories}
+                />
+              )}
+
+              {activeModule === 'team-management' && currentUser && (
+                <TeamManagement
+                  theme={theme}
+                  currentUser={currentUser}
+                  onNavigate={handleNavigation}
+                  addAudit={addAudit}
                 />
               )}
 

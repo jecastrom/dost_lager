@@ -80,7 +80,7 @@ export interface UserProfile {
 
 export type ViewMode = 'grid' | 'list';
 export type Theme = 'light' | 'dark' | 'soft';
-export type ActiveModule = 'dashboard' | 'inventory' | 'create-order' | 'goods-receipt' | 'receipt-management' | 'order-management' | 'suppliers' | 'settings' | 'global-settings' | 'documentation' | 'stock-logs' | 'debug';
+export type ActiveModule = 'dashboard' | 'inventory' | 'create-order' | 'goods-receipt' | 'receipt-management' | 'order-management' | 'suppliers' | 'settings' | 'global-settings' | 'team-management' | 'documentation' | 'stock-logs' | 'debug';
 
 export const TRANSACTION_STATUS_OPTIONS = [
   'In Bearbeitung',
