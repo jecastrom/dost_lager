@@ -17,6 +17,7 @@ interface CreateOrderWizardProps {
   initialOrder?: PurchaseOrder | null;
   requireDeliveryDate: boolean;
   enableSmartImport?: boolean;
+  existingOrderIds?: string[];
 }
 
 interface CartItem {
@@ -166,7 +167,7 @@ const SUPPLIER_OPTIONS = [
 
 // ═════════════════════════════════════════════════════════════
 export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
-  theme, items, onNavigate, onCreateOrder, initialOrder, requireDeliveryDate, enableSmartImport = false
+  theme, items, onNavigate, onCreateOrder, initialOrder, requireDeliveryDate, enableSmartImport = false, existingOrderIds = []
 }) => {
   const isDark = theme === 'dark';
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -286,9 +287,16 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
       }
 
       let created = 0;
+      const skippedDuplicates: string[] = [];
       blocksWithItems.forEach(r => {
         const supplier = r.supplier?.trim() || defaultSupplier;
-        if (!supplier) return; // Skip blocks with no supplier
+        if (!supplier) return;
+        // Duplicate check
+        const orderId = r.orderId || `PO-IMP-${Date.now()}-${created}`;
+        if (existingOrderIds.includes(orderId)) {
+          skippedDuplicates.push(orderId);
+          return;
+        }
         const order: PurchaseOrder = {
           id: r.orderId || `PO-IMP-${Date.now()}-${created}`,
           supplier,
@@ -301,7 +309,10 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
         onCreateOrder(order);
         created++;
       });
-      alert(`Bulk-Import: ${created} Bestellungen erstellt.`);
+      const dupMsg = skippedDuplicates.length > 0
+        ? `\n\n${skippedDuplicates.length} übersprungen (existieren bereits): ${skippedDuplicates.join(', ')}`
+        : '';
+      alert(`Bulk-Import: ${created} Bestellungen erstellt.${dupMsg}`);
       setShowImportModal(false); setImportText('');
       onNavigate('order-management');
       return;
@@ -312,23 +323,23 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
     const parsedType = (r as any).poType === 'project' ? 'project' : (r as any).poType === 'normal' ? 'normal' : null;
 
     if (r.items.length > 0) {
-      // Resolve order ID — check for duplicates
+      // Resolve order ID + duplicate check
       let orderId = r.orderId || `PO-IMP-${Date.now()}`;
-      const isDuplicate = items.length > 0 && onCreateOrder && (() => {
-        // Check by looking at the current formData or relying on handleCreateOrder's exists check
-        // We can't access purchaseOrders here, so we warn the user about the ID
-        return false;
-      })();
-
-      // Resolve supplier: parsed → first item manufacturer → ALWAYS prompt if empty
-      let supplier = r.supplier?.trim() || '';
-      if (!supplier) {
-        const mfgFallback = items.find(i => i.sku === r.items[0]?.sku)?.manufacturer || '';
-        const userInput = prompt('Kein Lieferant erkannt.\nBitte Lieferanten eingeben:', mfgFallback);
-        if (userInput === null) { return; } // User cancelled
-        supplier = userInput.trim();
+      if (existingOrderIds.includes(orderId)) {
+        alert(`Bestellung "${orderId}" existiert bereits.\nBitte eine andere Bestell-Nr. verwenden.`);
+        return;
       }
-      // Final safety net — never allow empty supplier
+
+      // Always prompt for supplier — pre-fill with parsed value or manufacturer fallback
+      const parsedSupplier = r.supplier?.trim() || '';
+      const mfgFallback = items.find(i => i.sku === r.items[0]?.sku)?.manufacturer || '';
+      const prefill = parsedSupplier || mfgFallback || '';
+      const userInput = prompt(
+        `Bestellung ${orderId} — ${r.items.length} Positionen erkannt.\n\nLieferant:`,
+        prefill
+      );
+      if (userInput === null) return; // User cancelled
+      const supplier = userInput.trim();
       if (!supplier) {
         alert('Kein Lieferant angegeben. Import abgebrochen.');
         return;
@@ -356,9 +367,13 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
     setShowImportModal(false); setImportText('');
   };
   const handleSubmit = async () => {
-    // Validation: supplier must not be empty
     if (!formData.supplier.trim()) {
       alert('Bitte einen Lieferanten angeben.');
+      return;
+    }
+    // Duplicate check (skip if editing existing order)
+    if (!initialOrder && existingOrderIds.includes(formData.orderId)) {
+      alert(`Bestellung "${formData.orderId}" existiert bereits.\nBitte eine andere Bestell-Nr. verwenden.`);
       return;
     }
     setSubmissionStatus('submitting');

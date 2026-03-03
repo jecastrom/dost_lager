@@ -1926,6 +1926,7 @@ export default function App() {
                   initialOrder={orderToEdit}
                   requireDeliveryDate={requireDeliveryDate}
                   enableSmartImport={enableSmartImport}
+                  existingOrderIds={purchaseOrders.map(o => o.id)}
                 />
               )}
 
