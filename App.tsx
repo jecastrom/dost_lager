@@ -6,7 +6,8 @@ import {
 } from './data';
 import {
   StockItem, ReceiptHeader, ReceiptItem, ReceiptComment, ViewMode, Theme,
-  ActiveModule, PurchaseOrder, ReceiptMaster, Ticket, DeliveryLog, StockLog, ReceiptMasterStatus, AuditEntry, LagerortCategory
+  ActiveModule, PurchaseOrder, ReceiptMaster, Ticket, DeliveryLog, StockLog, ReceiptMasterStatus, AuditEntry, LagerortCategory,
+  AuthUser
 } from './types';
 import { getDeliveryDateBadge } from './components/ReceiptStatusConfig';
 import { Header } from './components/Header';
@@ -24,6 +25,7 @@ import { StockLogView } from './components/StockLogView';
 import { LogicInspector } from './components/LogicInspector';
 import { SupplierView } from './components/SupplierView';
 import { BottomNav } from './components/BottomNav';
+import { LoginPage } from './components/LoginPage';
 import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi, DataSource } from './api';
 import { flushQueue, onQueueChange } from './offlineQueue';
 
@@ -106,6 +108,47 @@ export default function App() {
     }
     return 'light';
   });
+  // --- Authentication State ---
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Check Azure SWA auth on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkAuth() {
+      try {
+        const res = await fetch('/.auth/me');
+        if (!res.ok) {
+          setAuthLoading(false);
+          return;
+        }
+        const data = await res.json();
+        const principal = data?.clientPrincipal;
+
+        if (!cancelled && principal) {
+          setCurrentUser({
+            userId: principal.userId,
+            identityProvider: principal.identityProvider,
+            userDetails: principal.userDetails, // email
+            displayName: principal.claims?.find((c: any) => c.typ === 'name')?.val || principal.userDetails,
+            role: 'admin', // Default — will be overridden by Cosmos DB lookup in Step 3
+            featureAccess: ['stock', 'audit', 'receipts', 'orders', 'suppliers', 'settings'],
+          });
+        }
+      } catch (err) {
+        console.warn('[Auth] Failed to check auth status:', err);
+        if (!cancelled) setAuthError('Authentifizierung fehlgeschlagen. Bitte versuchen Sie es erneut.');
+      } finally {
+        if (!cancelled) setAuthLoading(false);
+      }
+    }
+
+    checkAuth();
+    return () => { cancelled = true; };
+  }, []);
+
   const [activeModule, setActiveModule] = useState<ActiveModule>('dashboard');
 
   // -- UX State: Force View Refresh --
@@ -342,7 +385,7 @@ export default function App() {
     const entry: AuditEntry = {
       id: crypto.randomUUID(),
       event,
-      user: 'Admin User',
+      user: currentUser?.displayName || 'Unknown',
       timestamp: Date.now(),
       ip: '192.168.1.xxx',
       details
@@ -1798,6 +1841,33 @@ export default function App() {
     receiptsApi.bulkUpsert(apiDocs).catch(console.warn);
     // Master, PO, and stock are now persisted inline in their respective setState callbacks above
   };
+
+  // --- Auth Gate: Show login page if not authenticated ---
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#0077B5] to-[#00A0DC] flex items-center justify-center shadow-xl animate-pulse">
+            <svg className="text-white w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16Z" />
+              <path d="M3.27 6.96L12 12.01l8.73-5.05" />
+              <path d="M12 22.08V12" />
+            </svg>
+          </div>
+          <p className="text-slate-500 text-sm font-medium">Lade DOST Lager…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <LoginPage
+        error={authError}
+        isOffline={!navigator.onLine}
+      />
+    );
+  }
 
   return (
     <ErrorBoundary>
