@@ -165,6 +165,34 @@ const SUPPLIER_OPTIONS = [
   "Continental", "Siemens Energy"
 ];
 
+// ── Supplier Validation Helper ──────────────────────────────
+const findMatchingSupplier = (input: string, supplierList: string[]): string | null => {
+  if (!input.trim()) return null;
+  const normalized = input.trim().toLowerCase();
+  const exact = supplierList.find(s => s.toLowerCase() === normalized);
+  if (exact) return exact;
+  const startsWith = supplierList.find(s => s.toLowerCase().startsWith(normalized));
+  if (startsWith) return startsWith;
+  const contains = supplierList.find(s => s.toLowerCase().includes(normalized));
+  if (contains) return contains;
+  return null;
+};
+
+const promptForSupplier = (context: string, prefill: string, supplierList: string[]): string | null => {
+  const listStr = supplierList.join('\n  • ');
+  const userInput = prompt(
+    `${context}\n\nVerfügbare Lieferanten:\n  • ${listStr}\n\nLieferant eingeben:`,
+    prefill
+  );
+  if (userInput === null) return null;
+  const matched = findMatchingSupplier(userInput, supplierList);
+  if (!matched) {
+    alert(`"${userInput}" ist kein bekannter Lieferant.\n\nBitte exakten Namen aus der Liste verwenden.`);
+    return null;
+  }
+  return matched;
+};
+
 // ═════════════════════════════════════════════════════════════
 export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
   theme, items, onNavigate, onCreateOrder, initialOrder, requireDeliveryDate, enableSmartImport = false, existingOrderIds = []
@@ -327,6 +355,49 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
         created++;
       });
       alert(`Bulk-Import: ${created} Bestellungen erstellt.`);
+      setShowImportModal(false); setImportText('');
+      onNavigate('order-management');
+      return;
+    }
+
+    // SINGLE MODE: create directly if items found
+    const r = allParsed[0] || parsePOText(importText, items);
+    const parsedType = (r as any).poType === 'project' ? 'project' : (r as any).poType === 'normal' ? 'normal' : null;
+
+    if (r.items.length > 0) {
+      // Duplicate check
+      let orderId = r.orderId || `PO-IMP-${Date.now()}`;
+      if (existingOrderIds.includes(orderId)) {
+        alert(`Bestellung "${orderId}" existiert bereits.\nBitte eine andere Bestell-Nr. verwenden.`);
+        return;
+      }
+
+      // Resolve supplier against known list
+      const parsedSupplier = r.supplier?.trim() || '';
+      const mfgFallback = items.find(i => i.sku === r.items[0]?.sku)?.manufacturer || '';
+      const prefill = parsedSupplier || mfgFallback || '';
+      let supplier = findMatchingSupplier(prefill, supplierOptions);
+
+      if (!supplier) {
+        supplier = promptForSupplier(
+          `Bestellung ${orderId} — ${r.items.length} Positionen erkannt.${prefill ? `\n\n"${prefill}" ist kein bekannter Lieferant.` : ''}`,
+          prefill,
+          supplierOptions
+        );
+        if (!supplier) return;
+      }
+
+      const order: PurchaseOrder = {
+        id: orderId,
+        supplier,
+        dateCreated: r.orderDate || new Date().toISOString().split('T')[0],
+        expectedDeliveryDate: r.expectedDeliveryDate || '',
+        status: parsedType === 'project' ? 'Projekt' : 'Lager',
+        isArchived: false,
+        items: r.items.map(c => ({ sku: c.sku, name: c.name, quantityExpected: c.quantity, quantityReceived: 0 }))
+      };
+      onCreateOrder(order);
+      alert(`Bestellung ${order.id} erstellt (${r.items.length} Positionen, Lieferant: ${supplier}).`);
       setShowImportModal(false); setImportText('');
       onNavigate('order-management');
       return;
