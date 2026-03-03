@@ -421,7 +421,7 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 - ~~Race condition: user action → optimistic UI → 10s poll fires before API write lands → fetches old data → overwrites user's change~~
 - **Fix applied:** Write-cooldown (15s) via `lastWriteTimestampRef` + `markWrite()` injected into 8 handlers. `syncFromApi` skips poll if write occurred within cooldown window.
 
-### 🟡 MEDIUM — Should fix for reliability
+### 🟡 MEDIUM — Should fix for reliability.
 
 **K6. Duplicate SKU IDs in seed data** 🟡
 - 182 duplicate Artikel Nummer values — Cosmos keeps last-write-wins (~613 unique)
