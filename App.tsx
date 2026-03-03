@@ -113,12 +113,13 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Check Azure SWA auth on mount
+  // Check Azure SWA auth on mount, then fetch user profile from Cosmos DB
   useEffect(() => {
     let cancelled = false;
 
     async function checkAuth() {
       try {
+        // Step 1: Check Azure SWA authentication
         const res = await fetch('/.auth/me');
         if (!res.ok) {
           setAuthLoading(false);
@@ -127,15 +128,63 @@ export default function App() {
         const data = await res.json();
         const principal = data?.clientPrincipal;
 
-        if (!cancelled && principal) {
-          setCurrentUser({
-            userId: principal.userId,
-            identityProvider: principal.identityProvider,
-            userDetails: principal.userDetails, // email
-            displayName: principal.claims?.find((c: any) => c.typ === 'name')?.val || principal.userDetails,
-            role: 'admin', // Default — will be overridden by Cosmos DB lookup in Step 3
-            featureAccess: ['stock', 'audit', 'receipts', 'orders', 'suppliers', 'settings'],
-          });
+        if (!principal) {
+          if (!cancelled) setAuthLoading(false);
+          return;
+        }
+
+        // Step 2: Look up user profile in Cosmos DB
+        const profileRes = await fetch(`/api/user-profiles?userId=${encodeURIComponent(principal.userId)}`);
+
+        if (profileRes.status === 404) {
+          // User exists in Azure but not provisioned in our app
+          if (!cancelled) {
+            setAuthError('NOT_PROVISIONED');
+            setCurrentUser({
+              userId: principal.userId,
+              identityProvider: principal.identityProvider,
+              userDetails: principal.userDetails,
+              displayName: principal.claims?.find((c: any) => c.typ === 'name')?.val || principal.userDetails,
+              role: 'team', // Minimal — no access
+              featureAccess: [],
+            });
+          }
+          if (!cancelled) setAuthLoading(false);
+          return;
+        }
+
+        if (profileRes.ok) {
+          const profile = await profileRes.json();
+
+          if (!profile.isActive) {
+            if (!cancelled) setAuthError('ACCOUNT_DEACTIVATED');
+            if (!cancelled) setAuthLoading(false);
+            return;
+          }
+
+          if (!cancelled) {
+            setCurrentUser({
+              userId: principal.userId,
+              identityProvider: principal.identityProvider,
+              userDetails: principal.userDetails,
+              displayName: `${profile.firstName} ${profile.lastName}`.trim() || principal.userDetails,
+              role: profile.role,
+              featureAccess: profile.featureAccess || [],
+            });
+          }
+        } else {
+          // API error — fall back to basic auth (no role restrictions)
+          console.warn('[Auth] Could not fetch user profile, falling back to basic auth');
+          if (!cancelled) {
+            setCurrentUser({
+              userId: principal.userId,
+              identityProvider: principal.identityProvider,
+              userDetails: principal.userDetails,
+              displayName: principal.claims?.find((c: any) => c.typ === 'name')?.val || principal.userDetails,
+              role: 'admin',
+              featureAccess: ['stock', 'audit', 'receipts', 'orders', 'suppliers', 'settings', 'global-settings'],
+            });
+          }
         }
       } catch (err) {
         console.warn('[Auth] Failed to check auth status:', err);
@@ -1860,12 +1909,40 @@ export default function App() {
     );
   }
 
-  if (!currentUser) {
+  if (!currentUser || authError === 'ACCOUNT_DEACTIVATED') {
     return (
       <LoginPage
-        error={authError}
+        error={authError === 'ACCOUNT_DEACTIVATED' ? 'Ihr Konto wurde deaktiviert. Bitte kontaktieren Sie den Administrator.' : authError}
         isOffline={!navigator.onLine}
       />
+    );
+  }
+
+  if (authError === 'NOT_PROVISIONED') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
+        <div className="w-full max-w-sm text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center mx-auto mb-6 shadow-xl">
+            <svg className="text-white w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-bold text-white mb-2">Zugang ausstehend</h1>
+          <p className="text-sm text-slate-400 mb-6">
+            Ihr Microsoft-Konto (<span className="text-slate-300 font-medium">{currentUser.userDetails}</span>) wurde noch nicht für DOST Lager freigeschaltet. Bitte kontaktieren Sie Ihren Administrator.
+          </p>
+          <button
+            onClick={() => { window.location.href = '/.auth/logout?post_logout_redirect_uri=/'; }}
+            className="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-colors"
+          >
+            Abmelden
+          </button>
+          <div className="mt-8 flex items-center justify-center gap-1.5">
+            <span className="font-black italic text-[#0077B5] text-xs tracking-tighter">DOST</span>
+            <span className="font-black italic text-[#E2001A] text-xs tracking-tighter">INFOSYS</span>
+          </div>
+        </div>
+      </div>
     );
   }
 
