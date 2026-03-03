@@ -468,7 +468,7 @@ export default function App() {
     // Poll every 10s while tab is visible for near-real-time sync
     const pollInterval = setInterval(() => {
       if (document.visibilityState === 'visible') syncFromApi();
-    }, 10000);
+    }, 60000);
 
     return () => { cancelled = true; document.removeEventListener('visibilitychange', handleVisibility); clearInterval(pollInterval); };
   }, []);
