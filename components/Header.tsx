@@ -69,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
                   style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
                 >
                   {!isOnline ? (
-                    <WifiOff size={13} />
+                    <><WifiOff size={13} /><Database size={11} /></>
                   ) : dataSource === 'cache' ? (
                     <Database size={13} className="animate-pulse" />
                   ) : dataSource === 'api' ? (
