@@ -139,8 +139,8 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
               key={s.id}
               onClick={() => setActiveSection(s.id)}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${activeSection === s.id
-                  ? 'bg-[#0077B5] text-white shadow-md'
-                  : isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-900'
+                ? 'bg-[#0077B5] text-white shadow-md'
+                : isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-900'
                 }`}
             >
               {s.icon} {s.label}
@@ -309,13 +309,21 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
             <div className="space-y-2 text-xs">
               <p>{t('Wenn ein API-Schreibvorgang (POST/PUT/DELETE) wegen Netzwerkfehler fehlschlägt, wird er automatisch in die IndexedDB _writeQueue eingereiht. FIFO-Verarbeitung, max. 5 Wiederholungsversuche pro Eintrag.', 'When an API write (POST/PUT/DELETE) fails due to network error, it is automatically enqueued in the IndexedDB _writeQueue. FIFO processing, max 5 retries per entry.')}</p>
               <p><strong>{t('Modul', 'Module')}:</strong> <TechBadge label="offlineQueue.ts" /></p>
+              <p><strong>{t('Netzwerkerkennung', 'Network Detection')}:</strong> {t('Erkennt Offline-Fehler browserübergreifend: "Failed to fetch" (Chrome), "Load failed" (Safari/iOS), "NetworkError" (Firefox), plus navigator.onLine Fallback. Kritisch für iOS Safari, wo die Standard-Fehlermeldung anders lautet.', 'Cross-browser offline detection: "Failed to fetch" (Chrome), "Load failed" (Safari/iOS), "NetworkError" (Firefox), plus navigator.onLine fallback. Critical for iOS Safari where the standard error message differs.')}</p>
               <p><strong>{t('Flush-Auslöser', 'Flush Triggers')}:</strong></p>
               <div className="space-y-1 ml-2">
                 <div className="flex items-start gap-2"><CheckCircle2 size={12} className="text-emerald-500 shrink-0 mt-0.5" /><span className="font-mono">online</span> {t('Event — Browser erkennt Netzwerk wieder', 'event — browser detects network again')}</div>
                 <div className="flex items-start gap-2"><CheckCircle2 size={12} className="text-emerald-500 shrink-0 mt-0.5" /><span className="font-mono">visibilitychange</span> {t('Event — Benutzer kehrt zum Tab zurück', 'event — user returns to tab')}</div>
-                <div className="flex items-start gap-2"><CheckCircle2 size={12} className="text-emerald-500 shrink-0 mt-0.5" />{t('Beim App-Start (falls Einträge aus letzter Sitzung vorhanden)', 'On app startup (if entries from last session exist)')}</div>
+                <div className="flex items-start gap-2"><CheckCircle2 size={12} className="text-emerald-500 shrink-0 mt-0.5" />{t('Beim App-Start — VOR dem Laden der API-Daten (Queue-Flush hat Priorität, damit die API aktuelle Daten hat)', 'On app startup — BEFORE loading API data (queue flush takes priority so API has current data)')}</div>
               </div>
-              <p><strong>{t('Change Listener', 'Change Listener')}:</strong> {t('onQueueChange() benachrichtigt die UI über Warteschlangen-Änderungen → pendingWrites State in App.tsx → Sync-Indikator im Header.', 'onQueueChange() notifies the UI of queue changes → pendingWrites state in App.tsx → sync indicator in header.')}</p>
+              <p><strong>{t('Sync-Schutz (4 Ebenen)', 'Sync Guards (4 layers)')}:</strong></p>
+              <div className="space-y-1 ml-2">
+                <div className="flex items-start gap-2"><Shield size={12} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>navigator.onLine:</strong> {t('Sync-Poll wird komplett übersprungen wenn offline — verhindert dass staler IndexedDB-Cache den React-State überschreibt', 'Sync poll completely skipped when offline — prevents stale IndexedDB cache from overwriting React state')}</span></div>
+                <div className="flex items-start gap-2"><Shield size={12} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>pendingWritesRef:</strong> {t('Sync blockiert solange Einträge in der Queue — lokaler State ist aktueller als API', 'Sync blocked while queue has entries — local state is more current than API')}</span></div>
+                <div className="flex items-start gap-2"><Shield size={12} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>K14 Cooldown (15s):</strong> {t('Nach lokalem Schreibvorgang 15 Sekunden Sync-Sperre — gibt der API Zeit den Write zu verarbeiten', 'After local write, 15-second sync block — gives API time to process the write')}</span></div>
+                <div className="flex items-start gap-2"><Shield size={12} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>source !== api:</strong> {t('Selbst wenn alle anderen Guards passieren: State wird NUR von Live-API-Antworten aktualisiert, nie von Cache', 'Even if all other guards pass: state is ONLY updated from live API responses, never from cache')}</span></div>
+              </div>
+              <p><strong>{t('Change Listener', 'Change Listener')}:</strong> {t('onQueueChange() benachrichtigt die UI über Warteschlangen-Änderungen → pendingWrites State + pendingWritesRef in App.tsx → Sync-Indikator im Header.', 'onQueueChange() notifies the UI of queue changes → pendingWrites state + pendingWritesRef in App.tsx → sync indicator in header.')}</p>
             </div>
           </DocCard>
 
@@ -337,11 +345,12 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
 
           <DocCard title={t('Schicht 4: Sync-Indikator (Step 5d)', 'Layer 4: Sync Indicator (Step 5d)')} icon={<Wifi size={20} />}>
             <div className="space-y-2 text-xs">
-              <p>{t('Immer sichtbar im Header-Bereich. Zeigt den aktuellen Datenstatus:', 'Always visible in the header area. Shows current data status:')}</p>
+              <p>{t('Immer sichtbar im Header-Bereich. Reagiert in Echtzeit auf online/offline Events (navigator.onLine + window events). 5 Zustände:', 'Always visible in the header area. Reacts in real-time to online/offline events (navigator.onLine + window events). 5 states:')}</p>
               <div className="space-y-1.5 ml-2">
                 <div className="flex items-center gap-2"><Cloud size={12} className="text-emerald-500" /> <strong className="text-emerald-500">{t('Verbunden', 'Connected')}</strong> — {t('Live API, alle Daten synchron', 'Live API, all data synced')}</div>
                 <div className="flex items-center gap-2"><RefreshCw size={12} className="text-amber-500" /> <strong className="text-amber-500">{t('X ausstehend', 'X pending')}</strong> — {t('Verbunden, aber Schreibvorgänge in der Warteschlange', 'Connected but writes queued')}</div>
-                <div className="flex items-center gap-2"><HardDrive size={12} className="text-orange-500" /> <strong className="text-orange-500">Offline</strong> — {t('Daten aus IndexedDB Cache', 'Data from IndexedDB cache')}</div>
+                <div className="flex items-center gap-2"><span className="flex items-center gap-0.5"><WifiOff size={12} className="text-orange-500" /><Database size={10} className="text-orange-500" /></span> <strong className="text-orange-500">{t('Offline · X', 'Offline · X')}</strong> — {t('Gerät offline, Daten werden lokal in IndexedDB gesichert', 'Device offline, data saved locally in IndexedDB')}</div>
+                <div className="flex items-center gap-2"><Database size={12} className="text-amber-500 animate-pulse" /> <strong className="text-amber-500">{t('Synchronisiere…', 'Syncing…')}</strong> — {t('Wieder online, Queue wird abgearbeitet, Cache aktiv', 'Back online, queue flushing, cache active')}</div>
                 <div className="flex items-center gap-2"><CloudOff size={12} className="text-slate-400" /> <strong className="text-slate-400">{t('Lokal', 'Local')}</strong> — {t('Kein Cache, Mock-Daten', 'No cache, mock data')}</div>
               </div>
               <p>{t('Klick auf den Indikator öffnet ein Dropdown mit Details: Verbindungsstatus, Anzahl ausstehender Änderungen und Erklärungstext.', 'Clicking the indicator opens a dropdown with details: connection status, pending changes count and explanatory text.')}</p>
@@ -350,8 +359,8 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
 
           <InfoBox>
             {t(
-              'Typischer Offline-Ablauf: Techniker geht ins Untergeschoss → App-Shell lädt aus SW-Cache → Daten laden aus IndexedDB → Wareneingang wird verarbeitet → API-Schreibvorgänge schlagen fehl → landen in der Queue → Techniker kommt zurück → "online" Event → Queue wird automatisch abgearbeitet.',
-              'Typical offline flow: Technician goes underground → app shell loads from SW cache → data loads from IndexedDB → goods receipt is processed → API writes fail → land in queue → technician returns → "online" event → queue flushes automatically.'
+              'Typischer Offline-Ablauf: Techniker geht ins Untergeschoss → Indikator wechselt sofort zu WifiOff + Database (orange) → App-Shell lädt aus SW-Cache → Daten laden aus IndexedDB → Wareneingang wird verarbeitet → API-Schreibvorgänge werden automatisch in die Queue eingereiht → UI zeigt "Offline · X" → Techniker kommt zurück → Indikator wechselt zu Database (pulsierend, "Synchronisiere…") → Queue wird VOR dem Datenladen abgearbeitet → API-Daten werden geladen → Indikator wechselt zu grüner Cloud ("Verbunden").',
+              'Typical offline flow: Technician goes underground → indicator immediately switches to WifiOff + Database (orange) → app shell loads from SW cache → data loads from IndexedDB → goods receipt is processed → API writes are automatically queued → UI shows "Offline · X" → technician returns → indicator switches to Database (pulsing, "Syncing…") → queue flushes BEFORE data loading → API data is loaded → indicator switches to green Cloud ("Connected").'
             )}
           </InfoBox>
         </div>
@@ -753,7 +762,7 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
 
           <DocCard title={t('Globale Einstellungen (GlobalSettingsPage)', 'Global Settings (GlobalSettingsPage)')} icon={<Shield size={20} />}>
             <div className="space-y-3 text-xs">
-              <p>{t('System-weite Einstellungen, die alle Benutzer betreffen. In Zukunft nur für Admins zugänglich (Entra ID Rollen).', 'System-wide settings affecting all users. In future, only accessible to admins (Entra ID roles).')}</p>
+              <p>{t('System-weite Einstellungen, die alle Benutzer betreffen. Nur sichtbar für Admins oder Benutzer mit "global-settings" Berechtigung (über Team-Verwaltung konfigurierbar).', 'System-wide settings affecting all users. Only visible to admins or users with "global-settings" permission (configurable via Team Management).')}</p>
               <div className="space-y-2">
                 <div><strong>{t('Tabellen & Anzeige', 'Tables & Display')}:</strong> {t('Status-Spalte zuerst in Tabellen (an/aus)', 'Status column first in tables (on/off)')}</div>
                 <div><strong>{t('Einkauf & Bestellungen', 'Purchasing & Orders')}:</strong> {t('Smart Import (an/aus), Lieferdatum Pflichtfeld (an/aus)', 'Smart Import (on/off), delivery date required field (on/off)')}</div>
@@ -767,8 +776,8 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
 
           <InfoBox>
             {t(
-              'Geplant: Alle Settings → Cosmos DB "user-prefs" Container (pro Benutzer). Globale Settings → eigener Container mit Rollenprüfung. Authentifizierung via Microsoft Entra ID (bereits provisioniert, noch nicht verdrahtet).',
-              'Planned: All settings → Cosmos DB "user-prefs" container (per user). Global settings → dedicated container with role check. Authentication via Microsoft Entra ID (already provisioned, not yet wired).'
+              'Authentifizierung ist live via Microsoft Entra ID (Azure SWA built-in OAuth). Benutzerprofile werden in Cosmos DB gespeichert mit rollenbasierter Zugriffskontrolle (admin/team) und Feature-Toggles pro Benutzer. Geplant: Settings → Cosmos DB "user-prefs" Container.',
+              'Authentication is live via Microsoft Entra ID (Azure SWA built-in OAuth). User profiles are stored in Cosmos DB with role-based access control (admin/team) and per-user feature toggles. Planned: Settings → Cosmos DB "user-prefs" container.'
             )}
           </InfoBox>
         </div>
@@ -777,7 +786,7 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
       {/* Footer */}
       <div className={`mt-12 pt-6 border-t text-center ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
         <p className="text-xs text-slate-500">
-          DOST Lager v0.3.0 — {t('Letzte Aktualisierung', 'Last updated')}: {t('März', 'March')} 2026
+          DOST Lager v0.4.0 — {t('Letzte Aktualisierung', 'Last updated')}: {t('März', 'March')} 2026
         </p>
         <p className="text-[10px] text-slate-500 mt-1">
           {t('Entwickelt von DOST INFOSYS', 'Developed by DOST INFOSYS')}
