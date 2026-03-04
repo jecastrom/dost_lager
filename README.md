@@ -1,5 +1,5 @@
 # ProcureFlow — Cloud Migration Status
-## Date: 2026-03-02
+## Date: 2026-03-04
 
 ---
 
@@ -12,7 +12,7 @@
 **Repo:** github.com/jecastrom/dost_lager (private, master branch)
 **Subscription:** Pay_Go_Dost_Project (20fb7306-d8e2-4ffb-bb7e-e80744d0a078)
 **Resource Group:** rg-procureflow-prod (West Europe)
-**Version:** v0.3.0
+**Version:** v0.4.0
 
 ### Azure Resources
 - **SWA:** swa-procureflow (free tier, deploys via GitHub Actions)
@@ -304,35 +304,81 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 - Version bumped to v0.3.0, March 2026
 
 ---
+---
 
-## ✅ SMART IMPORT OVERHAUL (March 2026)
+## ✅ AUTHENTICATION & ACCESS CONTROL (March 2026)
 
-### Problems fixed
-1. **Supplier not assigned on import** — parser silently fell through, leaving "-" as supplier
-2. **Duplicate PO IDs silently overwritten** — no existence check on import
-3. **Unknown SKUs silently skipped** — POs created with only partial items
-4. **Misspelled suppliers accepted** — fuzzy matching auto-assigned wrong supplier
-5. **Redundant "Wartet auf Lieferung" badge** — shown alongside "Lieferung heute/morgen"
-6. **K14 sync race condition** — polling overwrote optimistic UI updates
-7. **K5 aggressive polling** — 10s interval wasting Cosmos RU/s budget
+### ✅ K1 RESOLVED: Azure Entra ID Authentication
+- Azure SWA built-in OAuth via `/.auth/login/aad` (Entra ID app registration: ProcureFlow, client ID: 741fb362-c5ed-45f3-a138-ae2219ea246d)
+- User profiles stored in Cosmos DB `user-profiles` container (partition key: /id)
+- API endpoint: `api/src/functions/user-profiles.ts` — GET by userId/email, GET all, POST/PUT upsert, DELETE
+- **Email-based auto-linking:** Admin creates user by email in Team Management → user signs in with Microsoft → app tries userId lookup → falls back to email match → auto-links profile to real userId → deletes placeholder. Zero manual steps for new users.
+- Auth flow in App.tsx: check `/.auth/me` → lookup by userId → fallback to email → auto-link → set `currentUser` state
+- Three auth states: authenticated (full access), NOT_PROVISIONED ("Zugang ausstehend" screen), ACCOUNT_DEACTIVATED (login page with error)
+- Role-based: admin (all features + global settings + team management) vs team (configurable feature toggles)
+- LoginPage component with DOST LAGER branding, Microsoft login button
 
-### New behavior (validation-first, zero-prompt import)
-- All validation runs before any PO creation (supplier, SKU, duplicate ID)
-- Errors shown inline in Smart Import modal with per-order breakdown + copy button
-- Supplier matching: exact only (case-insensitive), no fuzzy/partial
-- Unknown SKUs: entire import rejected, invalid article numbers listed per order
-- Duplicate PO IDs: entire import rejected, existing IDs listed
-- Single + bulk import use identical validation pipeline
-- `existingOrderIds` prop passed from App.tsx for real-time duplicate detection
-- `ReceiptStatusBadges.tsx`: "Wartet auf Lieferung" suppressed when delivery timing badge present
-- `OrderManagement.tsx`: Same suppression applied to order status badges
+### ✅ Team Management (TeamManagement.tsx)
+- Full CRUD for user management (admin-only)
+- Add/edit users: firstName, lastName, email, role (admin/team)
+- Feature toggles for team members: stock, audit, receipts, orders, suppliers, settings, global-settings
+- Admins get all features automatically
+- Activate/deactivate users without deletion
+- Accessible from GlobalSettingsPage → Team-Verwaltung button
+
+### ✅ Feature-Based Module Visibility
+- Sidebar (desktop) and BottomNav (mobile) filter nav items based on `currentUser.featureAccess`
+- Admins see all modules; team members only see modules matching their feature toggles
+- Dashboard always visible; Settings always visible; Global Settings only for admin or `global-settings` permission
+- Dashboard operative cards (KPI cards): display data for all users, but only clickable/navigable with matching permission. Non-clickable cards show `opacity-75` + no hover effects.
+- Dashboard action buttons: Wareneingang button hidden without `receipts` access, Protokoll button hidden without `stock` access
+- Debug link removed from Settings page
+- Module → feature mapping: `stock` → inventory/stock-logs, `orders` → order-management/create-order, `receipts` → receipt-management/goods-receipt, `suppliers` → suppliers, `audit` → audit (future)
+
+---
+
+## ✅ OFFLINE SYNC FIX (March 2026 — K14 fully resolved)
+
+### Root cause chain (3 bugs)
+1. **iOS Safari error detection (THE critical bug):** `api.ts` checked for `error.message.includes('fetch')` to detect network errors. iOS Safari throws `"Load failed"` when offline, not `"Failed to fetch"`. Writes were silently dropped — never queued.
+2. **Sync poll overwrites offline state:** `syncFromApi()` ran every 60s even when offline. It loaded stale IndexedDB cache data and overwrote React state containing valid offline edits.
+3. **Mount sequence wrong:** On reopening the app online, `loadAllData()` fetched old API data before the write queue had a chance to flush. Changes reached the server but the UI showed stale data.
+
+### Fixes applied
+
+**api.ts — Cross-browser network error detection:**
+- Now detects: `navigator.onLine === false`, `"Load failed"` (Safari), `"Failed to fetch"` (Chrome), `"NetworkError"` (Firefox), `"internet"` (misc)
+- Ensures writes are queued on ALL browsers/platforms
+
+**App.tsx — 4-layer sync guard in `syncFromApi()`:**
+1. `!navigator.onLine` → skip entirely (prevents stale cache overwrite)
+2. `pendingWritesRef > 0` → skip (local state ahead of API)
+3. `lastWriteTimestamp < 15s` → skip (K14 cooldown)
+4. `source !== 'api'` → skip state update (never overwrite from cache, only from live API)
+
+**App.tsx — Flush-before-load on mount:**
+- On startup, if online with queued writes: `flushQueue()` runs BEFORE `loadAllData()`
+- Ensures API has latest data before the app reads from it
+
+**App.tsx — Real-time online/offline detection:**
+- `isOnline` state driven by `window.addEventListener('online'/'offline')`
+- Instant indicator update — no waiting for next poll cycle
+- Going offline sets `dataSource` to `'cache'` immediately
+
+### Sync indicator visual flow (5 states)
+| State | Icon(s) | Color | Label |
+|---|---|---|---|
+| Connected, synced | Cloud | Green | Verbunden |
+| Pending writes | RefreshCw (spinning) | Amber | X ausstehend |
+| Device offline | WifiOff + Database | Orange | Offline · X |
+| Back online, syncing | Database (pulsing) | Amber | Synchronisiere… |
+| Sync done | Cloud | Green | Verbunden |
 
 ### Files changed
-- `CreateOrderWizard.tsx` — Unified handleParseImport with validation-first pipeline, error report UI, findMatchingSupplier helper, Copy import error to clipboard
-- `App.tsx` — Write-cooldown infrastructure (markWrite + lastWriteTimestampRef), polling 10s→60s, existingOrderIds prop, receipt header supplier cascade on edit
-- `OrderManagement.tsx` — Badge 3 suppresses "Wartet auf Lieferung" when delivery timing badge exists
-- `ReceiptStatusBadges.tsx` — Badge 2 suppresses "Wartet auf Lieferung" when delivery timing badge will appear in Badge 3
-
+- `api.ts` — Network error detection (isNetworkError)
+- `App.tsx` — syncFromApi guards, pendingWritesRef, isOnline state, flush-before-load, goOffline sets dataSource
+- `Header.tsx` — isOnline prop, 5-state indicator rendering with dual icons for offline
+- `offlineQueue.ts` — No changes (worked correctly, was just never receiving entries on iOS)
 ---
 
 ## 🔮 ROADMAP — Prioritized by dependency chain & developer efficiency
@@ -400,7 +446,9 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 - Persist lagerortCategories to Cosmos DB (currently localStorage only)
 - Persist audit trail to Cosmos DB
 - Persist user preferences to Cosmos DB (user-prefs container)
-- Wire Microsoft Entra ID authentication
+- ~~Wire Microsoft Entra ID authentication~~ ✅ DONE
+- Feature-based module visibility: prepared but navigation guard not yet implemented (user can still programmatically access hidden modules)
+- Security: Rotate Cosmos DB key and Azure client secret (both were exposed in terminal during debugging)
 
 ---
 
@@ -408,18 +456,18 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 
 ### 🔴 HIGH — Must fix before multi-user production
 
-**K1. No authentication** 🔴 CRITICAL
-- Entra ID provisioned but not wired in
-- All API endpoints are publicly accessible
-- **Fix:** Wire Entra ID app registration into SWA auth, add `/.auth/login/aad` flow, protect API with `x-ms-client-principal` header validation
+**~~K1. No authentication~~** ✅ RESOLVED
+- ~~Entra ID provisioned but not wired in~~
+- **Fix applied:** Azure Entra ID OAuth via SWA built-in auth + Cosmos DB user profiles + email auto-linking + role-based access (admin/team) + feature toggles + Team Management UI. See "Authentication & Access Control" section above.
 
 **~~K5. Aggressive 10-second polling~~** ✅ RESOLVED
 - ~~Wastes Cosmos RU/s budget on free tier (1000 RU/s shared)~~
 - **Fix applied:** Polling interval increased to 60s. Combined with K14 write-cooldown, reads reduced by 83% (72 reads/min → 12 reads/min for 3 users).
 
 **~~K14. Sync polling overwrites local optimistic updates~~** ✅ RESOLVED
-- ~~Race condition: user action → optimistic UI → 10s poll fires before API write lands → fetches old data → overwrites user's change~~
-- **Fix applied:** Write-cooldown (15s) via `lastWriteTimestampRef` + `markWrite()` injected into 8 handlers. `syncFromApi` skips poll if write occurred within cooldown window.
+- ~~Race condition: user action → optimistic UI → poll fires before API write lands → fetches old data → overwrites user's change~~
+- **Fix applied (v1):** Write-cooldown (15s) via `lastWriteTimestampRef` + `markWrite()` injected into 8 handlers.
+- **Fix applied (v2 — full resolution):** 4-layer sync guard (online check, pending writes check, cooldown, source-only-api). Cross-browser network error detection in api.ts (iOS Safari "Load failed" fix). Flush-before-load on mount. Real-time online/offline detection. See "Offline Sync Fix" section above.
 
 ### 🟡 MEDIUM — Should fix for reliability.
 
@@ -475,16 +523,19 @@ Original implementation used `setTimeout(() => {...}, 100)` to "let React state 
 - Deploy script may reference `/sku`, actual container uses `/id`
 - **Verify:** Check live Cosmos container
 
-**K18. Sidebar interface has dead `mode` prop** 🟢
-- `SidebarProps` still declares `mode?: 'full' | 'slim'` — removed in Step 4d
-- **Fix:** Remove from interface
+**~~K18. Sidebar interface has dead `mode` prop~~** ✅ RESOLVED
+- ~~`SidebarProps` still declares `mode?: 'full' | 'slim'`~~
+- **Fix applied:** Replaced with `currentUser: AuthUser | null` prop for feature-based visibility.
 
-### ✅ RESOLVED (this session)
+### ✅ RESOLVED
 
+**K1. No authentication** → ✅ Azure Entra ID + user profiles + email auto-linking + role-based access + Team Management
 **K2. No offline write queue** → ✅ Resolved by Step 5b (offlineQueue.ts)
 **K3. Fire-and-forget API persistence** → ✅ Resolved by Step 5b (failed writes auto-queued)
 **K4. Settings persistence bug** → ✅ Resolved by Phase A1 (localStorage read/write)
+**K14. Offline sync data loss** → ✅ 4-layer sync guard + iOS network error detection + flush-before-load + real-time online/offline
 **K17. DocumentationPage stale** → ✅ Complete rewrite with current architecture
+**K18. Sidebar dead `mode` prop** → ✅ Replaced with `currentUser` prop for feature visibility
 **K20. No user-facing API status indicator** → ✅ Resolved by Step 5d (sync indicator in Header)
 
 ---
@@ -533,8 +584,10 @@ dost_lager/
 │   ├── ReceiptManagement.tsx (Frosted Aura sticky header)
 │   ├── ReceiptStatusBadges.tsx
 │   ├── ReceiptStatusConfig.tsx
-│   ├── SettingsPage.tsx (Frosted Aura preview button)
-│   ├── Sidebar.tsx (CSS hover-expand desktop + slide-in mobile, Frosted Aura)
+│   ├── SettingsPage.tsx (Frosted Aura preview button, role-gated Global Settings link)
+│   ├── Sidebar.tsx (CSS hover-expand, feature-based nav filtering via currentUser)
+│   ├── TeamManagement.tsx (admin user CRUD + feature toggles)
+│   ├── LoginPage.tsx (DOST LAGER branding, Microsoft login)
 │   ├── StatusDescription.tsx
 │   ├── StockCard.tsx
 │   ├── StockLogView.tsx
@@ -580,3 +633,7 @@ dost_lager/
 9. **StockLogs persistence:** Stored in localStorage (max 500 entries). Date objects serialized as ISO strings, restored on mount. Not yet in Cosmos DB — planned for user-prefs container.
 
 10. **App language:** UI is in German, code/comments in English. All user-facing strings use German throughout components.
+
+11. **Offline write queue — iOS Safari:** The network error message on iOS Safari is `"Load failed"`, not `"Failed to fetch"` (Chrome) or `"NetworkError"` (Firefox). `api.ts` detects all variants plus `navigator.onLine` as fallback. This was the root cause of the K14 offline data loss bug.
+
+12. **Feature-based module visibility:** Sidebar, BottomNav, Dashboard cards, and Dashboard action buttons all check `currentUser.featureAccess`. Admins bypass all checks. The mapping is: stock → inventory/stock-logs, orders → order-management/create-order, receipts → receipt-management/goods-receipt, suppliers → suppliers. Dashboard and personal Settings are always visible.
