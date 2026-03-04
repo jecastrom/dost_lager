@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { Package, Activity, ShoppingCart, ClipboardCheck, AlertOctagon, ArrowRight, Calendar, User, FileText, MousePointer2, Briefcase, Truck, AlertTriangle, Clock } from 'lucide-react';
-import { StockItem, StockLog, Theme, ActiveModule, PurchaseOrder, ReceiptMaster, Ticket } from '../types';
+import { StockItem, StockLog, Theme, ActiveModule, PurchaseOrder, ReceiptMaster, Ticket, AuthUser } from '../types';
 import { InsightsRow } from './InsightsRow';
 
 interface DashboardProps {
@@ -13,6 +13,7 @@ interface DashboardProps {
   orders: PurchaseOrder[];
   receipts: ReceiptMaster[];
   tickets: Ticket[];
+  currentUser: AuthUser | null;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -23,9 +24,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onNavigate,
   orders = [],
   receipts = [],
-  tickets = []
+  tickets = [],
+  currentUser,
 }) => {
   const isDark = theme === 'dark';
+
+  // Feature-access helper: admins see all, team members check featureAccess array
+  const isAdmin = currentUser?.role === 'admin';
+  const access = currentUser?.featureAccess || [];
+  const hasAccess = (feature: string) => isAdmin || access.includes(feature);
 
   // --- Metrics Calculation (Command Center) ---
   const metrics = useMemo(() => {
@@ -142,20 +149,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <p className="text-slate-500 text-sm">Prozess-Status & Bestands-Highlights.</p>
         </div>
         <div className="flex items-center justify-center gap-2 w-full md:w-auto">
-          <button
-            onClick={() => onNavigate('stock-logs')}
-            className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-white border hover:bg-slate-50 text-slate-600'
-              }`}
-          >
-            <Activity size={20} /> Protokoll
-          </button>
-          <button
-            onClick={onAddStock}
-            className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${isDark ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20'
-              }`}
-          >
-            <Package size={20} /> Wareneingang
-          </button>
+          {hasAccess('stock') && (
+            <button
+              onClick={() => onNavigate('stock-logs')}
+              className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-white border hover:bg-slate-50 text-slate-600'
+                }`}
+            >
+              <Activity size={20} /> Protokoll
+            </button>
+          )}
+          {hasAccess('receipts') && (
+            <button
+              onClick={onAddStock}
+              className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${isDark ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20'
+                }`}
+            >
+              <Package size={20} /> Wareneingang
+            </button>
+          )}
         </div>
       </div>
 
@@ -166,11 +177,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           {/* Card 1: Offene Bestellungen */}
-          <button
-            onClick={() => onNavigate('order-management')}
-            className={`p-4 md:p-5 rounded-2xl border flex flex-col gap-3 transition-all group text-left ${isDark
-                ? 'bg-blue-500/10 border-blue-500/20 hover:bg-blue-500/20'
-                : 'bg-white border-slate-200 hover:border-blue-500 hover:shadow-md'
+          <div
+            onClick={hasAccess('orders') ? () => onNavigate('order-management') : undefined}
+            className={`p-4 md:p-5 rounded-2xl border flex flex-col gap-3 transition-all group text-left ${hasAccess('orders') ? 'cursor-pointer' : 'cursor-default opacity-75'} ${isDark
+              ? 'bg-blue-500/10 border-blue-500/20' + (hasAccess('orders') ? ' hover:bg-blue-500/20' : '')
+              : 'bg-white border-slate-200' + (hasAccess('orders') ? ' hover:border-blue-500 hover:shadow-md' : '')
               }`}
           >
             <div className={`p-2.5 md:p-3 rounded-xl self-start ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
@@ -180,14 +191,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div className={`text-3xl md:text-4xl font-black leading-none mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>{metrics.openOrders}</div>
               <div className={`text-[10px] md:text-xs font-bold uppercase tracking-wide ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>Offene Bestellungen</div>
             </div>
-          </button>
+          </div>
 
           {/* Card 2: Erwartete Lieferungen */}
-          <button
-            onClick={() => onNavigate('receipt-management')}
-            className={`p-4 md:p-5 rounded-2xl border flex flex-col gap-3 transition-all group text-left ${isDark
-                ? 'bg-indigo-500/10 border-indigo-500/20 hover:bg-indigo-500/20'
-                : 'bg-white border-slate-200 hover:border-indigo-500 hover:shadow-md'
+          <div
+            onClick={hasAccess('receipts') ? () => onNavigate('receipt-management') : undefined}
+            className={`p-4 md:p-5 rounded-2xl border flex flex-col gap-3 transition-all group text-left ${hasAccess('receipts') ? 'cursor-pointer' : 'cursor-default opacity-75'} ${isDark
+              ? 'bg-indigo-500/10 border-indigo-500/20' + (hasAccess('receipts') ? ' hover:bg-indigo-500/20' : '')
+              : 'bg-white border-slate-200' + (hasAccess('receipts') ? ' hover:border-indigo-500 hover:shadow-md' : '')
               }`}
           >
             <div className={`p-2.5 md:p-3 rounded-xl self-start ${isDark ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
@@ -211,14 +222,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               )}
             </div>
-          </button>
+          </div>
 
           {/* Card 3: Verspätet */}
-          <button
-            onClick={() => onNavigate('receipt-management')}
-            className={`p-4 md:p-5 rounded-2xl border flex flex-col gap-3 transition-all group text-left relative overflow-hidden ${isDark
-                ? 'bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/20'
-                : 'bg-white border-slate-200 hover:border-amber-500 hover:shadow-md'
+          <div
+            onClick={hasAccess('receipts') ? () => onNavigate('receipt-management') : undefined}
+            className={`p-4 md:p-5 rounded-2xl border flex flex-col gap-3 transition-all group text-left relative overflow-hidden ${hasAccess('receipts') ? 'cursor-pointer' : 'cursor-default opacity-75'} ${isDark
+              ? 'bg-amber-500/10 border-amber-500/20' + (hasAccess('receipts') ? ' hover:bg-amber-500/20' : '')
+              : 'bg-white border-slate-200' + (hasAccess('receipts') ? ' hover:border-amber-500 hover:shadow-md' : '')
               }`}
           >
             {metrics.overdueCount > 0 && (
@@ -236,14 +247,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div className={`text-3xl md:text-4xl font-black leading-none mb-1 ${metrics.overdueCount > 0 ? 'text-amber-500' : (isDark ? 'text-white' : 'text-slate-900')}`}>{metrics.overdueCount}</div>
               <div className={`text-[10px] md:text-xs font-bold uppercase tracking-wide ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>Verspätet</div>
             </div>
-          </button>
+          </div>
 
           {/* Card 4: Abweichungen */}
-          <button
-            onClick={() => onNavigate('receipt-management')}
-            className={`p-4 md:p-5 rounded-2xl border flex flex-col gap-3 transition-all group text-left relative overflow-hidden ${isDark
-                ? 'bg-red-500/10 border-red-500/20 hover:bg-red-500/20'
-                : 'bg-white border-slate-200 hover:border-red-500 hover:shadow-md'
+          <div
+            onClick={hasAccess('receipts') ? () => onNavigate('receipt-management') : undefined}
+            className={`p-4 md:p-5 rounded-2xl border flex flex-col gap-3 transition-all group text-left relative overflow-hidden ${hasAccess('receipts') ? 'cursor-pointer' : 'cursor-default opacity-75'} ${isDark
+              ? 'bg-red-500/10 border-red-500/20' + (hasAccess('receipts') ? ' hover:bg-red-500/20' : '')
+              : 'bg-white border-slate-200' + (hasAccess('receipts') ? ' hover:border-red-500 hover:shadow-md' : '')
               }`}
           >
             {metrics.deviations > 0 && (
@@ -275,7 +286,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               )}
             </div>
-          </button>
+          </div>
         </div>
       </div>
 
@@ -341,10 +352,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <div className="flex items-start gap-3">
                       {/* Quantity badge */}
                       <div className={`shrink-0 w-11 h-11 rounded-xl flex flex-col items-center justify-center font-mono font-black text-sm leading-none ${isProject
-                          ? (isDark ? 'bg-blue-500/15 text-blue-400' : 'bg-blue-50 text-blue-600')
-                          : log.action === 'add'
-                            ? (isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
-                            : (isDark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-50 text-amber-600')
+                        ? (isDark ? 'bg-blue-500/15 text-blue-400' : 'bg-blue-50 text-blue-600')
+                        : log.action === 'add'
+                          ? (isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                          : (isDark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-50 text-amber-600')
                         }`}>
                         {isProject ? log.quantity : (log.action === 'add' ? `+${log.quantity}` : `-${log.quantity}`)}
                       </div>

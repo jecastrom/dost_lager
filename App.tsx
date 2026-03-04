@@ -2012,6 +2012,7 @@ export default function App() {
                   orders={purchaseOrders}
                   receipts={receiptMasters}
                   tickets={tickets}
+                  currentUser={currentUser}
                 />
               )}
 
@@ -2140,6 +2141,7 @@ export default function App() {
                   hasCustomData={inventory !== MOCK_ITEMS}
                   inventoryViewMode={inventoryViewMode}
                   onSetInventoryViewMode={handleSetInventoryViewMode}
+                  currentUser={currentUser}
                 />
               )}
 

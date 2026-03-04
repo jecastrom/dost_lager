@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Theme, StockItem, RawGermanItem, ActiveModule } from '../types';
-import { Book, ChevronRight, Moon, Sun, Monitor, Shield, Info, Upload, Trash2, Database, AlertCircle, CheckCircle2, Users, List, LayoutGrid, Bug, Eye } from 'lucide-react';
+import { Theme, StockItem, RawGermanItem, ActiveModule, AuthUser } from '../types';
+import { Book, ChevronRight, Moon, Sun, Monitor, Shield, Info, Upload, Trash2, Database, AlertCircle, CheckCircle2, Users, List, LayoutGrid, Eye } from 'lucide-react';
 
 export interface TicketConfig {
   missing: boolean;   // Offen
@@ -27,6 +27,7 @@ interface SettingsPageProps {
   hasCustomData: boolean;
   inventoryViewMode: 'grid' | 'list';
   onSetInventoryViewMode: (mode: 'grid' | 'list') => void;
+  currentUser: AuthUser | null;
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
@@ -37,7 +38,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onClearData,
   hasCustomData,
   inventoryViewMode,
-  onSetInventoryViewMode
+  onSetInventoryViewMode,
+  currentUser,
 }) => {
   const isDark = theme === 'dark';
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -211,29 +213,31 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         />
       </div>
 
-      {/* GLOBAL SETTINGS LINK */}
-      <button
-        onClick={() => onNavigate('global-settings')}
-        className={`w-full rounded-2xl border overflow-hidden mb-8 text-left transition-all group ${isDark
-          ? 'bg-[#0077B5]/5 border-[#0077B5]/20 hover:bg-[#0077B5]/10 hover:border-[#0077B5]/30'
-          : 'bg-[#0077B5]/5 border-[#0077B5]/15 hover:bg-[#0077B5]/10 shadow-sm'
-          }`}
-      >
-        <div className="flex items-center justify-between p-5">
-          <div className="flex items-center gap-4">
-            <div className={`p-3 rounded-xl ${isDark ? 'bg-[#0077B5]/20' : 'bg-[#0077B5]/10'}`}>
-              <Shield size={22} className="text-[#0077B5]" />
-            </div>
-            <div>
-              <div className={`font-bold text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>Globale Einstellungen</div>
-              <div className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Einkauf, Tickets, Tabellen, Audit Trail — gilt für alle Benutzer
+      {/* GLOBAL SETTINGS LINK — Admin or users with global-settings access only */}
+      {(currentUser?.role === 'admin' || currentUser?.featureAccess?.includes('global-settings')) && (
+        <button
+          onClick={() => onNavigate('global-settings')}
+          className={`w-full rounded-2xl border overflow-hidden mb-8 text-left transition-all group ${isDark
+            ? 'bg-[#0077B5]/5 border-[#0077B5]/20 hover:bg-[#0077B5]/10 hover:border-[#0077B5]/30'
+            : 'bg-[#0077B5]/5 border-[#0077B5]/15 hover:bg-[#0077B5]/10 shadow-sm'
+            }`}
+        >
+          <div className="flex items-center justify-between p-5">
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-xl ${isDark ? 'bg-[#0077B5]/20' : 'bg-[#0077B5]/10'}`}>
+                <Shield size={22} className="text-[#0077B5]" />
+              </div>
+              <div>
+                <div className={`font-bold text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>Globale Einstellungen</div>
+                <div className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Einkauf, Tickets, Tabellen, Audit Trail — gilt für alle Benutzer
+                </div>
               </div>
             </div>
+            <ChevronRight size={20} className={`transition-transform group-hover:translate-x-1 text-[#0077B5]`} />
           </div>
-          <ChevronRight size={20} className={`transition-transform group-hover:translate-x-1 text-[#0077B5]`} />
-        </div>
-      </button>
+        </button>
+      )}
 
       {/* DATA MANAGEMENT SECTION */}
       <div className={`rounded-2xl border overflow-hidden mb-8 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
@@ -311,18 +315,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             icon={<Book size={20} />}
             label="App Dokumentation"
             description="Technische Details, Architektur und Datenstruktur"
-            action={<ChevronRight size={18} className="text-slate-500" />}
-          />
-        </button>
-
-        <button
-          onClick={() => onNavigate('debug')}
-          className={`w-full text-left transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}
-        >
-          <SettingRow
-            icon={<Bug size={20} />}
-            label="System-Logik prüfen (Debug)"
-            description="Developer Tools & Status-Logik Debugger"
             action={<ChevronRight size={18} className="text-slate-500" />}
           />
         </button>
