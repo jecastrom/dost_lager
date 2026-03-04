@@ -668,8 +668,39 @@ export default function App() {
     localStorage.setItem('timelineConfig', JSON.stringify(config));
   };
 
+  // Module → featureAccess key mapping (null = always accessible)
+  const MODULE_FEATURE_MAP: Record<string, string | null> = {
+    'dashboard': null,
+    'inventory': 'stock',
+    'stock-logs': 'stock',
+    'order-management': 'orders',
+    'create-order': 'orders',
+    'receipt-management': 'receipts',
+    'goods-receipt': 'receipts',
+    'suppliers': 'suppliers',
+    'settings': null,
+    'documentation': null,
+    'global-settings': 'global-settings',
+    'team-management': null, // Admin-only enforced by UI, but guard added below
+    'debug': null,
+  };
+
+  const userHasAccess = (module: string): boolean => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin') return true;
+    const requiredFeature = MODULE_FEATURE_MAP[module];
+    if (requiredFeature === null || requiredFeature === undefined) return true;
+    return (currentUser.featureAccess || []).includes(requiredFeature);
+  };
+
   // Navigation Handler (Resets Transient State)
   const handleNavigation = (module: ActiveModule) => {
+    // Guard: Block navigation to modules the user cannot access
+    if (!userHasAccess(module)) {
+      console.warn(`[Nav] Blocked: user lacks access to "${module}"`);
+      return;
+    }
+
     // Logic: If clicking the active module again, force a reset/remount
     if (activeModule === module) {
       setViewKey(prev => prev + 1);
