@@ -1,5 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { queryItems, upsertItem, getItem, deleteItem } from "../utils/cosmos";
+import { queryItems, upsertItem, getItem, deleteItem } from "../utils/cosmos.js";
 
 const CONTAINER = "user-profiles";
 
