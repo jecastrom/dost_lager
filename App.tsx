@@ -429,6 +429,7 @@ export default function App() {
   const [apiConnected, setApiConnected] = useState(false);
   const [dataSource, setDataSource] = useState<DataSource | null>(null);
   const [pendingWrites, setPendingWrites] = useState(0);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // K14 Fix: Write-cooldown prevents sync polling from overwriting optimistic updates
   const lastWriteTimestampRef = useRef<number>(0);
@@ -670,6 +671,18 @@ export default function App() {
       document.documentElement.classList.add('soft');
     }
   }, [theme]);
+
+  // Real-time online/offline detection — updates indicator immediately
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
 
   // Sidebar Handler
   // Inventory View Mode Handler
@@ -2065,6 +2078,7 @@ export default function App() {
             sidebarOpen={sidebarOpen}
             dataSource={dataSource}
             pendingWrites={pendingWrites}
+            isOnline={isOnline}
           />
 
           <div className={`flex-1 ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? 'overflow-hidden' : 'overflow-y-auto p-4 pb-24 md:p-6 lg:p-8 lg:pb-8 scroll-smooth'}`}>

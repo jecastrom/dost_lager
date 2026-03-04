@@ -11,6 +11,7 @@ interface HeaderProps {
   sidebarOpen: boolean;
   dataSource?: DataSource | null;
   pendingWrites?: number;
+  isOnline?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -21,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   sidebarOpen,
   dataSource = null,
   pendingWrites = 0,
+  isOnline = true,
 }) => {
   const isDark = theme === 'dark';
   const isSoft = theme === 'soft';
@@ -54,17 +56,21 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="relative">
                 <button
                   onClick={() => setShowSyncDetail(prev => !prev)}
-                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all text-[11px] font-bold ${dataSource === 'api'
-                    ? pendingWrites > 0
-                      ? isDark ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : isSoft ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                      : isDark ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' : isSoft ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                    : dataSource === 'cache'
-                      ? isDark ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : isSoft ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
-                      : isDark ? 'bg-slate-800 text-slate-500 hover:bg-slate-700' : isSoft ? 'bg-slate-200 text-slate-500 hover:bg-slate-300' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all text-[11px] font-bold ${!isOnline
+                    ? isDark ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : isSoft ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+                    : dataSource === 'api'
+                      ? pendingWrites > 0
+                        ? isDark ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : isSoft ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                        : isDark ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' : isSoft ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                      : dataSource === 'cache'
+                        ? isDark ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : isSoft ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+                        : isDark ? 'bg-slate-800 text-slate-500 hover:bg-slate-700' : isSoft ? 'bg-slate-200 text-slate-500 hover:bg-slate-300' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                     }`}
                   style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
                 >
-                  {dataSource === 'api' ? (
+                  {!isOnline ? (
+                    <WifiOff size={13} />
+                  ) : dataSource === 'api' ? (
                     pendingWrites > 0 ? <RefreshCw size={13} className="animate-spin" /> : <Cloud size={13} />
                   ) : dataSource === 'cache' ? (
                     <Database size={13} />
@@ -72,9 +78,11 @@ export const Header: React.FC<HeaderProps> = ({
                     <CloudOff size={13} />
                   )}
                   <span className="hidden sm:inline">
-                    {dataSource === 'api'
-                      ? pendingWrites > 0 ? `${pendingWrites} ausstehend` : 'Verbunden'
-                      : dataSource === 'cache' ? 'Offline' : 'Lokal'}
+                    {!isOnline
+                      ? pendingWrites > 0 ? `Offline · ${pendingWrites}` : 'Offline'
+                      : dataSource === 'api'
+                        ? pendingWrites > 0 ? `${pendingWrites} ausstehend` : 'Verbunden'
+                        : dataSource === 'cache' ? 'Offline' : 'Lokal'}
                   </span>
                   {pendingWrites > 0 && (
                     <span className={`sm:hidden min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-black ${isDark ? 'bg-amber-500 text-slate-900' : 'bg-amber-500 text-white'

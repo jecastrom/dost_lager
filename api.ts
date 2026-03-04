@@ -43,7 +43,16 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     return response.json();
   } catch (error) {
     // Queue write operations if it's a network failure (not a server error)
-    const isNetworkError = error instanceof TypeError && error.message.includes('fetch');
+    // Detection: TypeError from fetch (message varies by browser — "Load failed" on Safari,
+    // "Failed to fetch" on Chrome, "NetworkError" on Firefox), OR device reports offline
+    const isNetworkError = !navigator.onLine
+      || (error instanceof TypeError && (
+        error.message.includes('fetch')
+        || error.message.includes('Load failed')
+        || error.message.includes('network')
+        || error.message.includes('internet')
+        || error.message.includes('NetworkError')
+      ));
     const isWriteOp = method !== 'GET';
 
     if (isNetworkError && isWriteOp) {
