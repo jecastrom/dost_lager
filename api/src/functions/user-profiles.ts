@@ -16,18 +16,28 @@ app.http("user-profiles", {
             // --- GET: Lookup or List ---
             if (method === "GET") {
                 const userId = req.query.get("userId");
+                const email = req.query.get("email");
 
                 if (userId) {
                     // Single user lookup by ID
-                    try {
-                        const user = await getItem(CONTAINER, userId, userId);
-                        return { status: 200, jsonBody: user };
-                    } catch (err: any) {
-                        if (err.code === 404) {
-                            return { status: 404, jsonBody: { error: "User not found" } };
-                        }
-                        throw err;
+                    const user = await getItem(CONTAINER, userId, userId);
+                    if (!user) {
+                        return { status: 404, jsonBody: { error: "User not found" } };
                     }
+                    return { status: 200, jsonBody: user };
+                }
+
+                if (email) {
+                    // Lookup by email (for first-login matching)
+                    const results = await queryItems(
+                        CONTAINER,
+                        "SELECT * FROM c WHERE LOWER(c.email) = LOWER(@email)",
+                        [{ name: "@email", value: email }]
+                    );
+                    if (results.length === 0) {
+                        return { status: 404, jsonBody: { error: "User not found" } };
+                    }
+                    return { status: 200, jsonBody: results[0] };
                 }
 
                 // List all users

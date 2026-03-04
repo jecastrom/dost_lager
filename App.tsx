@@ -134,10 +134,51 @@ export default function App() {
           return;
         }
 
-        // Step 2: Look up user profile in Cosmos DB
+        // Step 2: Look up user profile in Cosmos DB (by userId first, then email fallback)
+        let profile: any = null;
         const profileRes = await fetch(`/api/user-profiles?userId=${encodeURIComponent(principal.userId)}`);
 
-        if (profileRes.status === 404) {
+        if (profileRes.ok) {
+          profile = await profileRes.json();
+        } else if (profileRes.status === 404) {
+          // userId not found — try matching by email (first login scenario)
+          const userEmail = principal.userDetails; // Azure SWA puts email in userDetails
+          if (userEmail) {
+            const emailRes = await fetch(`/api/user-profiles?email=${encodeURIComponent(userEmail)}`);
+            if (emailRes.ok) {
+              const emailProfile = await emailRes.json();
+              // Found by email! Auto-link the profile to this userId
+              // Delete old profile (with placeholder ID) and create new one with real userId
+              const oldId = emailProfile.id;
+              const updatedProfile = { ...emailProfile, id: principal.userId };
+              delete updatedProfile._rid;
+              delete updatedProfile._self;
+              delete updatedProfile._etag;
+              delete updatedProfile._attachments;
+              delete updatedProfile._ts;
+              updatedProfile.updatedAt = Date.now();
+              updatedProfile.lastLogin = Date.now();
+
+              // Create profile with real userId
+              await fetch('/api/user-profiles', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedProfile),
+              });
+
+              // Delete the old placeholder profile (if ID was different)
+              if (oldId !== principal.userId) {
+                await fetch(`/api/user-profiles?userId=${encodeURIComponent(oldId)}`, {
+                  method: 'DELETE',
+                });
+              }
+
+              profile = updatedProfile;
+            }
+          }
+        }
+
+        if (!profile) {
           // User exists in Azure but not provisioned in our app
           if (!cancelled) {
             setAuthError('NOT_PROVISIONED');
@@ -146,7 +187,7 @@ export default function App() {
               identityProvider: principal.identityProvider,
               userDetails: principal.userDetails,
               displayName: principal.claims?.find((c: any) => c.typ === 'name')?.val || principal.userDetails,
-              role: 'team', // Minimal — no access
+              role: 'team',
               featureAccess: [],
             });
           }
