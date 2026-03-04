@@ -28,7 +28,7 @@ import { BottomNav } from './components/BottomNav';
 import { LoginPage } from './components/LoginPage';
 import { TeamManagement } from './components/TeamManagement';
 import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi, DataSource } from './api';
-import { flushQueue, onQueueChange } from './offlineQueue';
+import { flushQueue, onQueueChange, getQueueCount } from './offlineQueue';
 
 // Error Boundary Component
 interface ErrorBoundaryProps {
@@ -498,6 +498,15 @@ export default function App() {
 
     async function fetchData() {
       try {
+        // If online with queued writes, flush them FIRST so the API has our latest data
+        if (navigator.onLine) {
+          const queueCount = await getQueueCount();
+          if (queueCount > 0) {
+            console.info(`[App] Flushing ${queueCount} queued writes before loading data…`);
+            await flushQueue();
+          }
+        }
+
         const result = await loadAllData();
         if (cancelled) return;
 
