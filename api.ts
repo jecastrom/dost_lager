@@ -106,6 +106,15 @@ export const receiptsApi = {
 // TICKETS
 // ============================================================================
 
+export const auditsApi = {
+  getAll: () => apiFetch<any[]>('/audits'),
+  getByStatus: (status: string) => apiFetch<any[]>(`/audits?status=${encodeURIComponent(status)}`),
+  getByCreator: (userId: string) => apiFetch<any[]>(`/audits?createdBy=${encodeURIComponent(userId)}`),
+  getById: (id: string) => apiFetch<any>(`/audits/${encodeURIComponent(id)}`),
+  upsert: (session: any) => apiFetch<any>('/audits', { method: 'POST', body: JSON.stringify(session) }),
+  delete: (id: string) => apiFetch<void>(`/audits/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+};
+
 export const ticketsApi = {
   getAll: () => apiFetch<any[]>('/tickets'),
   getByPoId: (poId: string) => apiFetch<any[]>(`/tickets?poId=${encodeURIComponent(poId)}`),

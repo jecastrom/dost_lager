@@ -29,6 +29,7 @@
 | tickets | /poId | Tickets (case management) |
 | delivery-logs | /receiptId | Delivery logs |
 | suppliers | /id | Supplier data |
+| audits | /id | Audit sessions (inventory counts) |
 | notifications | /userId | (future use) |
 
 ---
@@ -65,6 +66,7 @@ All endpoints deployed and verified:
 | /api/tickets | GET, POST | tickets |
 | /api/delivery-logs | GET, POST | delivery-logs |
 | /api/suppliers | GET, POST | suppliers |
+| /api/audits | GET, POST, PUT, DELETE | audits |
 | /api/health | GET | (diagnostic) |
 
 Notes:
@@ -555,7 +557,8 @@ dost_lager/
 │   │   │   ├── receipts.ts
 │   │   │   ├── tickets.ts
 │   │   │   ├── delivery-logs.ts
-│   │   │   └── suppliers.ts
+│   │   │   ├── suppliers.ts
+│   │   │   └── audits.ts
 │   │   ├── scripts/
 │   │   │   └── seed-inventory.ts
 │   │   └── utils/

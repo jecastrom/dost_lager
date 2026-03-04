@@ -167,6 +167,7 @@ jobs:
             ["suppliers"]="/id"
             ["notifications"]="/userId"
             ["user-profiles"]="/id"
+            ["audits"]="/id"
           )
 
           for container in "${!CONTAINERS[@]}"; do
@@ -350,7 +351,7 @@ jobs:
           echo "  ├─ receipts (/poId)      ├─ tickets (/poId)"
           echo "  ├─ delivery-logs (/receiptId)"
           echo "  ├─ suppliers (/id)       ├─ user-profiles (/id)"
-          echo "  └─ notifications (/userId)"
+          echo "  ├─ audits (/id)          └─ notifications (/userId)"
           echo ""
           echo "  Cost: ~€0-2/month (Free tier)"
           echo ""

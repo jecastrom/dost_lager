@@ -17,6 +17,7 @@ export const CONTAINERS = {
   TICKETS: "tickets",
   SUPPLIERS: "suppliers",
   NOTIFICATIONS: "notifications",
+  AUDITS: "audits",
 } as const;
 
 let client: CosmosClient | null = null;
