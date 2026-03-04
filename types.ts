@@ -80,7 +80,7 @@ export interface UserProfile {
 
 export type ViewMode = 'grid' | 'list';
 export type Theme = 'light' | 'dark' | 'soft';
-export type ActiveModule = 'dashboard' | 'inventory' | 'create-order' | 'goods-receipt' | 'receipt-management' | 'order-management' | 'suppliers' | 'settings' | 'global-settings' | 'team-management' | 'documentation' | 'stock-logs' | 'debug';
+export type ActiveModule = 'dashboard' | 'inventory' | 'create-order' | 'goods-receipt' | 'receipt-management' | 'order-management' | 'suppliers' | 'settings' | 'global-settings' | 'team-management' | 'documentation' | 'stock-logs' | 'audit' | 'debug';
 
 export const TRANSACTION_STATUS_OPTIONS = [
   'In Bearbeitung',
@@ -231,12 +231,53 @@ export interface StockLog {
   userName: string;
   itemId: string;
   itemName: string;
-  action: 'add' | 'remove';
+  action: 'add' | 'remove' | 'write-off';
   quantity: number;
   warehouse: string;
   source?: string;
-  context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project';
-  rejectionInfo?: string; // New: Reason/Context for rejection if applicable
+  context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project' | 'audit-quick' | 'audit-normal';
+  rejectionInfo?: string; // Reason/Context for rejection if applicable
+
+  // Audit traceability (populated when context is 'audit-quick' or 'audit-normal')
+  auditSessionId?: string;    // FK to AuditSession.id
+  auditSessionName?: string;  // Snapshot: e.g. "Akku Service März 2026"
+  countedByName?: string;     // Person who physically counted
+  approvedByName?: string;    // Person who approved (Normal audit only)
+}
+
+// --- Audit / Inventory Count Types ---
+
+export type AuditMode = 'quick' | 'normal';
+export type AuditStatus = 'in-progress' | 'pending-review' | 'approved' | 'rejected' | 'cancelled';
+
+export interface AuditItem {
+  id: string;              // Unique line ID (crypto.randomUUID)
+  itemId: string;          // FK to StockItem.id
+  sku: string;             // Snapshot from StockItem
+  name: string;            // Snapshot from StockItem
+  warehouse: string;       // Location where counted
+  expectedQty: number;     // Snapshot of stockLevel at audit start
+  countedQty: number;      // What the user physically counted
+  variance: number;        // countedQty - expectedQty (positive = overage, negative = shortage)
+  note?: string;           // Optional note per item
+}
+
+export interface AuditSession {
+  id: string;
+  name: string;            // User-given name, e.g. "Akku Service März 2026"
+  mode: AuditMode;         // 'quick' = instant stock update, 'normal' = needs approval
+  status: AuditStatus;
+  warehouse: string;       // Primary warehouse/location being audited
+  items: AuditItem[];      // The "shopping cart" of counted items
+  createdAt: number;       // Unix ms
+  createdBy: string;       // userId
+  createdByName: string;   // Display name of counter
+  completedAt?: number;    // When submitted
+  reviewedAt?: number;     // When approved/rejected (Normal only)
+  reviewedBy?: string;     // userId of approver
+  reviewedByName?: string; // Display name of approver
+  reviewNote?: string;     // Approver's comment
+  docType?: string;        // 'audit-session' — for Cosmos DB multi-doc containers
 }
 
 // --- Data Import Types (Legacy System Support) ---

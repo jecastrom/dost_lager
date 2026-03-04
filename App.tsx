@@ -735,6 +735,7 @@ export default function App() {
     'documentation': null,
     'global-settings': 'global-settings',
     'team-management': null, // Admin-only enforced by UI, but guard added below
+    'audit': 'audit',        // Audit module — requires 'audit' feature access
     'debug': null,
   };
 
@@ -769,7 +770,7 @@ export default function App() {
   };
 
   // Handlers
-  const handleLogStock = (itemId: string, itemName: string, action: 'add' | 'remove', quantity: number, source?: string, context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project') => {
+  const handleLogStock = (itemId: string, itemName: string, action: 'add' | 'remove' | 'write-off', quantity: number, source?: string, context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project' | 'audit-quick' | 'audit-normal') => {
     const item = inventory.find(i => i.id === itemId);
     const newLog: StockLog = {
       id: crypto.randomUUID(),

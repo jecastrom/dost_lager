@@ -39,7 +39,7 @@ interface StockComponentProps {
     item: StockItem;
     onUpdate: (id: string, newLevel: number) => void;
     onAddStock: () => void;
-    onLogStock: (itemId: string, itemName: string, action: 'add' | 'remove', quantity: number, source?: string, context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project') => void;
+    onLogStock: (itemId: string, itemName: string, action: 'add' | 'remove' | 'write-off', quantity: number, source?: string, context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project') => void;
     onClick: (item: StockItem) => void;
     onClone: (item: StockItem) => void;
     theme: Theme;
@@ -322,7 +322,7 @@ interface InventoryViewProps {
     onUpdateItem: (item: StockItem) => void;
     onCreateItem: (item: StockItem) => void;
     onAddStock: () => void;
-    onLogStock: (itemId: string, itemName: string, action: 'add' | 'remove', quantity: number, source?: string, context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project') => void;
+    onLogStock: (itemId: string, itemName: string, action: 'add' | 'remove' | 'write-off', quantity: number, source?: string, context?: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project' | 'audit-quick' | 'audit-normal') => void;
 }
 
 export const InventoryView: React.FC<InventoryViewProps> = ({
