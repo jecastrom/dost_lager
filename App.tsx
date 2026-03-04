@@ -434,6 +434,9 @@ export default function App() {
   const lastWriteTimestampRef = useRef<number>(0);
   const markWrite = () => { lastWriteTimestampRef.current = Date.now(); };
 
+  // Ref mirror of pending write count — accessible in sync without stale closure
+  const pendingWritesRef = useRef<number>(0);
+
   // Logging State
   const [stockLogs, setStockLogs] = useState<StockLog[]>(() => {
     if (typeof window !== 'undefined') {
@@ -550,17 +553,39 @@ export default function App() {
     // Shared sync function — reusable for visibility + polling
     const syncFromApi = () => {
       if (cancelled) return;
-      // K14 Fix: Skip sync if a local write happened within last 15 seconds
-      // This prevents the poll from overwriting optimistic UI updates before the API write lands
+
+      // GUARD 1: Never sync when offline — cache contains stale data that would overwrite optimistic UI
+      if (!navigator.onLine) {
+        console.debug('[Sync] Skipped — device is offline');
+        return;
+      }
+
+      // GUARD 2: Skip if pending writes exist — local state is ahead of both API and cache
+      if (pendingWritesRef.current > 0) {
+        console.debug('[Sync] Skipped — pending writes in queue:', pendingWritesRef.current);
+        return;
+      }
+
+      // GUARD 3: K14 cooldown — skip if a local write happened within last 15 seconds
       if (Date.now() - lastWriteTimestampRef.current < 15000) {
         console.debug('[Sync] Skipped — write cooldown active');
         return;
       }
+
       loadAllData().then(result => {
         if (cancelled || !result) return;
         const { data, source } = result;
-        setApiConnected(source === 'api');
-        setDataSource(source);
+
+        // GUARD 4: Only overwrite state from live API, never from stale cache
+        if (source !== 'api') {
+          console.debug('[Sync] Skipped state update — source is', source, '(not live API)');
+          setApiConnected(false);
+          setDataSource(source);
+          return;
+        }
+
+        setApiConnected(true);
+        setDataSource('api');
         if (data.stock.length > 0) setInventory(data.stock);
         if (data.orders.length > 0) setPurchaseOrders(data.orders);
         if (data.receipts.length > 0) {
@@ -577,9 +602,9 @@ export default function App() {
       }).catch(console.warn);
     };
 
-    // Re-fetch when user returns to tab/PWA
+    // Re-fetch when user returns to tab/PWA (only if online)
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') syncFromApi();
+      if (document.visibilityState === 'visible' && navigator.onLine) syncFromApi();
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
@@ -593,8 +618,11 @@ export default function App() {
 
   // Step 5b: Offline write queue — flush when back online, track pending count
   useEffect(() => {
-    // Subscribe to queue count changes (for UI badge)
-    const unsubscribe = onQueueChange(count => setPendingWrites(count));
+    // Subscribe to queue count changes (for UI badge + sync guard ref)
+    const unsubscribe = onQueueChange(count => {
+      setPendingWrites(count);
+      pendingWritesRef.current = count;
+    });
 
     // Flush queue when browser comes back online
     const handleOnline = () => {
