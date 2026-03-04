@@ -675,7 +675,10 @@ export default function App() {
   // Real-time online/offline detection — updates indicator immediately
   useEffect(() => {
     const goOnline = () => setIsOnline(true);
-    const goOffline = () => setIsOnline(false);
+    const goOffline = () => {
+      setIsOnline(false);
+      setDataSource('cache'); // Mark that we're now operating from local data
+    };
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
     return () => {

@@ -70,19 +70,21 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   {!isOnline ? (
                     <WifiOff size={13} />
+                  ) : dataSource === 'cache' ? (
+                    <Database size={13} className="animate-pulse" />
                   ) : dataSource === 'api' ? (
                     pendingWrites > 0 ? <RefreshCw size={13} className="animate-spin" /> : <Cloud size={13} />
-                  ) : dataSource === 'cache' ? (
-                    <Database size={13} />
                   ) : (
                     <CloudOff size={13} />
                   )}
                   <span className="hidden sm:inline">
                     {!isOnline
                       ? pendingWrites > 0 ? `Offline · ${pendingWrites}` : 'Offline'
-                      : dataSource === 'api'
-                        ? pendingWrites > 0 ? `${pendingWrites} ausstehend` : 'Verbunden'
-                        : dataSource === 'cache' ? 'Offline' : 'Lokal'}
+                      : dataSource === 'cache'
+                        ? 'Synchronisiere…'
+                        : dataSource === 'api'
+                          ? pendingWrites > 0 ? `${pendingWrites} ausstehend` : 'Verbunden'
+                          : 'Lokal'}
                   </span>
                   {pendingWrites > 0 && (
                     <span className={`sm:hidden min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-black ${isDark ? 'bg-amber-500 text-slate-900' : 'bg-amber-500 text-white'
