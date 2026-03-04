@@ -195,38 +195,22 @@ export default function App() {
           return;
         }
 
-        if (profileRes.ok) {
-          const profile = await profileRes.json();
+        // Profile was already loaded above — check active status and set user
+        if (!profile.isActive) {
+          if (!cancelled) setAuthError('ACCOUNT_DEACTIVATED');
+          if (!cancelled) setAuthLoading(false);
+          return;
+        }
 
-          if (!profile.isActive) {
-            if (!cancelled) setAuthError('ACCOUNT_DEACTIVATED');
-            if (!cancelled) setAuthLoading(false);
-            return;
-          }
-
-          if (!cancelled) {
-            setCurrentUser({
-              userId: principal.userId,
-              identityProvider: principal.identityProvider,
-              userDetails: principal.userDetails,
-              displayName: `${profile.firstName} ${profile.lastName}`.trim() || principal.userDetails,
-              role: profile.role,
-              featureAccess: profile.featureAccess || [],
-            });
-          }
-        } else {
-          // API error — fall back to basic auth (no role restrictions)
-          console.warn('[Auth] Could not fetch user profile, falling back to basic auth');
-          if (!cancelled) {
-            setCurrentUser({
-              userId: principal.userId,
-              identityProvider: principal.identityProvider,
-              userDetails: principal.userDetails,
-              displayName: principal.claims?.find((c: any) => c.typ === 'name')?.val || principal.userDetails,
-              role: 'admin',
-              featureAccess: ['stock', 'audit', 'receipts', 'orders', 'suppliers', 'settings', 'global-settings'],
-            });
-          }
+        if (!cancelled) {
+          setCurrentUser({
+            userId: principal.userId,
+            identityProvider: principal.identityProvider,
+            userDetails: principal.userDetails,
+            displayName: `${profile.firstName} ${profile.lastName}`.trim() || principal.userDetails,
+            role: profile.role,
+            featureAccess: profile.featureAccess || [],
+          });
         }
       } catch (err) {
         console.warn('[Auth] Failed to check auth status:', err);
