@@ -1985,6 +1985,7 @@ export default function App() {
           onNavigate={handleNavigation}
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
+          currentUser={currentUser}
         />
 
         <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden transition-all duration-300 lg:ml-[68px]">
@@ -2199,6 +2200,7 @@ export default function App() {
           activeModule={activeModule}
           onNavigate={handleNavigation}
           hidden={activeModule === 'create-order' || activeModule === 'goods-receipt' || bottomNavHidden}
+          currentUser={currentUser}
         />
       </div>
     </ErrorBoundary>

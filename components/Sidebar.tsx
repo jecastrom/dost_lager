@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ClipboardList,
   Settings, FileText, Package, History, Box, Users
 } from 'lucide-react';
-import { ActiveModule, Theme } from '../types';
+import { ActiveModule, Theme, AuthUser } from '../types';
 
 interface SidebarProps {
   theme: Theme;
@@ -11,7 +11,7 @@ interface SidebarProps {
   onNavigate: (module: ActiveModule) => void;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
-  mode?: 'full' | 'slim';
+  currentUser: AuthUser | null;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -20,11 +20,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   sidebarOpen,
   setSidebarOpen,
+  currentUser,
 }) => {
   const isDark = theme === 'dark';
   const isSoft = theme === 'soft';
 
-  const navItems = [
+  // Module → featureAccess key mapping (null = always visible)
+  const MODULE_FEATURE_MAP: Record<string, string | null> = {
+    'dashboard': null,
+    'inventory': 'stock',
+    'order-management': 'orders',
+    'receipt-management': 'receipts',
+    'stock-logs': 'stock',
+    'suppliers': 'suppliers',
+  };
+
+  const isAdmin = currentUser?.role === 'admin';
+  const access = currentUser?.featureAccess || [];
+
+  const allNavItems = [
     { id: 'dashboard', label: 'Lager', icon: <LayoutDashboard size={20} /> },
     { id: 'inventory', label: 'Artikel', icon: <Box size={20} /> },
     { id: 'order-management', label: 'Bestellungen', icon: <FileText size={20} /> },
@@ -32,6 +46,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'stock-logs', label: 'Lagerprotokoll', icon: <History size={20} /> },
     { id: 'suppliers', label: 'Lieferanten', icon: <Users size={20} /> },
   ];
+
+  // Admins see everything; team members filtered by featureAccess
+  const navItems = isAdmin
+    ? allNavItems
+    : allNavItems.filter(item => {
+      const requiredFeature = MODULE_FEATURE_MAP[item.id];
+      return requiredFeature === null || access.includes(requiredFeature);
+    });
 
   const bg = isDark ? 'bg-[#1e293b]' : isSoft ? 'bg-[#E2E7EB]' : 'bg-white';
   const border = isDark ? 'border-slate-800' : isSoft ? 'border-[#D4DDE2]' : 'border-slate-200';

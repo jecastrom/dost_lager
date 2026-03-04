@@ -1,24 +1,34 @@
 import React from 'react';
 import { LayoutDashboard, Box, FileText, ClipboardList, ClipboardCheck } from 'lucide-react';
-import { ActiveModule, Theme } from '../types';
+import { ActiveModule, Theme, AuthUser } from '../types';
 
 interface BottomNavProps {
     theme: Theme;
     activeModule: ActiveModule;
     onNavigate: (module: ActiveModule) => void;
     hidden?: boolean;
+    currentUser: AuthUser | null;
 }
 
-const NAV_ITEMS: { id: ActiveModule; label: string; icon: React.ElementType }[] = [
+// Module → featureAccess key mapping (null = always visible)
+const MODULE_FEATURE_MAP: Record<string, string | null> = {
+    'dashboard': null,
+    'inventory': 'stock',
+    'order-management': 'orders',
+    'receipt-management': 'receipts',
+    'audit-placeholder': 'audit',
+};
+
+const ALL_NAV_ITEMS: { id: ActiveModule; label: string; icon: React.ElementType; featureKey?: string }[] = [
     { id: 'dashboard', label: 'Lager', icon: LayoutDashboard },
-    { id: 'inventory', label: 'Artikel', icon: Box },
-    { id: 'order-management', label: 'Bestell.', icon: FileText },
-    { id: 'receipt-management', label: 'Eingang', icon: ClipboardList },
+    { id: 'inventory', label: 'Artikel', icon: Box, featureKey: 'stock' },
+    { id: 'order-management', label: 'Bestell.', icon: FileText, featureKey: 'orders' },
+    { id: 'receipt-management', label: 'Eingang', icon: ClipboardList, featureKey: 'receipts' },
     // Audit placeholder — navigates nowhere yet, visually ready
-    { id: 'dashboard' as ActiveModule, label: 'Audit', icon: ClipboardCheck },
+    { id: 'dashboard' as ActiveModule, label: 'Audit', icon: ClipboardCheck, featureKey: 'audit' },
 ];
 
-export const BottomNav: React.FC<BottomNavProps> = ({ theme, activeModule, onNavigate, hidden }) => {
+export const BottomNav: React.FC<BottomNavProps> = ({ theme, activeModule, onNavigate, hidden, currentUser }) => {
     const isDark = theme === 'dark';
     const isSoft = theme === 'soft';
 
@@ -26,6 +36,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ theme, activeModule, onNav
     const border = isDark ? 'border-slate-800' : isSoft ? 'border-[#D4DDE2]' : 'border-slate-200';
     const inactiveColor = isDark ? 'text-slate-500' : isSoft ? 'text-[#A2A2A2]' : 'text-slate-400';
     const activeColor = 'text-[#0077B5]';
+
+    // Admins see everything; team members filtered by featureAccess
+    const isAdmin = currentUser?.role === 'admin';
+    const access = currentUser?.featureAccess || [];
+    const NAV_ITEMS = isAdmin
+        ? ALL_NAV_ITEMS
+        : ALL_NAV_ITEMS.filter(item => !item.featureKey || access.includes(item.featureKey));
 
     return (
         <nav
