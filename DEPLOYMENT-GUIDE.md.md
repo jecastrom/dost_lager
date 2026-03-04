@@ -191,55 +191,29 @@ GitHub Actions will automatically build and deploy the app. Wait for the green c
 
 ---
 
-## Step 7 — Get Your User ID
+## Step 7 — Seed Your Admin Account
 
-Before you can access the app, you need to register yourself as the first admin user.  
-To do this, you need your Azure authentication User ID.
-
-1. Open your browser and go to:  
-   👉 **https://mango-beach-0bdbc9710.1.azurestaticapps.net/.auth/login/aad**
-
-2. Sign in with your **Azure / Microsoft 365 email**  
-   (this is the same email you use for Outlook, Teams, etc.)
-
-3. After signing in, go to:  
-   👉 **https://mango-beach-0bdbc9710.1.azurestaticapps.net/.auth/me**
-
-4. You will see a JSON response. Find the `"userId"` field — it looks like this:
-
-   ```json
-   {
-     "clientPrincipal": {
-       "userId": "abcdef1234567890abcdef1234567890",
-       ...
-     }
-   }
-   ```
-
-5. **Copy the `userId` value.** You'll need it in the next step.
-
----
-
-## Step 8 — Seed Your Admin Account
-
-Now register yourself as the first admin user. Open PowerShell and run:
-
+Register yourself as the first admin user. Open PowerShell and run:
 ```powershell
-# ═══════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 # FILL IN YOUR DETAILS BELOW
-# ═══════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
+# Use the email address of your Azure / Microsoft 365 account
+# (the same email you use for Outlook, Teams, etc.)
+# ═══════════════════════════════════════════════════════════
 
-$userId    = "PASTE_YOUR_USERID_FROM_STEP_7"
 $email     = "YOUR_AZURE_EMAIL@company.com"
 $firstName = "YOUR_FIRST_NAME"
 $lastName  = "YOUR_LAST_NAME"
 
-# ═══════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 # DO NOT EDIT BELOW THIS LINE
-# ═══════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
+
+$placeholderId = "seed-" + ($email -replace '[@.]', '-').ToLower()
 
 $body = @{
-    id            = $userId
+    id            = $placeholderId
     email         = $email
     firstName     = $firstName
     lastName      = $lastName
@@ -261,22 +235,25 @@ Invoke-RestMethod -Uri "$swaUrl/api/user-profiles" -Method POST -Body $body -Con
 
 If successful, you'll see a JSON response with your profile data.
 
+> **How it works:** This creates your admin profile using your email address as the identifier.
+> When you sign in with Microsoft in the next step, the app automatically recognizes your
+> email and links your account. No extra steps needed.
+
 ---
 
-## Step 9 — Verify Everything Works
+## Step 8 — Sign In and Verify
 
 1. Open **https://mango-beach-0bdbc9710.1.azurestaticapps.net**
 2. Click **"Mit Microsoft anmelden"** (Sign in with Microsoft)
-3. Sign in with the same email you entered in Step 8
-4. The system will automatically match your email and grant you admin access
+3. Sign in with the same email you entered in Step 7
+4. The app automatically recognizes your email and grants you admin access
 5. You should see the ProcureFlow dashboard
 
 **✅ Congratulations — ProcureFlow is deployed and you're the admin!**
 
-> **What just happened?** When you signed in, the app looked up your email in the database,
-> matched it to the admin profile you created in Step 8, and automatically linked your
-> Microsoft account. This same process happens for every new team member you add later —
-> they just sign in and they're in.
+> **What just happened?** When you signed in, the app matched your Microsoft email to the
+> admin profile you created in Step 7 and automatically linked your account. This same
+> seamless process happens for every new team member you add — they just sign in and go.
 
 ---
 
@@ -312,8 +289,8 @@ The system will automatically recognize their email and grant them access — no
 ## Troubleshooting
 
 ### "Zugang ausstehend" (Access Pending) after login
-Your user profile hasn't been created yet, or the userId doesn't match.  
-Go to `/.auth/me`, copy your userId, and re-run Step 8 with the correct value.
+Your user profile hasn't been created yet, or the email address doesn't match.  
+Make sure the admin added your exact Microsoft 365 email address in Team Management.
 
 ### API endpoints return 404
 Check the GitHub Actions build — the API may have failed to compile.  
