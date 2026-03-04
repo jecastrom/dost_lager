@@ -1,6 +1,6 @@
 # ProcureFlow (DOST Lager) — Deployment Guide
 
-**Version:** 3.0  
+**Version:** 3.1  
 **Last Updated:** March 2026  
 **Audience:** System Owner / IT Administrator  
 **Time Required:** ~20 minutes (one-time setup)
@@ -111,7 +111,7 @@ az ad sp create-for-rbac `
 
 Go to: **https://github.com/jecastrom/dost_lager/settings/secrets/actions**
 
-Click **"New repository secret"** and add these secrets one by one:
+Click **"New repository secret"** and add this secret:
 
 | Secret Name | Value |
 |-------------|-------|
@@ -194,6 +194,7 @@ GitHub Actions will automatically build and deploy the app. Wait for the green c
 ## Step 7 — Seed Your Admin Account
 
 Register yourself as the first admin user. Open PowerShell and run:
+
 ```powershell
 # ═══════════════════════════════════════════════════════════
 # FILL IN YOUR DETAILS BELOW
