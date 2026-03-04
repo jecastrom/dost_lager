@@ -1,46 +1,527 @@
-name: Azure Static Web Apps CI/CD
+# ==============================================================================
+# ProcureFlow (DOST Lager) — Unified Deployment Pipeline v3
+# ==============================================================================
+# This single workflow handles BOTH infrastructure provisioning AND CI/CD:
+#
+#   1. INFRA (manual):  GitHub Actions → "Run workflow" → provisions all Azure
+#                       resources from scratch (Cosmos DB, SWA, Key Vault, etc.)
+#
+#   2. CI/CD (auto):    Every push to master → builds React + API → deploys to
+#                       Azure Static Web Apps
+#
+# PREREQUISITES (one-time setup before first run):
+# ────────────────────────────────────────────────
+#   1. Azure subscription with Pay-As-You-Go or Free Trial
+#   2. Create a Service Principal for GitHub:
+#      az ad sp create-for-rbac --name "github-procureflow" --role Contributor \
+#        --scopes /subscriptions/<SUBSCRIPTION_ID> --sdk-auth
+#   3. Add these GitHub Repository Secrets:
+#      • AZURE_CREDENTIALS          → full JSON output from step 2
+#      • AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_BEACH_0BDBC9710 → SWA deploy token
+#   4. Add these GitHub Environment Secrets (environment: "Production"):
+#      • AZURE_CLIENT_ID            → Entra ID app client ID (created by infra job)
+#      • AZURE_CLIENT_SECRET        → Entra ID app client secret (created by infra job)
+#      • ADMIN_EMAIL                → Email of the first admin user
+#      • ADMIN_FIRST_NAME           → First name of admin
+#      • ADMIN_LAST_NAME            → Last name of admin
+#
+# COST ESTIMATE:
+# ────────────────────────────────────────────────
+#   Static Web Apps (Free tier):    €0/mo
+#   Cosmos DB (Free tier):          €0/mo
+#   Key Vault:                      ~€0.03/mo
+#   Entra ID (included with M365):  €0/mo
+#   TOTAL:                          ~€0-2/mo
+# ==============================================================================
+
+name: ProcureFlow — Deploy & Provision
 
 on:
+  # ── CI/CD: Auto-deploy on every push to master ──
   push:
-    branches:
-      - master
+    branches: [master]
   pull_request:
     types: [opened, synchronize, reopened, closed]
-    branches:
-      - master
+    branches: [master]
+
+  # ── INFRA: Manual trigger for provisioning ──
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to do"
+        required: true
+        default: "deploy-only"
+        type: choice
+        options:
+          - deploy-only
+          - provision-infra
+          - provision-and-seed
+          - seed-admin-only
+      admin_email:
+        description: "Admin email (for seed-admin)"
+        required: false
+        default: ""
+      admin_first_name:
+        description: "Admin first name"
+        required: false
+        default: ""
+      admin_last_name:
+        description: "Admin last name"
+        required: false
+        default: ""
+
+# ==============================================================================
+# ENVIRONMENT VARIABLES (shared across all jobs)
+# ==============================================================================
+env:
+  RESOURCE_GROUP: rg-procureflow-prod
+  LOCATION: westeurope
+  SWA_NAME: swa-procureflow
+  COSMOS_ACCOUNT: cosmos-procureflow
+  COSMOS_DB: procureflow-db
+  KEY_VAULT_NAME: kv-procureflow
+  ENTRA_APP_NAME: ProcureFlow
 
 jobs:
-  build_and_deploy_job:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+  # ============================================================================
+  # JOB 1: PROVISION AZURE INFRASTRUCTURE (manual trigger only)
+  # ============================================================================
+  provision_infra:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.action == 'provision-infra' || github.event.inputs.action == 'provision-and-seed')
     runs-on: ubuntu-latest
-    name: Build and Deploy Job
+    name: "☁️ Provision Azure Infrastructure"
+    environment: Production
+    outputs:
+      swa_url: ${{ steps.swa.outputs.url }}
+      cosmos_connection: ${{ steps.cosmos.outputs.connection }}
+      entra_app_id: ${{ steps.entra.outputs.app_id }}
+
+    steps:
+      - name: "🔐 Login to Azure"
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # ── Step 1: Resource Group ──
+      - name: "📦 Create Resource Group"
+        run: |
+          echo "::group::Resource Group"
+          if az group show --name $RESOURCE_GROUP &>/dev/null; then
+            echo "✓ Resource group already exists"
+          else
+            az group create \
+              --name $RESOURCE_GROUP \
+              --location $LOCATION \
+              --tags project=procureflow environment=production \
+              --output none
+            echo "✓ Resource group created"
+          fi
+          echo "::endgroup::"
+
+      # ── Step 2: Cosmos DB Account + Database ──
+      - name: "🗄️ Create Cosmos DB (Free Tier)"
+        id: cosmos
+        run: |
+          echo "::group::Cosmos DB"
+
+          # Account
+          if az cosmosdb show --name $COSMOS_ACCOUNT --resource-group $RESOURCE_GROUP &>/dev/null; then
+            echo "✓ Cosmos DB account already exists"
+          else
+            echo "Creating Cosmos DB account (this takes 3-5 minutes)..."
+            az cosmosdb create \
+              --name $COSMOS_ACCOUNT \
+              --resource-group $RESOURCE_GROUP \
+              --locations regionName=$LOCATION failoverPriority=0 \
+              --default-consistency-level Session \
+              --enable-free-tier true \
+              --tags project=procureflow \
+              --output none
+            echo "✓ Cosmos DB account created"
+          fi
+
+          # Database
+          if az cosmosdb sql database show \
+            --account-name $COSMOS_ACCOUNT \
+            --resource-group $RESOURCE_GROUP \
+            --name $COSMOS_DB &>/dev/null; then
+            echo "✓ Database already exists"
+          else
+            az cosmosdb sql database create \
+              --account-name $COSMOS_ACCOUNT \
+              --resource-group $RESOURCE_GROUP \
+              --name $COSMOS_DB \
+              --output none
+            echo "✓ Database created"
+          fi
+
+          # Containers
+          declare -A CONTAINERS=(
+            ["stock"]="/id"
+            ["purchase-orders"]="/id"
+            ["receipts"]="/poId"
+            ["tickets"]="/poId"
+            ["delivery-logs"]="/receiptId"
+            ["suppliers"]="/id"
+            ["notifications"]="/userId"
+            ["user-profiles"]="/id"
+          )
+
+          for container in "${!CONTAINERS[@]}"; do
+            pk="${CONTAINERS[$container]}"
+            if az cosmosdb sql container show \
+              --account-name $COSMOS_ACCOUNT \
+              --resource-group $RESOURCE_GROUP \
+              --database-name $COSMOS_DB \
+              --name "$container" &>/dev/null; then
+              echo "✓ Container '$container' already exists"
+            else
+              az cosmosdb sql container create \
+                --account-name $COSMOS_ACCOUNT \
+                --resource-group $RESOURCE_GROUP \
+                --database-name $COSMOS_DB \
+                --name "$container" \
+                --partition-key-path "$pk" \
+                --output none
+              echo "✓ Container '$container' created (partition: $pk)"
+            fi
+          done
+
+          # Export connection string for later steps
+          CONN=$(az cosmosdb keys list \
+            --name $COSMOS_ACCOUNT \
+            --resource-group $RESOURCE_GROUP \
+            --type connection-strings \
+            --query "connectionStrings[0].connectionString" --output tsv)
+          echo "connection=$CONN" >> $GITHUB_OUTPUT
+
+          echo "::endgroup::"
+
+      # ── Step 3: Key Vault ──
+      - name: "🔑 Create Key Vault"
+        run: |
+          echo "::group::Key Vault"
+
+          if az keyvault show --name $KEY_VAULT_NAME --resource-group $RESOURCE_GROUP &>/dev/null; then
+            echo "✓ Key Vault already exists"
+          else
+            az keyvault create \
+              --name $KEY_VAULT_NAME \
+              --resource-group $RESOURCE_GROUP \
+              --location $LOCATION \
+              --tags project=procureflow \
+              --output none
+            echo "✓ Key Vault created"
+          fi
+
+          # Grant current SP access
+          SP_OID=$(az ad sp show --id ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }} --query id -o tsv)
+          az role assignment create \
+            --role "Key Vault Secrets Officer" \
+            --assignee-object-id "$SP_OID" \
+            --assignee-principal-type ServicePrincipal \
+            --scope "/subscriptions/${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}/resourcegroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME" \
+            --output none 2>/dev/null || true
+          echo "✓ SP has Key Vault access"
+
+          # Wait for RBAC propagation
+          sleep 15
+
+          # Store Cosmos DB connection string
+          az keyvault secret set \
+            --vault-name $KEY_VAULT_NAME \
+            --name "CosmosDbConnectionString" \
+            --value "${{ steps.cosmos.outputs.connection }}" \
+            --output none
+          echo "✓ Cosmos connection string stored in Key Vault"
+
+          echo "::endgroup::"
+
+      # ── Step 4: Static Web App ──
+      - name: "🌐 Create Static Web App"
+        id: swa
+        run: |
+          echo "::group::Static Web App"
+
+          if az staticwebapp show --name $SWA_NAME --resource-group $RESOURCE_GROUP &>/dev/null; then
+            echo "✓ Static Web App already exists"
+          else
+            az staticwebapp create \
+              --name $SWA_NAME \
+              --resource-group $RESOURCE_GROUP \
+              --source "https://github.com/${{ github.repository }}" \
+              --branch master \
+              --app-location "/" \
+              --output-location "dist" \
+              --sku Free \
+              --output none
+            echo "✓ Static Web App created"
+          fi
+
+          SWA_URL=$(az staticwebapp show \
+            --name $SWA_NAME \
+            --resource-group $RESOURCE_GROUP \
+            --query "defaultHostname" --output tsv)
+          echo "url=$SWA_URL" >> $GITHUB_OUTPUT
+          echo "✓ SWA URL: https://$SWA_URL"
+
+          # Set COSMOS_CONNECTION as SWA app setting
+          az staticwebapp appsettings set \
+            -n $SWA_NAME \
+            --resource-group $RESOURCE_GROUP \
+            --setting-names "COSMOS_CONNECTION=${{ steps.cosmos.outputs.connection }}" \
+            --output none
+          echo "✓ COSMOS_CONNECTION set as SWA app setting"
+
+          echo "::endgroup::"
+
+      # ── Step 5: Entra ID App Registration ──
+      - name: "🔒 Register Entra ID App"
+        id: entra
+        run: |
+          echo "::group::Entra ID App Registration"
+
+          SWA_URL="${{ steps.swa.outputs.url }}"
+          REDIRECT_URI="https://$SWA_URL/.auth/login/aad/callback"
+
+          # Check if app already exists
+          EXISTING_APP=$(az ad app list --display-name "$ENTRA_APP_NAME" --query "[0].appId" -o tsv 2>/dev/null)
+
+          if [ -n "$EXISTING_APP" ]; then
+            echo "✓ Entra ID app already exists (ID: $EXISTING_APP)"
+            echo "app_id=$EXISTING_APP" >> $GITHUB_OUTPUT
+          else
+            # Create the app registration
+            APP_JSON=$(az ad app create \
+              --display-name "$ENTRA_APP_NAME" \
+              --web-redirect-uris "$REDIRECT_URI" \
+              --sign-in-audience AzureADMyOrg \
+              --output json)
+
+            APP_ID=$(echo "$APP_JSON" | jq -r '.appId')
+            OBJ_ID=$(echo "$APP_JSON" | jq -r '.id')
+            echo "✓ Entra ID app registered (ID: $APP_ID)"
+
+            # Create client secret
+            SECRET_JSON=$(az ad app credential reset \
+              --id "$OBJ_ID" \
+              --display-name "ProcureFlow-Secret" \
+              --years 2 \
+              --output json)
+            CLIENT_SECRET=$(echo "$SECRET_JSON" | jq -r '.password')
+
+            # Store in Key Vault
+            az keyvault secret set \
+              --vault-name $KEY_VAULT_NAME \
+              --name "EntraClientId" \
+              --value "$APP_ID" \
+              --output none
+            az keyvault secret set \
+              --vault-name $KEY_VAULT_NAME \
+              --name "EntraClientSecret" \
+              --value "$CLIENT_SECRET" \
+              --output none
+            echo "✓ Entra credentials stored in Key Vault"
+
+            echo "app_id=$APP_ID" >> $GITHUB_OUTPUT
+          fi
+
+          echo "::endgroup::"
+
+      # ── Step 6: Summary ──
+      - name: "📋 Deployment Summary"
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════╗"
+          echo "║  INFRASTRUCTURE PROVISIONING COMPLETE            ║"
+          echo "╚══════════════════════════════════════════════════╝"
+          echo ""
+          echo "  Resources:"
+          echo "  ├─ Resource Group:  $RESOURCE_GROUP"
+          echo "  ├─ Static Web App:  https://${{ steps.swa.outputs.url }}"
+          echo "  ├─ Cosmos DB:       $COSMOS_ACCOUNT ($COSMOS_DB)"
+          echo "  ├─ Key Vault:       $KEY_VAULT_NAME"
+          echo "  └─ Entra App ID:    ${{ steps.entra.outputs.app_id }}"
+          echo ""
+          echo "  Cosmos Containers:"
+          echo "  ├─ stock (/id)           ├─ purchase-orders (/id)"
+          echo "  ├─ receipts (/poId)      ├─ tickets (/poId)"
+          echo "  ├─ delivery-logs (/receiptId)"
+          echo "  ├─ suppliers (/id)       ├─ user-profiles (/id)"
+          echo "  └─ notifications (/userId)"
+          echo ""
+          echo "  Cost: ~€0-2/month (Free tier)"
+          echo ""
+          echo "  NEXT STEPS:"
+          echo "  1. Push code to master → CI/CD will auto-deploy"
+          echo "  2. Run 'provision-and-seed' or 'seed-admin-only' to create first admin"
+          echo "  3. Login at https://${{ steps.swa.outputs.url }}"
+          echo ""
+
+  # ============================================================================
+  # JOB 2: SEED ADMIN USER (manual trigger only)
+  # ============================================================================
+  seed_admin:
+    needs: [provision_infra]
+    # Run after infra, OR independently if infra was skipped (seed-admin-only)
+    if: >-
+      always() &&
+      github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.action == 'provision-and-seed' || github.event.inputs.action == 'seed-admin-only') &&
+      (needs.provision_infra.result == 'success' || needs.provision_infra.result == 'skipped')
+    runs-on: ubuntu-latest
+    name: "👤 Seed Admin User"
+    environment: Production
+
+    steps:
+      - name: "🔐 Login to Azure"
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: "👤 Create Admin User Profile"
+        run: |
+          echo "::group::Seed Admin"
+
+          # Determine admin details from inputs or environment secrets
+          ADMIN_EMAIL="${{ github.event.inputs.admin_email || secrets.ADMIN_EMAIL }}"
+          ADMIN_FIRST="${{ github.event.inputs.admin_first_name || secrets.ADMIN_FIRST_NAME }}"
+          ADMIN_LAST="${{ github.event.inputs.admin_last_name || secrets.ADMIN_LAST_NAME }}"
+
+          if [ -z "$ADMIN_EMAIL" ]; then
+            echo "❌ No admin email provided. Set ADMIN_EMAIL secret or provide as input."
+            exit 1
+          fi
+
+          # Get SWA URL
+          SWA_URL=$(az staticwebapp show \
+            --name $SWA_NAME \
+            --resource-group $RESOURCE_GROUP \
+            --query "defaultHostname" --output tsv)
+
+          # Generate a placeholder ID — the app will auto-link the real
+          # Azure userId on first login by matching the email address.
+          PLACEHOLDER_ID="seed-$(echo $ADMIN_EMAIL | tr '@.' '-' | tr '[:upper:]' '[:lower:]')"
+
+          echo "Seeding admin profile..."
+          echo "  Email: $ADMIN_EMAIL"
+          echo "  Name:  $ADMIN_FIRST $ADMIN_LAST"
+          echo "  ID:    $PLACEHOLDER_ID (auto-linked on first login)"
+
+          # Get Cosmos connection details
+          COSMOS_CONN=$(az cosmosdb keys list \
+            --name $COSMOS_ACCOUNT \
+            --resource-group $RESOURCE_GROUP \
+            --type connection-strings \
+            --query "connectionStrings[0].connectionString" --output tsv)
+
+          COSMOS_ENDPOINT=$(echo "$COSMOS_CONN" | grep -oP 'AccountEndpoint=\K[^;]+')
+          COSMOS_KEY=$(echo "$COSMOS_CONN" | grep -oP 'AccountKey=\K[^;]+')
+
+          TIMESTAMP=$(date +%s%3N)
+
+          # Write directly to Cosmos DB via REST API
+          MS_DATE=$(date -u '+%a, %d %b %Y %H:%M:%S GMT')
+          MS_DATE_LOWER=$(echo "$MS_DATE" | tr '[:upper:]' '[:lower:]')
+
+          AUTH_TOKEN=$(python3 -c "
+          import hmac, hashlib, base64, urllib.parse
+          key = base64.b64decode('$COSMOS_KEY')
+          payload = 'post\ndocs\ndbs/$COSMOS_DB/colls/user-profiles\n$MS_DATE_LOWER\n\n'
+          sig = base64.b64encode(hmac.new(key, payload.encode('utf-8'), hashlib.sha256).digest()).decode()
+          print('type%3Dmaster%26ver%3D1.0%26sig%3D' + urllib.parse.quote(sig, safe=''))
+          ")
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "$COSMOS_ENDPOINT/dbs/$COSMOS_DB/colls/user-profiles/docs" \
+            -H "Authorization: $AUTH_TOKEN" \
+            -H "x-ms-date: $MS_DATE" \
+            -H "x-ms-version: 2018-12-31" \
+            -H "Content-Type: application/json" \
+            -H "x-ms-documentdb-partitionkey: [\"$PLACEHOLDER_ID\"]" \
+            -d "{
+              \"id\": \"$PLACEHOLDER_ID\",
+              \"email\": \"$ADMIN_EMAIL\",
+              \"firstName\": \"$ADMIN_FIRST\",
+              \"lastName\": \"$ADMIN_LAST\",
+              \"role\": \"admin\",
+              \"featureAccess\": [\"stock\",\"audit\",\"receipts\",\"orders\",\"suppliers\",\"settings\",\"global-settings\"],
+              \"isActive\": true,
+              \"createdAt\": $TIMESTAMP,
+              \"createdBy\": \"github-actions-seed\",
+              \"docType\": \"user-profile\"
+            }")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+
+          if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
+            echo ""
+            echo "✓ Admin profile seeded successfully"
+            echo ""
+            echo "╔════════════════════════════════════════════════════════╗"
+            echo "║  ADMIN SEED COMPLETE                                  ║"
+            echo "╠════════════════════════════════════════════════════════╣"
+            echo "║                                                       ║"
+            echo "║  1. Go to https://$SWA_URL                            "
+            echo "║  2. Click 'Mit Microsoft anmelden'                    ║"
+            echo "║  3. Sign in with: $ADMIN_EMAIL                        "
+            echo "║  4. The app auto-links your account — you're in!      ║"
+            echo "║                                                       ║"
+            echo "║  No extra steps needed. Just sign in and go.          ║"
+            echo "║                                                       ║"
+            echo "╚════════════════════════════════════════════════════════╝"
+          else
+            echo ""
+            echo "⚠️  Seed returned HTTP $HTTP_CODE"
+            echo "$(echo "$RESPONSE" | head -n -1)"
+            echo ""
+            echo "If the profile already exists (409), this is fine — skip to login."
+          fi
+
+          echo "::endgroup::"
+
+  # ============================================================================
+  # JOB 3: BUILD & DEPLOY (automatic on every push to master)
+  # ============================================================================
+  build_and_deploy:
+    if: >-
+      (github.event_name == 'push') ||
+      (github.event_name == 'pull_request' && github.event.action != 'closed') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'deploy-only')
+    runs-on: ubuntu-latest
+    name: "🚀 Build & Deploy"
+
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: true
           lfs: false
-      - name: Build And Deploy
+
+      - name: "🏗️ Build And Deploy"
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_BEACH_0BDBC9710 }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
-          # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "/" # App source code path
-          api_location: "api" # Api source code path
-          output_location: "dist" # Built app content directory - optional
-          ###### End of Repository/Build Configurations ######
+          app_location: "/"
+          api_location: "api"
+          output_location: "dist"
 
-  close_pull_request_job:
+  # ============================================================================
+  # JOB 4: CLOSE PR (automatic on PR close)
+  # ============================================================================
+  close_pull_request:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
-    name: Close Pull Request Job
+    name: "🧹 Close Pull Request"
+
     steps:
       - name: Close Pull Request
-        id: closepullrequest
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_BEACH_0BDBC9710 }}
           action: "close"
+          app_location: "/"
