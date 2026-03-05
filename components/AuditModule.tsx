@@ -21,6 +21,7 @@ interface AuditModuleProps {
     inventory: StockItem[];
     auditSessions: AuditSession[];
     onNavigate: (module: ActiveModule) => void;
+    onCompleteAudit: (session: AuditSession, action: 'quick-approve' | 'submit-review') => void;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -43,6 +44,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
     inventory,
     auditSessions,
     onNavigate,
+    onCompleteAudit,
 }) => {
     const isDark = theme === 'dark';
     const isSoft = theme === 'soft';
@@ -298,8 +300,12 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                 session={activeSession}
                 onBack={() => setView('cart')}
                 onSubmit={(action) => {
-                    // TODO: Step 10 (quick) / Step 13 (normal) — persist + stock update
-                    console.log('[Audit] Submit:', action, activeSession);
+                    const completedSession: AuditSession = {
+                        ...activeSession,
+                        status: action === 'quick-approve' ? 'approved' : 'pending-review',
+                        completedAt: Date.now(),
+                    };
+                    onCompleteAudit(completedSession, action);
                     setActiveSession(null);
                     setView('landing');
                 }}
@@ -450,10 +456,10 @@ const AuditSummary: React.FC<AuditSummaryProps> = ({ theme, session, onBack, onS
                     </div>
                     <div>
                         <div className={`text-2xl font-bold font-mono ${totalVariance === 0
-                                ? isDark ? 'text-emerald-400' : 'text-emerald-600'
-                                : totalVariance > 0
-                                    ? isDark ? 'text-amber-400' : 'text-amber-600'
-                                    : isDark ? 'text-red-400' : 'text-red-600'
+                            ? isDark ? 'text-emerald-400' : 'text-emerald-600'
+                            : totalVariance > 0
+                                ? isDark ? 'text-amber-400' : 'text-amber-600'
+                                : isDark ? 'text-red-400' : 'text-red-600'
                             }`}>
                             {totalVariance > 0 ? '+' : ''}{totalVariance}
                         </div>

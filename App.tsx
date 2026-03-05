@@ -28,7 +28,7 @@ import { BottomNav } from './components/BottomNav';
 import { LoginPage } from './components/LoginPage';
 import { TeamManagement } from './components/TeamManagement';
 import { AuditModule } from './components/AuditModule';
-import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi, DataSource } from './api';
+import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi, DataSource, auditsApi } from './api';
 import { flushQueue, onQueueChange, getQueueCount } from './offlineQueue';
 
 // Error Boundary Component
@@ -771,6 +771,83 @@ export default function App() {
       setSelectedPoId(null);
       setGoodsReceiptMode('standard'); // Reset mode on exit
     }
+  };
+
+  // ── Audit Complete Handler ──
+  const handleAuditComplete = (session: AuditSession, action: 'quick-approve' | 'submit-review') => {
+    // 1. Save session to state
+    setAuditSessions(prev => [session, ...prev]);
+
+    // 2. Persist session to Cosmos DB
+    auditsApi.upsert(session).catch(console.warn);
+
+    if (action === 'quick-approve') {
+      // 3. Quick Count: Update stock levels + create audit-tagged log entries
+      markWrite(); // K14: Prevent sync overwrite
+
+      const auditContext = session.mode === 'quick' ? 'audit-quick' : 'audit-normal';
+      const auditSource = `Inventur: ${session.name}`;
+      const counterName = session.createdByName;
+      const now = new Date();
+
+      // Build log entries for all items with variance
+      const newLogs: StockLog[] = [];
+
+      session.items.forEach(item => {
+        if (item.variance === 0) return; // No change needed
+
+        const logAction: 'add' | 'write-off' = item.variance > 0 ? 'add' : 'write-off';
+        const absVariance = Math.abs(item.variance);
+
+        newLogs.push({
+          id: crypto.randomUUID(),
+          timestamp: now,
+          userId: currentUser?.userId || 'unknown',
+          userName: counterName,
+          itemId: item.itemId,
+          itemName: item.name,
+          action: logAction,
+          quantity: absVariance,
+          warehouse: item.warehouse,
+          source: auditSource,
+          context: auditContext,
+          auditSessionId: session.id,
+          auditSessionName: session.name,
+          countedByName: counterName,
+          // Quick audit: counter is also the approver
+          approvedByName: counterName,
+        });
+      });
+
+      // 4. Update stock levels to match counted quantities
+      setInventory(prev => {
+        const updated = [...prev];
+        session.items.forEach(auditItem => {
+          if (auditItem.variance === 0) return;
+          const idx = updated.findIndex(i => i.id === auditItem.itemId);
+          if (idx >= 0) {
+            updated[idx] = {
+              ...updated[idx],
+              stockLevel: auditItem.countedQty,
+              lastUpdated: Date.now(),
+            };
+            // API write-through inline (avoids stale closure)
+            stockApi.upsert(updated[idx]).catch(console.warn);
+          }
+        });
+        return updated;
+      });
+
+      // 5. Push audit logs to stockLogs state
+      if (newLogs.length > 0) {
+        setStockLogs(prev => {
+          const next = [...newLogs, ...prev].slice(0, 500);
+          localStorage.setItem('stockLogs', JSON.stringify(next));
+          return next;
+        });
+      }
+    }
+    // Normal audit: status is 'pending-review' — stock changes happen on approval (Step 13)
   };
 
   // Handlers
@@ -2274,6 +2351,7 @@ export default function App() {
                   inventory={inventory}
                   auditSessions={auditSessions}
                   onNavigate={handleNavigation}
+                  onCompleteAudit={handleAuditComplete}
                 />
               )}
 
