@@ -52,6 +52,21 @@ const AuditAnimations = () => (
             0% { opacity: 0; transform: translateX(-2rem); }
             100% { opacity: 1; transform: translateX(0); }
         }
+        @keyframes audit-stagger-in {
+            0% { opacity: 0; transform: translateY(12px) scale(0.96); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes audit-btn-pulse {
+            0%, 100% { box-shadow: 0 4px 24px rgba(0, 119, 181, 0.2); }
+            50% { box-shadow: 0 4px 32px rgba(0, 119, 181, 0.35); }
+        }
+        .audit-stagger-item {
+            opacity: 0;
+            animation: audit-stagger-in 0.35s ease-out forwards;
+        }
+        .audit-btn-ready {
+            animation: audit-btn-pulse 2s ease-in-out infinite;
+        }
         @keyframes audit-count-in {
             0% { opacity: 0; transform: scale(0.5); }
             60% { transform: scale(1.1); }
@@ -1702,10 +1717,19 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
         }
     }, [warehouse]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const goForward = () => { setSlideDir('forward'); setStep(s => Math.min(3, s + 1)); };
-    const goBack = () => { setSlideDir('back'); setStep(s => Math.max(1, s - 1)); };
+    const goForward = () => {
+        if (navigator.vibrate) navigator.vibrate(5);
+        setSlideDir('forward');
+        setStep(s => Math.min(3, s + 1));
+    };
+    const goBack = () => {
+        if (navigator.vibrate) navigator.vibrate(3);
+        setSlideDir('back');
+        setStep(s => Math.max(1, s - 1));
+    };
 
     const handleStart = () => {
+        if (navigator.vibrate) navigator.vibrate(10);
         const effectiveBlind = globalBlindMode || blindMode;
         onStart(name.trim(), warehouse.trim(), mode, effectiveBlind);
     };
@@ -1809,15 +1833,16 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
 
                             {warehouseOptions.length > 0 ? (
                                 <div className="grid grid-cols-2 gap-3">
-                                    {warehouseOptions.map(wh => {
+                                    {warehouseOptions.map((wh, idx) => {
                                         const isSelected = warehouse === wh;
                                         const itemCount = warehouseItemCounts[wh] || 0;
                                         const lastTs = lastAuditByWarehouse[wh];
                                         return (
                                             <button
                                                 key={wh}
-                                                onClick={() => setWarehouse(wh)}
-                                                className={`relative rounded-2xl border p-4 text-left transition-all duration-200 ${isSelected
+                                                onClick={() => { setWarehouse(wh); if (navigator.vibrate) navigator.vibrate(5); }}
+                                                style={{ animationDelay: `${idx * 0.05}s` }}
+                                                className={`audit-stagger-item relative rounded-2xl border p-4 text-left transition-all duration-200 ${isSelected
                                                     ? 'bg-gradient-to-br from-[#0077B5]/10 to-[#00A0DC]/10 border-[#0077B5] shadow-lg shadow-blue-500/10 ring-2 ring-[#0077B5]/30'
                                                     : `${cardBg} ${isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50'} active:scale-[0.97]`
                                                 }`}
@@ -1926,8 +1951,9 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
                             <div className="grid grid-cols-1 gap-3">
                                 {/* Quick Count — green accent */}
                                 <button
-                                    onClick={() => setMode('quick')}
-                                    className={`relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 ${mode === 'quick'
+                                    onClick={() => { setMode('quick'); if (navigator.vibrate) navigator.vibrate(5); }}
+                                    style={{ animationDelay: '0.05s' }}
+                                    className={`audit-stagger-item relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 ${mode === 'quick'
                                         ? 'bg-gradient-to-br from-emerald-500/10 to-emerald-400/5 border-emerald-500 shadow-lg shadow-emerald-500/10 ring-2 ring-emerald-500/30'
                                         : `${cardBg} ${isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50'} active:scale-[0.98]`
                                     }`}
@@ -1952,8 +1978,9 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
 
                                 {/* Normal Audit — blue accent */}
                                 <button
-                                    onClick={() => setMode('normal')}
-                                    className={`relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 ${mode === 'normal'
+                                    onClick={() => { setMode('normal'); if (navigator.vibrate) navigator.vibrate(5); }}
+                                    style={{ animationDelay: '0.1s' }}
+                                    className={`audit-stagger-item relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 ${mode === 'normal'
                                         ? 'bg-gradient-to-br from-[#0077B5]/10 to-[#00A0DC]/10 border-[#0077B5] shadow-lg shadow-blue-500/10 ring-2 ring-[#0077B5]/30'
                                         : `${cardBg} ${isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50'} active:scale-[0.98]`
                                     }`}
@@ -2024,7 +2051,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
                         onClick={goForward}
                         disabled={!warehouse.trim()}
                         className={`w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 ${warehouse.trim()
-                            ? 'bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98]'
+                            ? 'bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98] audit-btn-ready'
                             : isDark ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                         }`}
                     >
@@ -2036,7 +2063,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
                         onClick={goForward}
                         disabled={!name.trim()}
                         className={`w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 ${name.trim()
-                            ? 'bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98]'
+                            ? 'bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98] audit-btn-ready'
                             : isDark ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                         }`}
                     >
@@ -2046,7 +2073,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
                 {step === 3 && (
                     <button
                         onClick={handleStart}
-                        className="w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98]"
+                        className="w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98] audit-btn-ready"
                     >
                         {mode === 'quick' ? 'Schnellzählung starten' : 'Inventur starten'}
                     </button>
