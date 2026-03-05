@@ -78,7 +78,7 @@ German-language warehouse management PWA covering the full Procure-to-Pay lifecy
 - **Orders:** Create/edit/archive/cancel with cascade, Smart Import, Lager + Projekt modes
 - **Goods Receipt:** Full inspection wizard, 3-badge status system, returns with auto-tickets
 - **Inventory:** ~800 items, grid/list view, inline +/−, CSV export, ComboboxSelect locations
-- **Audit Module (NEW):** Shopping-cart style inventory counting, Quick/Normal modes, blind mode, manager approval flow, confetti on perfect match, swipe gestures, haptic feedback, full Lagerprotokoll integration
+- **Audit Module:** Shopping-cart style inventory counting with 3-step start wizard (location → name → mode), Quick/Normal modes, global + per-audit blind mode, sticky context header with progress, manager approval flow, confetti on perfect match, swipe gestures, haptic feedback, offline auto-save draft (IndexedDB), full Lagerprotokoll integration
 - **Stock Log:** 5 filter tabs (Alle/Manuell/PO-Normal/PO-Projekt/Inventur), audit badges
 - **Suppliers:** Automatic scoring 0-100 based on delivery history
 - **Tickets:** Auto/manual on deviations, configurable per type
@@ -137,6 +137,18 @@ German-language warehouse management PWA covering the full Procure-to-Pay lifecy
 | C1 | Suppliers info tab (website, emails) | 🟡 MEDIUM |
 | C2 | Excel import tool (replace JSON upload) | 🟡 MEDIUM |
 | C3 | Fast one-click inspection ("Schnellbuchung") | 🟡 MEDIUM |
+
+### PHASE D2: Audit UX Refactor
+
+| ID | Feature | Status |
+|---|---|---|
+| D2.1 | 3-step start wizard (Wo zählen → Name → Art) | ✅ DONE |
+| D2.2 | Global Blind Mode (GlobalSettingsPage toggle) | ✅ DONE |
+| D2.3 | Sticky context header in cart (name, progress X/Y) | ✅ DONE |
+| D2.4 | Cart bottom bar above mobile nav + Abbrechen button | ✅ DONE |
+| D2.5 | Offline auto-save draft to IndexedDB (500ms debounce) | ✅ DONE |
+| D2.6 | Staggered card animations + haptic feedback on wizard | ✅ DONE |
+| D2.7 | Pulse CTA buttons, mode cards green/blue accent | ✅ DONE |
 
 ### Cross-cutting
 
