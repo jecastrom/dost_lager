@@ -267,6 +267,7 @@ export interface AuditSession {
   name: string;            // User-given name, e.g. "Akku Service März 2026"
   mode: AuditMode;         // 'quick' = instant stock update, 'normal' = needs approval
   status: AuditStatus;
+  blindMode: boolean;      // Hide expected quantities until summary reveal
   warehouse: string;       // Primary warehouse/location being audited
   items: AuditItem[];      // The "shopping cart" of counted items
   createdAt: number;       // Unix ms

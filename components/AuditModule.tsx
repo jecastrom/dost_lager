@@ -3,7 +3,7 @@ import {
     ClipboardCheck, Plus, Zap, ShieldCheck, MapPin,
     Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight,
     ArrowLeft, Search, X, Minus, StickyNote, ShoppingCart,
-    Hash, Package, Eye, RotateCcw
+    Hash, Package, Eye, EyeOff, RotateCcw
 } from 'lucide-react';
 import { Theme, ActiveModule, AuditSession, AuditItem, AuditMode, StockItem, AuthUser } from '../types';
 
@@ -63,6 +63,95 @@ const AuditAnimations = () => (
         .audit-celebrate { animation: audit-celebrate 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
     `}</style>
 );
+
+// ═══════════════════════════════════════════════════════════
+// CONFETTI — Lightweight canvas particle burst
+// ═══════════════════════════════════════════════════════════
+const ConfettiBurst: React.FC = () => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+
+        const colors = ['#0077B5', '#00A0DC', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+        const particles: { x: number; y: number; vx: number; vy: number; size: number; color: string; rotation: number; rv: number; life: number }[] = [];
+
+        // Create particles from center-top
+        for (let i = 0; i < 60; i++) {
+            const angle = (Math.random() * Math.PI * 2);
+            const speed = 2 + Math.random() * 6;
+            particles.push({
+                x: canvas.width / 2,
+                y: canvas.height * 0.3,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 3,
+                size: 4 + Math.random() * 6,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                rotation: Math.random() * 360,
+                rv: (Math.random() - 0.5) * 10,
+                life: 1,
+            });
+        }
+
+        let animId: number;
+        const animate = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            let alive = false;
+
+            particles.forEach(p => {
+                if (p.life <= 0) return;
+                alive = true;
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.15; // gravity
+                p.vx *= 0.99; // air resistance
+                p.rotation += p.rv;
+                p.life -= 0.012;
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate((p.rotation * Math.PI) / 180);
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.fillStyle = p.color;
+                // Mix of rectangles and circles
+                if (p.size > 7) {
+                    ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            });
+
+            if (alive) {
+                animId = requestAnimationFrame(animate);
+            }
+        };
+
+        // Small delay so the celebration text renders first
+        const timeout = setTimeout(() => animate(), 200);
+
+        return () => {
+            cancelAnimationFrame(animId);
+            clearTimeout(timeout);
+        };
+    }, []);
+
+    return (
+        <canvas
+            ref={canvasRef}
+            className="absolute inset-0 w-full h-full pointer-events-none z-10"
+            style={{ borderRadius: 'inherit' }}
+        />
+    );
+};
 
 // ═══════════════════════════════════════════════════════════
 // STATUS HELPERS
@@ -340,12 +429,13 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                 inventory={inventory}
                 currentUser={currentUser}
                 onBack={() => setView('landing')}
-                onStart={(name, warehouse, mode) => {
+                onStart={(name, warehouse, mode, blindMode) => {
                     const session: AuditSession = {
                         id: crypto.randomUUID(),
                         name,
                         mode,
                         status: 'in-progress',
+                        blindMode,
                         warehouse,
                         items: [],
                         createdAt: Date.now(),
@@ -624,14 +714,10 @@ const AuditSummary: React.FC<AuditSummaryProps> = ({ theme, session, onBack, onS
 
             {/* Perfect match celebration */}
             {isPerfect && (
-                <div className={`rounded-2xl border p-6 text-center audit-fade-up-1 ${isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
-                    <div className="text-4xl mb-2 audit-celebrate">🎉</div>
-                    <p className={`font-bold text-lg ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                        Perfekte Übereinstimmung!
-                    </p>
-                    <p className={`text-sm mt-1 ${isDark ? 'text-emerald-400/60' : 'text-emerald-600/60'}`}>
-                        Alle Bestände stimmen exakt überein.
-                    </p>
+                <div className={`relative rounded-2xl border p-6 text-center overflow-hidden ${isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <ConfettiBurst />
+                    <div className="relative z-20 text-4xl mb-2 audit-celebrate">🎉</div>
+                    <p className={`relative z-20 font-bold text-lg ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>Perfekte Übereinstimmung!</p>
                 </div>
             )}
 
@@ -815,9 +901,11 @@ const AuditCartItem: React.FC<AuditCartItemProps> = ({
         if (Math.abs(swipeX) > swipeThreshold) {
             if (swipeX < -swipeThreshold) {
                 // Swiped LEFT → Remove
+                if (navigator.vibrate) navigator.vibrate(15);
                 onRemove(item.id);
             } else if (swipeX > swipeThreshold) {
                 // Swiped RIGHT → Toggle note
+                if (navigator.vibrate) navigator.vibrate(10);
                 onToggleNote(item.id);
             }
         }
@@ -878,7 +966,7 @@ const AuditCartItem: React.FC<AuditCartItemProps> = ({
                     {/* Quantity stepper */}
                     <div className="flex items-center gap-1 shrink-0">
                         <button
-                            onClick={() => onUpdateQty(item.id, Math.max(0, item.countedQty - 1))}
+                            onClick={() => { onUpdateQty(item.id, Math.max(0, item.countedQty - 1)); if (navigator.vibrate) navigator.vibrate(5); }}
                             className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg transition-all active:scale-90 ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                                 }`}
                         >
@@ -911,7 +999,7 @@ const AuditCartItem: React.FC<AuditCartItemProps> = ({
                         )}
 
                         <button
-                            onClick={() => onUpdateQty(item.id, item.countedQty + 1)}
+                            onClick={() => { onUpdateQty(item.id, item.countedQty + 1); if (navigator.vibrate) navigator.vibrate(5); }}
                             className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg bg-[#0077B5] text-white hover:bg-[#006399] transition-all active:scale-90"
                         >
                             <Plus size={18} />
@@ -1036,6 +1124,7 @@ const AuditCart: React.FC<AuditCartProps> = ({
             ...session,
             items: [...session.items, newItem],
         });
+        if (navigator.vibrate) navigator.vibrate(10);
         setSearchTerm('');
         setShowDropdown(false);
         // Re-focus search for rapid entry
@@ -1154,10 +1243,12 @@ const AuditCart: React.FC<AuditCartProps> = ({
                                                 )}
                                             </div>
                                         </div>
-                                        <div className={`text-right shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                            <div className="text-xs font-bold">Bestand</div>
-                                            <div className="font-mono font-bold text-sm">{item.stockLevel}</div>
-                                        </div>
+                                        {!session.blindMode && (
+                                            <div className={`text-right shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                <div className="text-xs font-bold">Bestand</div>
+                                                <div className="font-mono font-bold text-sm">{item.stockLevel}</div>
+                                            </div>
+                                        )}
                                     </div>
                                 </button>
                             ))
@@ -1388,9 +1479,13 @@ const AuditReview: React.FC<AuditReviewProps> = ({ theme, session, currentUser, 
             </div>
 
             {isPerfect && (
-                <div className={`rounded-2xl border p-6 text-center ${isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
-                    <div className="text-4xl mb-2">🎉</div>
-                    <p className={`font-bold text-lg ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>Perfekte Übereinstimmung!</p>
+                <div className={`relative rounded-2xl border p-6 text-center overflow-hidden audit-fade-up-1 ${isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <ConfettiBurst />
+                    <div className="relative z-20 text-4xl mb-2 audit-celebrate">🎉</div>
+                    <p className={`relative z-20 font-bold text-lg ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>Perfekte Übereinstimmung!</p>
+                    <p className={`relative z-20 text-sm mt-1 ${isDark ? 'text-emerald-400/60' : 'text-emerald-600/60'}`}>
+                        Alle Bestände stimmen exakt überein.
+                    </p>
                 </div>
             )}
 
@@ -1497,7 +1592,7 @@ interface AuditSetupProps {
     inventory: StockItem[];
     currentUser: AuthUser | null;
     onBack: () => void;
-    onStart: (name: string, warehouse: string, mode: AuditMode) => void;
+    onStart: (name: string, warehouse: string, mode: AuditMode, blindMode: boolean) => void;
 }
 
 const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, onBack, onStart }) => {
@@ -1507,6 +1602,7 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
     const [name, setName] = useState('');
     const [warehouse, setWarehouse] = useState('');
     const [mode, setMode] = useState<AuditMode>('quick');
+    const [blindMode, setBlindMode] = useState(false);
 
     // Derive unique warehouse locations from inventory
     const warehouseOptions = [...new Set(
@@ -1656,9 +1752,30 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
                 </div>
             </div>
 
+            {/* Blind Mode Toggle */}
+            <div className={`flex items-center justify-between rounded-2xl border p-4 ${cardBg}`}>
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl ${blindMode ? 'bg-[#0077B5]/20' : isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                        {blindMode ? <EyeOff size={18} className="text-[#0077B5]" /> : <Eye size={18} className={isDark ? 'text-slate-400' : 'text-slate-500'} />}
+                    </div>
+                    <div>
+                        <div className="text-sm font-bold">Blindmodus</div>
+                        <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Erwartete Mengen erst am Ende zeigen
+                        </div>
+                    </div>
+                </div>
+                <button
+                    onClick={() => setBlindMode(!blindMode)}
+                    className={`relative w-12 h-7 rounded-full transition-colors ${blindMode ? 'bg-[#0077B5]' : isDark ? 'bg-slate-700' : 'bg-slate-300'}`}
+                >
+                    <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${blindMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+            </div>
+
             {/* Start Button */}
             <button
-                onClick={() => canStart && onStart(name.trim(), warehouse.trim(), mode)}
+                onClick={() => canStart && onStart(name.trim(), warehouse.trim(), mode, blindMode)}
                 disabled={!canStart}
                 className={`w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 ${canStart
                     ? 'bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98]'
