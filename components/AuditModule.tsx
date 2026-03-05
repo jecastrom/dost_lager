@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
     ClipboardCheck, Plus, Zap, ShieldCheck, MapPin,
     Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight,
-    ArrowLeft, Search
+    ArrowLeft, Search, X, Minus, StickyNote, ShoppingCart,
+    Hash, Package
 } from 'lucide-react';
-import { Theme, ActiveModule, AuditSession, AuditMode, StockItem, AuthUser } from '../types';
+import { Theme, ActiveModule, AuditSession, AuditItem, AuditMode, StockItem, AuthUser } from '../types';
 
 // ═══════════════════════════════════════════════════════════
 // SUB-VIEW TYPE — controls which screen is displayed
 // ═══════════════════════════════════════════════════════════
-type AuditView = 'landing' | 'setup';
+type AuditView = 'landing' | 'setup' | 'cart';
 
 // ═══════════════════════════════════════════════════════════
 // PROPS
@@ -48,6 +49,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
 
     const [view, setView] = useState<AuditView>('landing');
     const [searchTerm, setSearchTerm] = useState('');
+    const [activeSession, setActiveSession] = useState<AuditSession | null>(null);
 
     // ── Derived data ──
     const activeCount = auditSessions.filter(s => s.status === 'in-progress').length;
@@ -154,8 +156,8 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                             onChange={e => setSearchTerm(e.target.value)}
                             placeholder="Inventur suchen…"
                             className={`w-full pl-10 pr-4 py-3 rounded-xl border text-sm transition-colors ${isDark
-                                    ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus:border-slate-700'
-                                    : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#0077B5]/30'
+                                ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus:border-slate-700'
+                                : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#0077B5]/30'
                                 } focus:outline-none focus:ring-2 focus:ring-[#0077B5]/20`}
                         />
                     </div>
@@ -246,15 +248,462 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                 currentUser={currentUser}
                 onBack={() => setView('landing')}
                 onStart={(name, warehouse, mode) => {
-                    // TODO: Create session and enter cart view — wired in Step 7
-                    console.log('[Audit] Start:', { name, warehouse, mode });
-                    setView('landing'); // Temporary: return to landing
+                    const session: AuditSession = {
+                        id: crypto.randomUUID(),
+                        name,
+                        mode,
+                        status: 'in-progress',
+                        warehouse,
+                        items: [],
+                        createdAt: Date.now(),
+                        createdBy: currentUser?.userId || 'unknown',
+                        createdByName: currentUser?.displayName || 'Unbekannt',
+                        docType: 'audit-session',
+                    };
+                    setActiveSession(session);
+                    setView('cart');
+                }}
+            />
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // CART VIEW — The shopping cart counting experience
+    // ═══════════════════════════════════════════════════════
+    if (view === 'cart' && activeSession) {
+        return (
+            <AuditCart
+                theme={theme}
+                session={activeSession}
+                inventory={inventory}
+                onUpdateSession={setActiveSession}
+                onFinish={() => {
+                    // TODO: Navigate to summary — wired in Step 9
+                    console.log('[Audit] Finish:', activeSession);
+                    setView('landing');
+                }}
+                onCancel={() => {
+                    setActiveSession(null);
+                    setView('landing');
                 }}
             />
         );
     }
 
     return null;
+};
+
+// ═══════════════════════════════════════════════════════════
+// AUDIT CART ITEM — Extracted component (no hooks in .map)
+// ═══════════════════════════════════════════════════════════
+interface AuditCartItemProps {
+    item: AuditItem;
+    theme: Theme;
+    onUpdateQty: (id: string, qty: number) => void;
+    onRemove: (id: string) => void;
+    onToggleNote: (id: string) => void;
+    showNote: boolean;
+    onUpdateNote: (id: string, note: string) => void;
+}
+
+const AuditCartItem: React.FC<AuditCartItemProps> = ({
+    item, theme, onUpdateQty, onRemove, onToggleNote, showNote, onUpdateNote
+}) => {
+    const isDark = theme === 'dark';
+    const isSoft = theme === 'soft';
+    const [isEditing, setIsEditing] = useState(false);
+    const [editValue, setEditValue] = useState(String(item.countedQty));
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const cardBg = isDark ? 'bg-slate-900/50 border-slate-800' : isSoft ? 'bg-white/80 border-[#D4DDE2]' : 'bg-white border-slate-200';
+
+    const handleCommitEdit = () => {
+        const val = parseInt(editValue);
+        if (!isNaN(val) && val >= 0) {
+            onUpdateQty(item.id, val);
+        } else {
+            setEditValue(String(item.countedQty));
+        }
+        setIsEditing(false);
+    };
+
+    useEffect(() => {
+        if (isEditing && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+        }
+    }, [isEditing]);
+
+    return (
+        <div className={`rounded-2xl border p-4 transition-all ${cardBg}`}>
+            <div className="flex items-center gap-3">
+                {/* Product info */}
+                <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm truncate">{item.name}</div>
+                    <div className={`flex items-center gap-2 mt-0.5 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                        <span className="font-mono">{item.sku}</span>
+                        {item.warehouse && (
+                            <>
+                                <span>·</span>
+                                <span className="flex items-center gap-0.5"><MapPin size={10} />{item.warehouse}</span>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* Quantity stepper */}
+                <div className="flex items-center gap-1 shrink-0">
+                    <button
+                        onClick={() => onUpdateQty(item.id, Math.max(0, item.countedQty - 1))}
+                        className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg transition-all active:scale-90 ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            }`}
+                    >
+                        <Minus size={18} />
+                    </button>
+
+                    {isEditing ? (
+                        <input
+                            ref={inputRef}
+                            type="number"
+                            inputMode="numeric"
+                            value={editValue}
+                            onChange={e => setEditValue(e.target.value)}
+                            onBlur={handleCommitEdit}
+                            onKeyDown={e => { if (e.key === 'Enter') handleCommitEdit(); }}
+                            className={`w-16 h-11 rounded-xl text-center font-bold text-lg border-2 border-[#0077B5] outline-none ${isDark ? 'bg-slate-800 text-white' : 'bg-white text-slate-900'
+                                }`}
+                            min={0}
+                        />
+                    ) : (
+                        <button
+                            onClick={() => { setEditValue(String(item.countedQty)); setIsEditing(true); }}
+                            className={`w-16 h-11 rounded-xl flex items-center justify-center font-bold text-lg transition-colors ${isDark ? 'bg-slate-800/50 text-white hover:bg-slate-800' : 'bg-slate-50 text-slate-900 hover:bg-slate-100'
+                                }`}
+                            title="Menge direkt eingeben"
+                        >
+                            {item.countedQty}
+                        </button>
+                    )}
+
+                    <button
+                        onClick={() => onUpdateQty(item.id, item.countedQty + 1)}
+                        className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg bg-[#0077B5] text-white hover:bg-[#006399] transition-all active:scale-90"
+                    >
+                        <Plus size={18} />
+                    </button>
+                </div>
+
+                {/* Actions: note + remove */}
+                <div className="flex flex-col gap-1 shrink-0">
+                    <button
+                        onClick={() => onToggleNote(item.id)}
+                        className={`p-2 rounded-lg transition-colors ${item.note
+                            ? 'text-[#0077B5] bg-[#0077B5]/10'
+                            : isDark ? 'text-slate-600 hover:text-slate-400 hover:bg-slate-800' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'
+                            }`}
+                        title="Notiz"
+                    >
+                        <StickyNote size={14} />
+                    </button>
+                    <button
+                        onClick={() => onRemove(item.id)}
+                        className={`p-2 rounded-lg transition-colors ${isDark ? 'text-slate-600 hover:text-red-400 hover:bg-red-500/10' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
+                            }`}
+                        title="Entfernen"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Note field (expandable) */}
+            {showNote && (
+                <div className="mt-3 pt-3 border-t border-dashed" style={{ borderColor: isDark ? '#334155' : '#e2e8f0' }}>
+                    <input
+                        type="text"
+                        value={item.note || ''}
+                        onChange={e => onUpdateNote(item.id, e.target.value)}
+                        placeholder="Notiz hinzufügen…"
+                        className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark
+                            ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-600'
+                            : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400'
+                            } focus:outline-none focus:ring-2 focus:ring-[#0077B5]/20`}
+                    />
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════
+// AUDIT CART — Search, add items, count quantities
+// ═══════════════════════════════════════════════════════════
+interface AuditCartProps {
+    theme: Theme;
+    session: AuditSession;
+    inventory: StockItem[];
+    onUpdateSession: (session: AuditSession) => void;
+    onFinish: () => void;
+    onCancel: () => void;
+}
+
+const AuditCart: React.FC<AuditCartProps> = ({
+    theme, session, inventory, onUpdateSession, onFinish, onCancel
+}) => {
+    const isDark = theme === 'dark';
+    const isSoft = theme === 'soft';
+
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
+    const searchRef = useRef<HTMLInputElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // IDs already in cart — for filtering search results
+    const cartItemIds = useMemo(() => new Set(session.items.map(i => i.itemId)), [session.items]);
+
+    // Search results — filtered by term, exclude already-in-cart
+    const searchResults = useMemo(() => {
+        if (!searchTerm.trim()) return [];
+        const term = searchTerm.toLowerCase();
+        return inventory
+            .filter(i => !cartItemIds.has(i.id))
+            .filter(i =>
+                i.name.toLowerCase().includes(term) ||
+                i.sku.toLowerCase().includes(term) ||
+                (i.system && i.system.toLowerCase().includes(term)) ||
+                (i.manufacturer && i.manufacturer.toLowerCase().includes(term))
+            )
+            .slice(0, 8);
+    }, [searchTerm, inventory, cartItemIds]);
+
+    // Close dropdown on click outside
+    useEffect(() => {
+        const handleClick = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+                searchRef.current && !searchRef.current.contains(e.target as Node)) {
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, []);
+
+    const totalItems = session.items.reduce((sum, i) => sum + i.countedQty, 0);
+
+    const cardBg = isDark ? 'bg-slate-900/50 border-slate-800' : isSoft ? 'bg-white/80 border-[#D4DDE2]' : 'bg-white border-slate-200';
+
+    // ── Handlers ──
+    const addItem = (stockItem: StockItem) => {
+        const newItem: AuditItem = {
+            id: crypto.randomUUID(),
+            itemId: stockItem.id,
+            sku: stockItem.sku,
+            name: stockItem.name,
+            warehouse: stockItem.warehouseLocation || session.warehouse,
+            expectedQty: stockItem.stockLevel,
+            countedQty: 0,
+            variance: 0 - stockItem.stockLevel,
+        };
+        onUpdateSession({
+            ...session,
+            items: [...session.items, newItem],
+        });
+        setSearchTerm('');
+        setShowDropdown(false);
+        // Re-focus search for rapid entry
+        setTimeout(() => searchRef.current?.focus(), 100);
+    };
+
+    const updateQty = (id: string, qty: number) => {
+        onUpdateSession({
+            ...session,
+            items: session.items.map(i =>
+                i.id === id ? { ...i, countedQty: qty, variance: qty - i.expectedQty } : i
+            ),
+        });
+    };
+
+    const removeItem = (id: string) => {
+        onUpdateSession({
+            ...session,
+            items: session.items.filter(i => i.id !== id),
+        });
+        setExpandedNotes(prev => { const n = new Set(prev); n.delete(id); return n; });
+    };
+
+    const toggleNote = (id: string) => {
+        setExpandedNotes(prev => {
+            const n = new Set(prev);
+            if (n.has(id)) n.delete(id); else n.add(id);
+            return n;
+        });
+    };
+
+    const updateNote = (id: string, note: string) => {
+        onUpdateSession({
+            ...session,
+            items: session.items.map(i => i.id === id ? { ...i, note } : i),
+        });
+    };
+
+    return (
+        <div className="flex flex-col min-h-[calc(100vh-10rem)]">
+            {/* ── Header bar ── */}
+            <div className="flex items-center gap-3 mb-4">
+                <button
+                    onClick={onCancel}
+                    className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
+                        }`}
+                >
+                    <ArrowLeft size={20} />
+                </button>
+                <div className="flex-1 min-w-0">
+                    <h2 className="text-lg font-bold truncate">{session.name}</h2>
+                    <div className={`flex items-center gap-2 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                        <MapPin size={12} /> {session.warehouse}
+                        <span>·</span>
+                        <span className={`px-1.5 py-0.5 rounded font-bold uppercase text-[10px] ${session.mode === 'quick'
+                            ? isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600'
+                            : isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'
+                            }`}>
+                            {session.mode === 'quick' ? 'Schnell' : 'Normal'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Search bar + autocomplete ── */}
+            <div className="relative mb-4">
+                <Search size={18} className={`absolute left-3 top-1/2 -translate-y-1/2 z-10 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                <input
+                    ref={searchRef}
+                    type="text"
+                    value={searchTerm}
+                    onChange={e => { setSearchTerm(e.target.value); setShowDropdown(true); }}
+                    onFocus={() => searchTerm.trim() && setShowDropdown(true)}
+                    placeholder="Artikel suchen (Name, SKU, System)…"
+                    className={`w-full pl-10 pr-10 py-3.5 rounded-2xl border text-sm transition-colors ${isDark
+                        ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus:border-slate-700'
+                        : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#0077B5]/30'
+                        } focus:outline-none focus:ring-2 focus:ring-[#0077B5]/20`}
+                    inputMode="search"
+                    autoComplete="off"
+                />
+                {searchTerm && (
+                    <button
+                        onClick={() => { setSearchTerm(''); setShowDropdown(false); }}
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg ${isDark ? 'text-slate-500 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
+                    >
+                        <X size={16} />
+                    </button>
+                )}
+
+                {/* Autocomplete dropdown */}
+                {showDropdown && searchTerm.trim() && (
+                    <div
+                        ref={dropdownRef}
+                        className={`absolute top-full left-0 right-0 mt-1 rounded-xl border shadow-xl z-50 overflow-hidden max-h-80 overflow-y-auto ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                            }`}
+                    >
+                        {searchResults.length > 0 ? (
+                            searchResults.map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => addItem(item)}
+                                    className={`w-full text-left px-4 py-3 border-b last:border-b-0 transition-colors ${isDark ? 'border-slate-800 hover:bg-slate-800 active:bg-slate-700' : 'border-slate-100 hover:bg-slate-50 active:bg-slate-100'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-lg shrink-0 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                                            <Package size={16} className={isDark ? 'text-slate-400' : 'text-slate-500'} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-bold text-sm truncate">{item.name}</div>
+                                            <div className={`flex items-center gap-2 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                <span className="font-mono">{item.sku}</span>
+                                                {item.warehouseLocation && (
+                                                    <><span>·</span><span>{item.warehouseLocation}</span></>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className={`text-right shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            <div className="text-xs font-bold">Bestand</div>
+                                            <div className="font-mono font-bold text-sm">{item.stockLevel}</div>
+                                        </div>
+                                    </div>
+                                </button>
+                            ))
+                        ) : (
+                            <div className={`px-4 py-6 text-center text-sm ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+                                Kein Artikel gefunden für „{searchTerm}"
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* ── Cart items ── */}
+            <div className="flex-1 space-y-3 pb-28">
+                {session.items.length > 0 ? (
+                    session.items.map(item => (
+                        <AuditCartItem
+                            key={item.id}
+                            item={item}
+                            theme={theme}
+                            onUpdateQty={updateQty}
+                            onRemove={removeItem}
+                            onToggleNote={toggleNote}
+                            showNote={expandedNotes.has(item.id)}
+                            onUpdateNote={updateNote}
+                        />
+                    ))
+                ) : (
+                    <div className={`text-center py-20 rounded-2xl border border-dashed ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                        <ShoppingCart size={48} className={`mx-auto mb-4 ${isDark ? 'text-slate-700' : 'text-slate-300'}`} />
+                        <p className={`font-bold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Noch keine Artikel
+                        </p>
+                        <p className={`text-sm mt-1 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+                            Suche oben nach Artikeln und füge sie hinzu.
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* ── Sticky bottom bar ── */}
+            <div className={`fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-xl lg:left-[68px] ${isDark ? 'bg-[#1e293b]/95 border-slate-800' : isSoft ? 'bg-[#E2E7EB]/95 border-[#D4DDE2]' : 'bg-white/95 border-slate-200'
+                }`} style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center gap-4">
+                    {/* Stats */}
+                    <div className="flex-1">
+                        <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                            {session.items.length} Artikel · {totalItems} Stück gezählt
+                        </div>
+                        {session.items.length > 0 && (
+                            <div className={`w-full h-1 rounded-full mt-1.5 overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
+                                <div className="h-full rounded-full bg-[#0077B5] transition-all duration-500" style={{ width: `${Math.min(100, (session.items.length / Math.max(1, inventory.length)) * 100)}%` }} />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Finish button */}
+                    <button
+                        onClick={onFinish}
+                        disabled={session.items.length === 0}
+                        className={`px-6 py-3 rounded-2xl font-bold text-sm transition-all whitespace-nowrap ${session.items.length > 0
+                            ? 'bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl active:scale-[0.98]'
+                            : isDark
+                                ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            }`}
+                    >
+                        Fertig →
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -320,8 +769,8 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
                     onChange={e => setName(e.target.value)}
                     placeholder="z.B. Akku Service März 2026"
                     className={`w-full px-4 py-3 rounded-xl border text-sm transition-colors ${isDark
-                            ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus:border-slate-700'
-                            : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#0077B5]/30'
+                        ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus:border-slate-700'
+                        : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#0077B5]/30'
                         } focus:outline-none focus:ring-2 focus:ring-[#0077B5]/20`}
                     autoFocus
                 />
@@ -339,8 +788,8 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
                                 key={wh}
                                 onClick={() => setWarehouse(wh)}
                                 className={`px-4 py-3 rounded-xl border text-sm font-medium text-left transition-all ${warehouse === wh
-                                        ? 'bg-[#0077B5] text-white border-[#0077B5] shadow-md shadow-blue-500/20'
-                                        : `${cardBg} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`
+                                    ? 'bg-[#0077B5] text-white border-[#0077B5] shadow-md shadow-blue-500/20'
+                                    : `${cardBg} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`
                                     }`}
                             >
                                 <div className="flex items-center gap-2">
@@ -357,8 +806,8 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
                         onChange={e => setWarehouse(e.target.value)}
                         placeholder="Lagerort eingeben…"
                         className={`w-full px-4 py-3 rounded-xl border text-sm transition-colors ${isDark
-                                ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus:border-slate-700'
-                                : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#0077B5]/30'
+                            ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus:border-slate-700'
+                            : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#0077B5]/30'
                             } focus:outline-none focus:ring-2 focus:ring-[#0077B5]/20`}
                     />
                 )}
@@ -374,8 +823,8 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
                     <button
                         onClick={() => setMode('quick')}
                         className={`relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 ${mode === 'quick'
-                                ? 'bg-gradient-to-br from-[#0077B5]/10 to-[#00A0DC]/10 border-[#0077B5] shadow-lg shadow-blue-500/10 ring-2 ring-[#0077B5]/30'
-                                : `${cardBg} ${isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50'}`
+                            ? 'bg-gradient-to-br from-[#0077B5]/10 to-[#00A0DC]/10 border-[#0077B5] shadow-lg shadow-blue-500/10 ring-2 ring-[#0077B5]/30'
+                            : `${cardBg} ${isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50'}`
                             }`}
                     >
                         <div className="flex items-start gap-3">
@@ -400,8 +849,8 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
                     <button
                         onClick={() => setMode('normal')}
                         className={`relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 ${mode === 'normal'
-                                ? 'bg-gradient-to-br from-[#0077B5]/10 to-[#00A0DC]/10 border-[#0077B5] shadow-lg shadow-blue-500/10 ring-2 ring-[#0077B5]/30'
-                                : `${cardBg} ${isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50'}`
+                            ? 'bg-gradient-to-br from-[#0077B5]/10 to-[#00A0DC]/10 border-[#0077B5] shadow-lg shadow-blue-500/10 ring-2 ring-[#0077B5]/30'
+                            : `${cardBg} ${isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50'}`
                             }`}
                     >
                         <div className="flex items-start gap-3">
@@ -429,10 +878,10 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
                 onClick={() => canStart && onStart(name.trim(), warehouse.trim(), mode)}
                 disabled={!canStart}
                 className={`w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 ${canStart
-                        ? 'bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98]'
-                        : isDark
-                            ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    ? 'bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98]'
+                    : isDark
+                        ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                        : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                     }`}
             >
                 {mode === 'quick' ? 'Schnellzählung starten' : 'Inventur starten'}
