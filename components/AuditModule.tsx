@@ -25,6 +25,46 @@ interface AuditModuleProps {
 }
 
 // ═══════════════════════════════════════════════════════════
+// ANIMATIONS
+// ═══════════════════════════════════════════════════════════
+const AuditAnimations = () => (
+    <style>{`
+        @keyframes audit-card-in {
+            0% { opacity: 0; transform: translateY(-12px) scale(0.97); }
+            60% { opacity: 1; transform: translateY(3px) scale(1.01); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes audit-fade-up {
+            0% { opacity: 0; transform: translateY(16px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes audit-qty-flash {
+            0% { background-color: rgba(0, 119, 181, 0.2); }
+            100% { background-color: transparent; }
+        }
+        @keyframes audit-count-in {
+            0% { opacity: 0; transform: scale(0.5); }
+            60% { transform: scale(1.1); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes audit-celebrate {
+            0% { opacity: 0; transform: scale(0.3) rotate(-10deg); }
+            50% { transform: scale(1.15) rotate(3deg); }
+            100% { opacity: 1; transform: scale(1) rotate(0deg); }
+        }
+        .audit-card-enter { animation: audit-card-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+        .audit-fade-up { animation: audit-fade-up 0.4s ease-out both; }
+        .audit-fade-up-1 { animation: audit-fade-up 0.4s ease-out 0.05s both; }
+        .audit-fade-up-2 { animation: audit-fade-up 0.4s ease-out 0.1s both; }
+        .audit-fade-up-3 { animation: audit-fade-up 0.4s ease-out 0.15s both; }
+        .audit-fade-up-4 { animation: audit-fade-up 0.4s ease-out 0.2s both; }
+        .audit-qty-flash { animation: audit-qty-flash 0.4s ease-out; }
+        .audit-count-in { animation: audit-count-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+        .audit-celebrate { animation: audit-celebrate 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    `}</style>
+);
+
+// ═══════════════════════════════════════════════════════════
 // STATUS HELPERS
 // ═══════════════════════════════════════════════════════════
 const STATUS_CONFIG: Record<string, { label: string; color: string; darkColor: string; icon: React.ElementType }> = {
@@ -102,6 +142,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
     if (view === 'landing') {
         return (
             <div className="space-y-6">
+                <AuditAnimations />
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -537,23 +578,24 @@ const AuditSummary: React.FC<AuditSummaryProps> = ({ theme, session, onBack, onS
             </div>
 
             {/* Overall Stats Card */}
-            <div className={`rounded-2xl border p-5 ${cardBg}`}>
+            <div className={`rounded-2xl border p-5 audit-fade-up ${cardBg}`}>
                 <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
-                        <div className={`text-2xl font-bold font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{session.items.length}</div>
+                        <div className={`text-2xl font-bold font-mono audit-count-in ${isDark ? 'text-white' : 'text-slate-900'}`}>{session.items.length}</div>
                         <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Artikel</div>
                     </div>
                     <div>
-                        <div className={`text-2xl font-bold font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{totalCounted}</div>
+                        <div className={`text-2xl font-bold font-mono audit-count-in ${isDark ? 'text-white' : 'text-slate-900'}`} style={{ animationDelay: '0.1s' }}>{totalCounted}</div>
                         <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Gezählt</div>
                     </div>
                     <div>
-                        <div className={`text-2xl font-bold font-mono ${totalVariance === 0
-                            ? isDark ? 'text-emerald-400' : 'text-emerald-600'
-                            : totalVariance > 0
-                                ? isDark ? 'text-amber-400' : 'text-amber-600'
-                                : isDark ? 'text-red-400' : 'text-red-600'
-                            }`}>
+                        <div className={`text-2xl font-bold font-mono audit-count-in ${
+                            totalVariance === 0
+                                ? isDark ? 'text-emerald-400' : 'text-emerald-600'
+                                : totalVariance > 0
+                                    ? isDark ? 'text-amber-400' : 'text-amber-600'
+                                    : isDark ? 'text-red-400' : 'text-red-600'
+                        }`} style={{ animationDelay: '0.2s' }}>
                             {totalVariance > 0 ? '+' : ''}{totalVariance}
                         </div>
                         <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Differenz</div>
@@ -582,8 +624,8 @@ const AuditSummary: React.FC<AuditSummaryProps> = ({ theme, session, onBack, onS
 
             {/* Perfect match celebration */}
             {isPerfect && (
-                <div className={`rounded-2xl border p-6 text-center ${isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
-                    <div className="text-4xl mb-2">🎉</div>
+                <div className={`rounded-2xl border p-6 text-center audit-fade-up-1 ${isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <div className="text-4xl mb-2 audit-celebrate">🎉</div>
                     <p className={`font-bold text-lg ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
                         Perfekte Übereinstimmung!
                     </p>
@@ -595,7 +637,7 @@ const AuditSummary: React.FC<AuditSummaryProps> = ({ theme, session, onBack, onS
 
             {/* Shortages (red) — show first, most important */}
             {shortages.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-2 audit-fade-up-2">
                     <h3 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${isDark ? 'text-red-400' : 'text-red-600'}`}>
                         <AlertTriangle size={14} /> Fehlmengen ({shortages.length})
                     </h3>
@@ -605,7 +647,7 @@ const AuditSummary: React.FC<AuditSummaryProps> = ({ theme, session, onBack, onS
 
             {/* Overages (amber) */}
             {overages.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-2 audit-fade-up-3">
                     <h3 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
                         <Plus size={14} /> Übermengen ({overages.length})
                     </h3>
@@ -615,7 +657,7 @@ const AuditSummary: React.FC<AuditSummaryProps> = ({ theme, session, onBack, onS
 
             {/* Matches (green) */}
             {matches.length > 0 && !isPerfect && (
-                <div className="space-y-2">
+                <div className="space-y-2 audit-fade-up-4">
                     <h3 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
                         <CheckCircle2 size={14} /> Übereinstimmung ({matches.length})
                     </h3>
@@ -704,6 +746,16 @@ const AuditCartItem: React.FC<AuditCartItemProps> = ({
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState(String(item.countedQty));
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Quantity flash animation
+    const [flashKey, setFlashKey] = useState(0);
+    const prevQtyRef = useRef(item.countedQty);
+    useEffect(() => {
+        if (item.countedQty !== prevQtyRef.current) {
+            setFlashKey(k => k + 1);
+            prevQtyRef.current = item.countedQty;
+        }
+    }, [item.countedQty]);
 
     // Swipe gesture state
     const [swipeX, setSwipeX] = useState(0);
@@ -848,8 +900,9 @@ const AuditCartItem: React.FC<AuditCartItemProps> = ({
                             />
                         ) : (
                             <button
+                                key={flashKey}
                                 onClick={() => { setEditValue(String(item.countedQty)); setIsEditing(true); }}
-                                className={`w-16 h-11 rounded-xl flex items-center justify-center font-bold text-lg transition-colors ${isDark ? 'bg-slate-800/50 text-white hover:bg-slate-800' : 'bg-slate-50 text-slate-900 hover:bg-slate-100'
+                                className={`w-16 h-11 rounded-xl flex items-center justify-center font-bold text-lg transition-colors audit-qty-flash ${isDark ? 'bg-slate-800/50 text-white hover:bg-slate-800' : 'bg-slate-50 text-slate-900 hover:bg-slate-100'
                                     }`}
                                 title="Menge direkt eingeben"
                             >
@@ -1120,7 +1173,8 @@ const AuditCart: React.FC<AuditCartProps> = ({
             {/* ── Cart items ── */}
             <div className="flex-1 space-y-3 pb-28">
                 {session.items.length > 0 ? (
-                    session.items.map(item => (
+                    session.items.map((item, idx) => (
+                        <div key={item.id} className="audit-card-enter" style={{ animationDelay: `${Math.min(idx * 0.03, 0.3)}s` }}>
                         <AuditCartItem
                             key={item.id}
                             item={item}
@@ -1131,6 +1185,7 @@ const AuditCart: React.FC<AuditCartProps> = ({
                             showNote={expandedNotes.has(item.id)}
                             onUpdateNote={updateNote}
                         />
+                        </div>
                     ))
                 ) : (
                     <div className={`text-center py-20 rounded-2xl border border-dashed ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
