@@ -7,7 +7,7 @@ import {
   Package, ClipboardList, Search, BarChart3, Users, Ticket, Eye,
   Sparkles, Calendar, Lock, History, Layers, ChevronDown, ChevronUp,
   Star, Zap, Hash, MapPin, AlertCircle, XCircle, PlusCircle,
-  Cloud, CloudOff, WifiOff, Server, HardDrive, Wifi
+  Cloud, CloudOff, WifiOff, Server, HardDrive, Wifi, ClipboardCheck, Bell
 } from 'lucide-react';
 
 interface DocumentationPageProps {
@@ -15,7 +15,7 @@ interface DocumentationPageProps {
   onBack: () => void;
 }
 
-type DocSection = 'intro' | 'modules' | 'orders' | 'receipt' | 'datamodel' | 'logic' | 'statuses' | 'settings' | 'cloud' | 'offline';
+type DocSection = 'intro' | 'modules' | 'orders' | 'receipt' | 'audit' | 'datamodel' | 'logic' | 'statuses' | 'settings' | 'cloud' | 'offline';
 type Lang = 'de' | 'en';
 
 export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onBack }) => {
@@ -42,6 +42,7 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
     { id: 'modules', label: t('Module', 'Modules'), icon: <Layers size={16} /> },
     { id: 'orders', label: t('Bestellungen', 'Orders'), icon: <FileText size={16} /> },
     { id: 'receipt', label: t('Wareneingang', 'Goods Receipt'), icon: <ClipboardList size={16} /> },
+    { id: 'audit', label: t('Inventur', 'Audit'), icon: <ClipboardCheck size={16} /> },
     { id: 'datamodel', label: t('Daten-Modell', 'Data Model'), icon: <Database size={16} /> },
     { id: 'logic', label: t('Geschäftslogik', 'Business Logic'), icon: <Calculator size={16} /> },
     { id: 'statuses', label: t('Status System', 'Status System'), icon: <GitBranch size={16} /> },
@@ -419,7 +420,8 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
 
           <Collapsible id="mod-stocklog" title={t('Lagerprotokoll', 'Stock Logs')} icon={<History size={20} />}>
             <div className="space-y-2 text-xs">
-              <p>{t('Chronologisches Protokoll aller Bestandsbewegungen. Filtert nach Zeitraum, Benutzer, Vorgang. Zeigt Quelle (Wareneingang, Manuelle Korrektur, Rücksendung) und Kontext (Normal, Projekt). Persistiert in localStorage (max. 500 Einträge).', 'Chronological log of all stock movements. Filters by period, user, action. Shows source (goods receipt, manual correction, return) and context (normal, project). Persisted in localStorage (max 500 entries).')}</p>
+              <p>{t('Chronologisches Protokoll aller Bestandsbewegungen. 5 Filter-Tabs: Alle, Manuell, PO-Normal, PO-Projekt, Inventur. Zeigt Quelle, Kontext und bei Inventur-Einträgen auch Zähler/Genehmiger.', 'Chronological log of all stock movements. 5 filter tabs: All, Manual, PO-Normal, PO-Project, Audit. Shows source, context and for audit entries also counter/approver.')}</p>
+              <p><strong>{t('Inventur-Einträge', 'Audit Entries')}:</strong> {t('Lila SCHNELL/INVENTUR-Badge, rotes ABSCHREIBUNG-Badge bei write-off. Referenz zeigt Inventur-Name. Zusätzliche Zeile "Genehmigt von" (Normal) oder "Gezählt von" (Schnell).', 'Purple SCHNELL/INVENTUR badge, red ABSCHREIBUNG badge for write-offs. Reference shows audit name. Additional line "Approved by" (Normal) or "Counted by" (Quick).')}</p>
               <p><strong>{t('Komponente', 'Component')}:</strong> <TechBadge label="StockLogView.tsx" /></p>
             </div>
           </Collapsible>
@@ -548,6 +550,180 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
       )}
 
       {/* ═══════════════════════════════════════════════════════
+          SECTION: INVENTUR (AUDIT MODULE)
+          ═══════════════════════════════════════════════════════ */}
+      {activeSection === 'audit' && (
+        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+          <div>
+            <h2 className="text-2xl font-bold mb-2">{t('Inventur — Bestandszählung', 'Audit — Inventory Count')}</h2>
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              {t(
+                'Shopping-Cart-Erlebnis für Bestandszählungen. Zwei Modi (Schnell / Normal), Offline-fähig, mit Genehmigungsworkflow und vollständiger Rückverfolgbarkeit im Lagerprotokoll.',
+                'Shopping cart experience for inventory counts. Two modes (Quick / Normal), offline-capable, with approval workflow and full traceability in the stock log.'
+              )}
+            </p>
+          </div>
+
+          <DocCard title={t('Konzept: Baue was du findest', 'Concept: Build What You Find')} icon={<ClipboardCheck size={20} />}>
+            <div className="space-y-2 text-xs">
+              <p>{t(
+                'Keine vorausgefüllten Listen, keine erwarteten Mengen vorab. Der Zähler startet mit einem leeren "Warenkorb", sucht Artikel per Name/SKU/System, fügt sie einzeln hinzu und gibt die tatsächlich gezählte Menge ein. Erst in der Zusammenfassung zeigt die App die Abweichungen — sauber, überraschungsfrei.',
+                'No pre-filled lists, no expected quantities upfront. The counter starts with an empty "cart", searches items by name/SKU/system, adds them one by one and enters the actually counted quantity. Only in the summary does the app reveal variances — clean, surprise-free.'
+              )}</p>
+            </div>
+          </DocCard>
+
+          <DocCard title={t('Zwei Modi', 'Two Modes')} icon={<Zap size={20} />}>
+            <div className="space-y-3 text-xs">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap size={14} className="text-amber-500" />
+                  <strong>{t('Schnellzählung (Quick Count)', 'Quick Count')}</strong>
+                </div>
+                <p>{t(
+                  'Schnell, ohne Drama. Zählen → Zusammenfassung → sofort buchen. Bestand wird direkt aktualisiert. Übermengen als Zugang, Fehlmengen als Abschreibung (write-off) im Lagerprotokoll.',
+                  'Fast, no drama. Count → summary → instant booking. Stock updated immediately. Overages as additions, shortages as write-offs in the stock log.'
+                )}</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Shield size={14} className="text-blue-500" />
+                  <strong>{t('Normale Inventur (Normal Audit)', 'Normal Audit')}</strong>
+                </div>
+                <p>{t(
+                  'Für offizielle Zählungen mit Vier-Augen-Prinzip. Zählen → Zusammenfassung → zur Prüfung einreichen → Manager prüft Abweichungen → genehmigt oder lehnt ab. Erst nach Genehmigung wird der Bestand aktualisiert.',
+                  'For official counts with four-eyes principle. Count → summary → submit for review → manager reviews variances → approves or rejects. Stock is only updated after approval.'
+                )}</p>
+              </div>
+            </div>
+          </DocCard>
+
+          <DocCard title={t('Ablauf — Schritt für Schritt', 'Flow — Step by Step')} icon={<ArrowRight size={20} />}>
+            <div className="space-y-3 text-xs">
+              <div>
+                <strong>{t('1. Setup', '1. Setup')}</strong>
+                <p>{t(
+                  'Bezeichnung eingeben (z.B. "Akku Service März 2026"), Lager/Standort wählen (Grid-Picker aus vorhandenen Lagerorten), Modus wählen (Schnell/Normal), optional Blindmodus aktivieren.',
+                  'Enter name (e.g. "Akku Service März 2026"), pick warehouse/location (grid picker from existing locations), choose mode (Quick/Normal), optionally enable blind mode.'
+                )}</p>
+              </div>
+              <div>
+                <strong>{t('2. Zählung — Warenkorb', '2. Counting — Shopping Cart')}</strong>
+                <p>{t(
+                  'Leerer Warenkorb mit Suchleiste oben. Artikelsuche per Name, SKU, System, Hersteller (Live-Autocomplete). Antippen fügt Artikel als Karte hinzu. Pro Karte: Produktinfo, große +/−-Stepper (Daumen-freundlich, 44px), Direkteingabe per Tipp auf die Zahl, Notiz-Toggle, Entfernen-Button. Swipe-Gesten: links = entfernen, rechts = Notiz.',
+                  'Empty cart with search bar on top. Search by name, SKU, system, manufacturer (live autocomplete). Tapping adds item as a card. Per card: product info, large +/− steppers (thumb-friendly, 44px), direct entry by tapping the number, note toggle, remove button. Swipe gestures: left = remove, right = note.'
+                )}</p>
+              </div>
+              <div>
+                <strong>{t('3. Zusammenfassung — Die Enthüllung', '3. Summary — The Reveal')}</strong>
+                <p>{t(
+                  'Übersichtskarte mit Gesamtzahlen (Artikel, Gezählt, Differenz). Kategorisierung: Grün (Übereinstimmung), Orange (Übermenge), Rot (Fehlmenge). Jede Abweichung aufklappbar mit Details. Bei Schnellzählung: "Bestand aktualisieren" (mit Bestätigungsdialog bei Fehlmengen). Bei Normal: "Zur Prüfung einreichen".',
+                  'Stats card with totals (items, counted, variance). Categorization: green (match), orange (overage), red (shortage). Each variance expandable with details. Quick count: "Update stock" (with confirmation dialog for shortages). Normal: "Submit for review".'
+                )}</p>
+              </div>
+              <div>
+                <strong>{t('4. Prüfung (nur Normal-Modus)', '4. Review (Normal mode only)')}</strong>
+                <p>{t(
+                  'Manager sieht die gleiche Zusammenfassung wie der Zähler. Meta-Daten: Wer hat gezählt, wann, welcher Modus. Optionaler Prüfkommentar. Genehmigen → Bestand wird aktualisiert + Lagerprotokoll-Einträge erstellt. Ablehnen → Keine Bestandsänderung, Zähler wird benachrichtigt.',
+                  'Manager sees the same summary as the counter. Metadata: who counted, when, which mode. Optional review comment. Approve → stock updated + stock log entries created. Reject → no stock change, counter gets notified.'
+                )}</p>
+              </div>
+            </div>
+          </DocCard>
+
+          <DocCard title={t('Blindmodus', 'Blind Mode')} icon={<Eye size={20} />}>
+            <div className="space-y-2 text-xs">
+              <p>{t(
+                'Optional beim Setup aktivierbar. Verbirgt die erwarteten Bestandsmengen während der gesamten Zählung — die "Bestand"-Spalte in den Suchergebnissen wird ausgeblendet. Der Zähler arbeitet ohne Vorwissen über Soll-Mengen. Erst in der Zusammenfassung werden Erwartet vs. Gezählt offengelegt. Verhindert bestätigungsverzerrte Zählungen.',
+                'Optionally enabled during setup. Hides expected stock quantities throughout the entire count — the "Stock" column in search results is hidden. Counter works without prior knowledge of expected quantities. Only the summary reveals expected vs. counted. Prevents confirmation-biased counts.'
+              )}</p>
+            </div>
+          </DocCard>
+
+          <DocCard title={t('Warenkorb-UX — Premium-Feeling', 'Cart UX — Premium Feel')} icon={<Package size={20} />}>
+            <div className="space-y-2 text-xs">
+              <p><strong>{t('Gesten', 'Gestures')}:</strong> {t('Swipe links = Artikel entfernen (rote Hintergrundaktion). Swipe rechts = Notiz ein/ausblenden (blaue Hintergrundaktion). 40px Totes-Zone verhindert Fehlauslösung. Vertikales Scrollen hat Priorität.', 'Swipe left = remove item (red background action). Swipe right = toggle note (blue background action). 40px dead zone prevents accidental triggers. Vertical scrolling has priority.')}</p>
+              <p><strong>{t('Animationen', 'Animations')}:</strong> {t('Karten-Eingangs-Bounce beim Hinzufügen. Mengen-Blitz (blauer Puls) bei +/−. Zusammenfassung: gestaffelte Fade-Up-Einblendung der Abschnitte. Stat-Zahlen: Pop-In mit Verzögerung. Konfetti-Partikel bei perfekter Übereinstimmung.', 'Card entrance bounce on add. Quantity flash (blue pulse) on +/−. Summary: staggered fade-up of sections. Stat numbers: pop-in with delay. Confetti particles on perfect match.')}</p>
+              <p><strong>{t('Haptik', 'Haptics')}:</strong> {t('Vibrationsfeedback (Android): 5ms bei +/−, 10ms bei Hinzufügen, 15ms bei Swipe-Entfernen. iOS: Kein navigator.vibrate — visuelle Animationen kompensieren (active:scale-90, Mengen-Blitz).', 'Vibration feedback (Android): 5ms on +/−, 10ms on add, 15ms on swipe remove. iOS: no navigator.vibrate — visual animations compensate (active:scale-90, quantity flash).')}</p>
+              <p><strong>{t('Bodenleiste', 'Bottom Bar')}:</strong> {t('Fixiert, mit Artikelanzahl, Stück-Gesamt, Fortschrittsbalken, "Fertig →"-Button. Berücksichtigt safe-area-inset und Sidebar-Offset auf Desktop.', 'Fixed, with item count, piece total, progress bar, "Done →" button. Accounts for safe-area-inset and sidebar offset on desktop.')}</p>
+            </div>
+          </DocCard>
+
+          <DocCard title={t('Lagerprotokoll-Integration', 'Stock Log Integration')} icon={<History size={20} />}>
+            <div className="space-y-2 text-xs">
+              <p>{t(
+                'Jede genehmigte Inventur (Schnell oder Normal) erzeugt Einträge im Lagerprotokoll (StockLogView). Neue Felder auf StockLog:',
+                'Every approved audit (Quick or Normal) generates entries in the stock log (StockLogView). New fields on StockLog:'
+              )}</p>
+              <div className="space-y-1 ml-2 font-mono text-[10px]">
+                <div>action: 'add' | 'remove' | <strong>'write-off'</strong> — {t('Abschreibung bei Fehlmengen', 'Write-off for shortages')}</div>
+                <div>context: ... | <strong>'audit-quick'</strong> | <strong>'audit-normal'</strong></div>
+                <div>auditSessionId?: string — {t('FK zur AuditSession', 'FK to AuditSession')}</div>
+                <div>auditSessionName?: string — {t('z.B. "Akku Service März 2026"', 'e.g. "Akku Service March 2026"')}</div>
+                <div>countedByName?: string — {t('Wer hat gezählt', 'Who counted')}</div>
+                <div>approvedByName?: string — {t('Wer hat genehmigt (nur Normal)', 'Who approved (Normal only)')}</div>
+              </div>
+              <p>{t(
+                'Neuer "Inventur"-Filter-Tab im Lagerprotokoll. Lila SCHNELL/INVENTUR-Badge und rotes ABSCHREIBUNG-Badge. Referenz-Spalte zeigt Inventur-Name + Genehmiger.',
+                'New "Inventur" filter tab in stock log. Purple SCHNELL/INVENTUR badge and red ABSCHREIBUNG badge. Reference column shows audit name + approver.'
+              )}</p>
+            </div>
+          </DocCard>
+
+          <DocCard title={t('Benachrichtigungen', 'Notifications')} icon={<Bell size={20} />}>
+            <div className="space-y-2 text-xs">
+              <p>{t(
+                'Glocken-Icon im Header mit rotem Badge für ungelesene Benachrichtigungen. Dropdown-Panel mit Benachrichtigungsliste. Automatisch generierte Benachrichtigungen bei Audit-Events:',
+                'Bell icon in header with red badge for unread notifications. Dropdown panel with notification list. Auto-generated notifications from audit events:'
+              )}</p>
+              <div className="space-y-1 ml-2">
+                <div>• <strong>{t('Zur Prüfung eingereicht', 'Submitted for review')}:</strong> {t('"[Name] hat Inventur zur Prüfung eingereicht"', '"[Name] submitted audit for review"')}</div>
+                <div>• <strong>{t('Genehmigt', 'Approved')}:</strong> {t('"Inventur genehmigt von [Manager]. Bestand aktualisiert."', '"Audit approved by [Manager]. Stock updated."')}</div>
+                <div>• <strong>{t('Abgelehnt', 'Rejected')}:</strong> {t('"Inventur abgelehnt von [Manager]." + optionaler Kommentar', '"Audit rejected by [Manager]." + optional comment')}</div>
+              </div>
+              <p>{t('Persistiert in localStorage (max. 50). Tipp auf Benachrichtigung → markiert als gelesen + navigiert zum Inventur-Modul. "Alle gelesen"-Button zum Zurücksetzen.', 'Persisted in localStorage (max 50). Tapping notification → marks as read + navigates to audit module. "Mark all read" button to reset.')}</p>
+            </div>
+          </DocCard>
+
+          <DocCard title={t('Technische Architektur', 'Technical Architecture')} icon={<Database size={20} />}>
+            <div className="space-y-2 text-xs">
+              <p><strong>{t('Cosmos DB Container', 'Cosmos DB Container')}:</strong> <TechBadge label="audits" /> ({t('Partition Key: /id', 'Partition key: /id')})</p>
+              <p><strong>{t('API Endpunkt', 'API Endpoint')}:</strong> <TechBadge label="/api/audits" /> — GET, POST, PUT, DELETE. {t('Filter: ?status=, ?createdBy=. Server-seitig stripMeta().', 'Filters: ?status=, ?createdBy=. Server-side stripMeta().')}</p>
+              <p><strong>{t('Frontend Service', 'Frontend Service')}:</strong> <TechBadge label="auditsApi" /> {t('in api.ts — getAll, getByStatus, getByCreator, getById, upsert, delete.', 'in api.ts — getAll, getByStatus, getByCreator, getById, upsert, delete.')}</p>
+              <p><strong>{t('Offline', 'Offline')}:</strong> {t('IndexedDB v3 mit "audits" Object Store. Beim Start über loadAllData() geladen. Sync-Polling erfasst neue Sitzungen von anderen Geräten.', 'IndexedDB v3 with "audits" object store. Loaded on start via loadAllData(). Sync polling picks up new sessions from other devices.')}</p>
+              <p><strong>{t('State', 'State')}:</strong> <TechBadge label="auditSessions" /> {t('in App.tsx. Handler: handleAuditComplete() — verarbeitet Schnellzählung (sofort) und Genehmigung (nach Review). Verwendet markWrite() für K14-Schutz.', 'in App.tsx. Handler: handleAuditComplete() — processes quick count (instant) and approval (after review). Uses markWrite() for K14 protection.')}</p>
+              <p><strong>{t('Komponente', 'Component')}:</strong> <TechBadge label="AuditModule.tsx" /> — {t('5 Sub-Views: Landing, Setup, Cart, Summary, Review. Extrahierte Sub-Komponenten: AuditSetup, AuditCart, AuditCartItem, AuditSummary, AuditReview, ConfettiBurst.', '5 sub-views: Landing, Setup, Cart, Summary, Review. Extracted sub-components: AuditSetup, AuditCart, AuditCartItem, AuditSummary, AuditReview, ConfettiBurst.')}</p>
+            </div>
+          </DocCard>
+
+          <DocCard title={t('Datenmodell', 'Data Model')} icon={<Layers size={20} />}>
+            <div className="space-y-2 text-xs">
+              <div className="font-mono space-y-1 text-[10px]">
+                <div><strong>AuditSession</strong></div>
+                <div className="ml-3">id, name, mode: <span className="opacity-60">'quick' | 'normal'</span></div>
+                <div className="ml-3">status: <span className="opacity-60">'in-progress' | 'pending-review' | 'approved' | 'rejected' | 'cancelled'</span></div>
+                <div className="ml-3">blindMode: <span className="opacity-60">boolean</span></div>
+                <div className="ml-3">warehouse: <span className="opacity-60">string</span></div>
+                <div className="ml-3">items: <span className="opacity-60">AuditItem[]</span></div>
+                <div className="ml-3">createdBy/createdByName, reviewedBy/reviewedByName, reviewNote</div>
+                <div className="mt-2"><strong>AuditItem</strong></div>
+                <div className="ml-3">itemId, sku, name, warehouse</div>
+                <div className="ml-3">expectedQty, countedQty, variance: <span className="opacity-60">number</span></div>
+                <div className="ml-3">note?: <span className="opacity-60">string</span></div>
+              </div>
+            </div>
+          </DocCard>
+
+          <InfoBox>
+            {t(
+              'Feature-Zugriff: Das Inventur-Modul erfordert die Berechtigung "audit" im featureAccess-Array des Benutzerprofils. Admins haben automatisch Zugriff. Konfigurierbar über Team-Verwaltung → Benutzer bearbeiten → Zugriffsrechte.',
+              'Feature access: The audit module requires "audit" permission in the user profile\'s featureAccess array. Admins have automatic access. Configurable via Team Management → Edit user → Access rights.'
+            )}
+          </InfoBox>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════
           SECTION 7: DATA MODEL
           ═══════════════════════════════════════════════════════ */}
       {activeSection === 'datamodel' && (
@@ -627,10 +803,14 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
               <div>timestamp: <span className="opacity-60">Date</span></div>
               <div>userId / userName: <span className="opacity-60">string</span></div>
               <div>itemId / itemName: <span className="opacity-60">string</span></div>
-              <div>action: <span className="opacity-60">'add' | 'remove'</span></div>
+              <div>action: <span className="opacity-60">'add' | 'remove' | 'write-off'</span></div>
               <div>quantity: <span className="opacity-60">number</span></div>
-              <div>source: <span className="opacity-60">string?</span> — {t('"Wareneingang PO-xxx", "Manuell (Bestand)", "Rücksendung"', '"Goods receipt PO-xxx", "Manual (stock)", "Return"')}</div>
-              <div>context: <span className="opacity-60">'normal' | 'project' | 'manual' | 'po-normal' | 'po-project'</span></div>
+              <div>source: <span className="opacity-60">string?</span> — {t('"Wareneingang PO-xxx", "Manuell (Bestand)", "Rücksendung", "Inventur: [Name]"', '"Goods receipt PO-xxx", "Manual (stock)", "Return", "Audit: [Name]"')}</div>
+              <div>context: <span className="opacity-60">'normal' | 'project' | 'manual' | 'po-normal' | 'po-project' | 'audit-quick' | 'audit-normal'</span></div>
+              <div>auditSessionId?: <span className="opacity-60">string</span> — {t('FK zu AuditSession (bei Inventur)', 'FK to AuditSession (for audits)')}</div>
+              <div>auditSessionName?: <span className="opacity-60">string</span></div>
+              <div>countedByName?: <span className="opacity-60">string</span> — {t('Wer hat gezählt', 'Who counted')}</div>
+              <div>approvedByName?: <span className="opacity-60">string</span> — {t('Wer hat genehmigt', 'Who approved')}</div>
             </div>
             <div className="mt-2 text-xs opacity-70">{t('Gespeichert in: localStorage (max. 500 Einträge, serialisiert als JSON)', 'Stored in: localStorage (max 500 entries, serialized as JSON)')}</div>
           </Collapsible>
