@@ -705,6 +705,13 @@ const AuditCartItem: React.FC<AuditCartItemProps> = ({
     const [editValue, setEditValue] = useState(String(item.countedQty));
     const inputRef = useRef<HTMLInputElement>(null);
 
+    // Swipe gesture state
+    const [swipeX, setSwipeX] = useState(0);
+    const [isSwiping, setIsSwiping] = useState(false);
+    const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+    const swipeThreshold = 40; // px before action triggers
+    const maxSwipe = 100; // px max drag distance
+
     const cardBg = isDark ? 'bg-slate-900/50 border-slate-800' : isSoft ? 'bg-white/80 border-[#D4DDE2]' : 'bg-white border-slate-200';
 
     const handleCommitEdit = () => {
@@ -724,103 +731,180 @@ const AuditCartItem: React.FC<AuditCartItemProps> = ({
         }
     }, [isEditing]);
 
+    // Touch handlers
+    const handleTouchStart = (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+        setIsSwiping(false);
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!touchStartRef.current) return;
+        const touch = e.touches[0];
+        const dx = touch.clientX - touchStartRef.current.x;
+        const dy = touch.clientY - touchStartRef.current.y;
+
+        // If vertical scroll dominates, bail out
+        if (!isSwiping && Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
+            touchStartRef.current = null;
+            return;
+        }
+
+        // Horizontal swipe detected
+        if (Math.abs(dx) > 10) {
+            setIsSwiping(true);
+            // Clamp to maxSwipe with rubber-band feel
+            const clamped = Math.sign(dx) * Math.min(Math.abs(dx), maxSwipe);
+            setSwipeX(clamped);
+        }
+    };
+
+    const handleTouchEnd = () => {
+        if (Math.abs(swipeX) > swipeThreshold) {
+            if (swipeX < -swipeThreshold) {
+                // Swiped LEFT → Remove
+                onRemove(item.id);
+            } else if (swipeX > swipeThreshold) {
+                // Swiped RIGHT → Toggle note
+                onToggleNote(item.id);
+            }
+        }
+        // Spring back
+        setSwipeX(0);
+        setIsSwiping(false);
+        touchStartRef.current = null;
+    };
+
     return (
-        <div className={`rounded-2xl border p-4 transition-all ${cardBg}`}>
-            <div className="flex items-center gap-3">
-                {/* Product info */}
-                <div className="flex-1 min-w-0">
-                    <div className="font-bold text-sm truncate">{item.name}</div>
-                    <div className={`flex items-center gap-2 mt-0.5 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                        <span className="font-mono">{item.sku}</span>
-                        {item.warehouse && (
-                            <>
-                                <span>·</span>
-                                <span className="flex items-center gap-0.5"><MapPin size={10} />{item.warehouse}</span>
-                            </>
-                        )}
+        <div className="relative overflow-hidden rounded-2xl">
+            {/* Swipe action backgrounds */}
+            <div className="absolute inset-0 flex">
+                {/* Right action (revealed on swipe right → note) */}
+                <div className={`flex items-center justify-start pl-5 flex-1 rounded-2xl transition-opacity ${swipeX > 20 ? 'opacity-100' : 'opacity-0'
+                    } ${isDark ? 'bg-[#0077B5]/20' : 'bg-[#0077B5]/10'}`}>
+                    <div className="flex items-center gap-2 text-[#0077B5]">
+                        <StickyNote size={18} />
+                        <span className="text-xs font-bold">Notiz</span>
                     </div>
                 </div>
-
-                {/* Quantity stepper */}
-                <div className="flex items-center gap-1 shrink-0">
-                    <button
-                        onClick={() => onUpdateQty(item.id, Math.max(0, item.countedQty - 1))}
-                        className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg transition-all active:scale-90 ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                            }`}
-                    >
-                        <Minus size={18} />
-                    </button>
-
-                    {isEditing ? (
-                        <input
-                            ref={inputRef}
-                            type="number"
-                            inputMode="numeric"
-                            value={editValue}
-                            onChange={e => setEditValue(e.target.value)}
-                            onBlur={handleCommitEdit}
-                            onKeyDown={e => { if (e.key === 'Enter') handleCommitEdit(); }}
-                            className={`w-16 h-11 rounded-xl text-center font-bold text-lg border-2 border-[#0077B5] outline-none ${isDark ? 'bg-slate-800 text-white' : 'bg-white text-slate-900'
-                                }`}
-                            min={0}
-                        />
-                    ) : (
-                        <button
-                            onClick={() => { setEditValue(String(item.countedQty)); setIsEditing(true); }}
-                            className={`w-16 h-11 rounded-xl flex items-center justify-center font-bold text-lg transition-colors ${isDark ? 'bg-slate-800/50 text-white hover:bg-slate-800' : 'bg-slate-50 text-slate-900 hover:bg-slate-100'
-                                }`}
-                            title="Menge direkt eingeben"
-                        >
-                            {item.countedQty}
-                        </button>
-                    )}
-
-                    <button
-                        onClick={() => onUpdateQty(item.id, item.countedQty + 1)}
-                        className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg bg-[#0077B5] text-white hover:bg-[#006399] transition-all active:scale-90"
-                    >
-                        <Plus size={18} />
-                    </button>
-                </div>
-
-                {/* Actions: note + remove */}
-                <div className="flex flex-col gap-1 shrink-0">
-                    <button
-                        onClick={() => onToggleNote(item.id)}
-                        className={`p-2 rounded-lg transition-colors ${item.note
-                            ? 'text-[#0077B5] bg-[#0077B5]/10'
-                            : isDark ? 'text-slate-600 hover:text-slate-400 hover:bg-slate-800' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'
-                            }`}
-                        title="Notiz"
-                    >
-                        <StickyNote size={14} />
-                    </button>
-                    <button
-                        onClick={() => onRemove(item.id)}
-                        className={`p-2 rounded-lg transition-colors ${isDark ? 'text-slate-600 hover:text-red-400 hover:bg-red-500/10' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
-                            }`}
-                        title="Entfernen"
-                    >
-                        <X size={14} />
-                    </button>
+                {/* Left action (revealed on swipe left → delete) */}
+                <div className={`flex items-center justify-end pr-5 flex-1 rounded-2xl transition-opacity ${swipeX < -20 ? 'opacity-100' : 'opacity-0'
+                    } ${isDark ? 'bg-red-500/15' : 'bg-red-50'}`}>
+                    <div className={`flex items-center gap-2 ${isDark ? 'text-red-400' : 'text-red-500'}`}>
+                        <span className="text-xs font-bold">Entfernen</span>
+                        <X size={18} />
+                    </div>
                 </div>
             </div>
 
-            {/* Note field (expandable) */}
-            {showNote && (
-                <div className="mt-3 pt-3 border-t border-dashed" style={{ borderColor: isDark ? '#334155' : '#e2e8f0' }}>
-                    <input
-                        type="text"
-                        value={item.note || ''}
-                        onChange={e => onUpdateNote(item.id, e.target.value)}
-                        placeholder="Notiz hinzufügen…"
-                        className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark
-                            ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-600'
-                            : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400'
-                            } focus:outline-none focus:ring-2 focus:ring-[#0077B5]/20`}
-                    />
-                </div>
-            )}
+            {/* Main card (slides on swipe) */}
+            <div
+                className={`relative rounded-2xl border p-4 ${cardBg}`}
+                style={{
+                    transform: `translateX(${swipeX}px)`,
+                    transition: isSwiping ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+            >
+                <div className="flex items-center gap-3">
+                    {/* Product info */}
+                    <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm truncate">{item.name}</div>
+                        <div className={`flex items-center gap-2 mt-0.5 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                            <span className="font-mono">{item.sku}</span>
+                            {item.warehouse && (
+                                <>
+                                    <span>·</span>
+                                    <span className="flex items-center gap-0.5"><MapPin size={10} />{item.warehouse}</span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Quantity stepper */}
+                    <div className="flex items-center gap-1 shrink-0">
+                        <button
+                            onClick={() => onUpdateQty(item.id, Math.max(0, item.countedQty - 1))}
+                            className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg transition-all active:scale-90 ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                }`}
+                        >
+                            <Minus size={18} />
+                        </button>
+
+                        {isEditing ? (
+                            <input
+                                ref={inputRef}
+                                type="number"
+                                inputMode="numeric"
+                                value={editValue}
+                                onChange={e => setEditValue(e.target.value)}
+                                onBlur={handleCommitEdit}
+                                onKeyDown={e => { if (e.key === 'Enter') handleCommitEdit(); }}
+                                className={`w-16 h-11 rounded-xl text-center font-bold text-lg border-2 border-[#0077B5] outline-none ${isDark ? 'bg-slate-800 text-white' : 'bg-white text-slate-900'
+                                    }`}
+                                min={0}
+                            />
+                        ) : (
+                            <button
+                                onClick={() => { setEditValue(String(item.countedQty)); setIsEditing(true); }}
+                                className={`w-16 h-11 rounded-xl flex items-center justify-center font-bold text-lg transition-colors ${isDark ? 'bg-slate-800/50 text-white hover:bg-slate-800' : 'bg-slate-50 text-slate-900 hover:bg-slate-100'
+                                    }`}
+                                title="Menge direkt eingeben"
+                            >
+                                {item.countedQty}
+                            </button>
+                        )}
+
+                        <button
+                            onClick={() => onUpdateQty(item.id, item.countedQty + 1)}
+                            className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg bg-[#0077B5] text-white hover:bg-[#006399] transition-all active:scale-90"
+                        >
+                            <Plus size={18} />
+                        </button>
+                    </div>
+
+                    {/* Actions: note + remove */}
+                    <div className="flex flex-col gap-1 shrink-0">
+                        <button
+                            onClick={() => onToggleNote(item.id)}
+                            className={`p-2 rounded-lg transition-colors ${item.note
+                                ? 'text-[#0077B5] bg-[#0077B5]/10'
+                                : isDark ? 'text-slate-600 hover:text-slate-400 hover:bg-slate-800' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'
+                                }`}
+                            title="Notiz"
+                        >
+                            <StickyNote size={14} />
+                        </button>
+                        <button
+                            onClick={() => onRemove(item.id)}
+                            className={`p-2 rounded-lg transition-colors ${isDark ? 'text-slate-600 hover:text-red-400 hover:bg-red-500/10' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
+                                }`}
+                            title="Entfernen"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                </div> {/* end flex items-center gap-3 */}
+
+                {/* Note field (expandable) */}
+                {showNote && (
+                    <div className="mt-3 pt-3 border-t border-dashed" style={{ borderColor: isDark ? '#334155' : '#e2e8f0' }}>
+                        <input
+                            type="text"
+                            value={item.note || ''}
+                            onChange={e => onUpdateNote(item.id, e.target.value)}
+                            placeholder="Notiz hinzufügen…"
+                            className={`w-full px-3 py-2 rounded-lg border text-sm ${isDark
+                                ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-600'
+                                : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400'
+                                } focus:outline-none focus:ring-2 focus:ring-[#0077B5]/20`}
+                        />
+                    </div>
+                )}
+            </div> {/* end sliding card */}
+        {/* end overflow wrapper */}
         </div>
     );
 };
