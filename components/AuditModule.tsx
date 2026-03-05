@@ -6,6 +6,7 @@ import {
     Hash, Package, Eye, EyeOff, RotateCcw
 } from 'lucide-react';
 import { Theme, ActiveModule, AuditSession, AuditItem, AuditMode, StockItem, AuthUser } from '../types';
+import { saveAuditDraft, clearAuditDraft } from '../offlineDb';
 
 // ═══════════════════════════════════════════════════════════
 // SUB-VIEW TYPE — controls which screen is displayed
@@ -473,9 +474,11 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                 inventory={inventory}
                 onUpdateSession={setActiveSession}
                 onFinish={() => {
+                    clearAuditDraft().catch(() => {});
                     setView('summary');
                 }}
                 onCancel={() => {
+                    clearAuditDraft().catch(() => {});
                     setActiveSession(null);
                     setView('landing');
                 }}
@@ -1116,6 +1119,14 @@ const AuditCart: React.FC<AuditCartProps> = ({
         return () => document.removeEventListener('mousedown', handleClick);
     }, []);
 
+    // Auto-save draft to IndexedDB on every session change (debounced)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            saveAuditDraft(session).catch(() => {});
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [session]);
+
     const totalItems = session.items.reduce((sum, i) => sum + i.countedQty, 0);
 
     const cardBg = isDark ? 'bg-slate-900/50 border-slate-800' : isSoft ? 'bg-white/80 border-[#D4DDE2]' : 'bg-white border-slate-200';
@@ -1150,6 +1161,8 @@ const AuditCart: React.FC<AuditCartProps> = ({
                 i.id === id ? { ...i, countedQty: qty, variance: qty - i.expectedQty } : i
             ),
         });
+        // Scanner-ready: re-focus search after qty change
+        setTimeout(() => searchRef.current?.focus(), 150);
     };
 
     const removeItem = (id: string) => {
@@ -1175,30 +1188,55 @@ const AuditCart: React.FC<AuditCartProps> = ({
         });
     };
 
+    // Count how many items in this warehouse exist in inventory (for progress denominator)
+    const warehouseTotal = useMemo(() =>
+        inventory.filter(i => i.warehouseLocation === session.warehouse).length || inventory.length,
+        [inventory, session.warehouse]
+    );
+
+    const headerBg = isDark ? 'bg-[#0f172a]/90' : isSoft ? 'bg-[#E8EDF0]/90' : 'bg-white/90';
+    const subtleTxt = isDark ? 'text-slate-400' : isSoft ? 'text-[#5C7E8F]' : 'text-slate-500';
+
     return (
         <div className="flex flex-col min-h-[calc(100vh-10rem)]">
-            {/* ── Header bar ── */}
-            <div className="flex items-center gap-3 mb-4">
-                <button
-                    onClick={onCancel}
-                    className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
-                        }`}
-                >
-                    <ArrowLeft size={20} />
-                </button>
-                <div className="flex-1 min-w-0">
-                    <h2 className="text-lg font-bold truncate">{session.name}</h2>
-                    <div className={`flex items-center gap-2 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                        <MapPin size={12} /> {session.warehouse}
-                        <span>·</span>
-                        <span className={`px-1.5 py-0.5 rounded font-bold uppercase text-[10px] ${session.mode === 'quick'
-                            ? isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600'
-                            : isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'
-                            }`}>
-                            {session.mode === 'quick' ? 'Schnell' : 'Normal'}
-                        </span>
+            {/* ── Sticky context header ── */}
+            <div className={`sticky top-0 z-20 pb-3 pt-1 backdrop-blur-xl ${headerBg}`}>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={onCancel}
+                        className={`p-2 rounded-xl transition-colors shrink-0 ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                        <h2 className="text-base font-bold truncate">{session.name}</h2>
+                        <div className={`flex items-center gap-2 text-xs ${subtleTxt}`}>
+                            <MapPin size={11} /> <span className="truncate">{session.warehouse}</span>
+                            <span>·</span>
+                            <span className={`px-1.5 py-0.5 rounded font-bold uppercase text-[10px] ${session.mode === 'quick'
+                                ? isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
+                                : isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'
+                                }`}>
+                                {session.mode === 'quick' ? 'Schnell' : 'Normal'}
+                            </span>
+                        </div>
+                    </div>
+                    {/* Progress pill */}
+                    <div className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                        <Hash size={12} className="text-[#0077B5]" />
+                        <span>{session.items.length}</span>
+                        <span className={`${subtleTxt} font-normal`}>/ {warehouseTotal}</span>
                     </div>
                 </div>
+                {/* Progress bar */}
+                {session.items.length > 0 && (
+                    <div className={`mt-2 w-full h-1 rounded-full overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
+                        <div
+                            className="h-full rounded-full bg-gradient-to-r from-[#0077B5] to-[#00A0DC] transition-all duration-500"
+                            style={{ width: `${Math.min(100, (session.items.length / warehouseTotal) * 100)}%` }}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* ── Search bar + autocomplete ── */}
@@ -1274,7 +1312,7 @@ const AuditCart: React.FC<AuditCartProps> = ({
             </div>
 
             {/* ── Cart items ── */}
-            <div className="flex-1 space-y-3 pb-28">
+            <div className="flex-1 space-y-3 pb-36 lg:pb-28">
                 {session.items.length > 0 ? (
                     session.items.map((item, idx) => (
                         <div key={item.id} className="audit-card-enter" style={{ animationDelay: `${Math.min(idx * 0.03, 0.3)}s` }}>
@@ -1303,21 +1341,27 @@ const AuditCart: React.FC<AuditCartProps> = ({
                 )}
             </div>
 
-            {/* ── Sticky bottom bar ── */}
-            <div className={`fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-xl lg:left-[68px] ${isDark ? 'bg-[#1e293b]/95 border-slate-800' : isSoft ? 'bg-[#E2E7EB]/95 border-[#D4DDE2]' : 'bg-white/95 border-slate-200'
+            {/* ── Sticky bottom bar — sits above mobile bottom nav ── */}
+            <div className={`fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-0 left-0 right-0 z-40 border-t backdrop-blur-xl lg:left-[68px] ${isDark ? 'bg-[#1e293b]/95 border-slate-800' : isSoft ? 'bg-[#E2E7EB]/95 border-[#D4DDE2]' : 'bg-white/95 border-slate-200'
                 }`} style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center gap-4">
                     {/* Stats */}
-                    <div className="flex-1">
-                        <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                            {session.items.length} Artikel · {totalItems} Stück gezählt
+                    <div className="flex-1 min-w-0">
+                        <div className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                            {session.items.length} Artikel · {totalItems} Stück
                         </div>
-                        {session.items.length > 0 && (
-                            <div className={`w-full h-1 rounded-full mt-1.5 overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                                <div className="h-full rounded-full bg-[#0077B5] transition-all duration-500" style={{ width: `${Math.min(100, (session.items.length / Math.max(1, inventory.length)) * 100)}%` }} />
-                            </div>
-                        )}
+                        <div className={`text-[10px] mt-0.5 truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                            Automatisch gespeichert
+                        </div>
                     </div>
+
+                    {/* Abort */}
+                    <button
+                        onClick={onCancel}
+                        className={`px-4 py-3 rounded-2xl font-bold text-sm border transition-colors ${isDark ? 'border-slate-700 text-slate-400 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:bg-slate-100'}`}
+                    >
+                        Abbrechen
+                    </button>
 
                     {/* Finish button */}
                     <button

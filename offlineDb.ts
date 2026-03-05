@@ -182,6 +182,62 @@ export async function getOverallLastSync(): Promise<number | null> {
 }
 
 // ============================================================================
+// AUDIT DRAFT: Auto-save/load active audit session to survive page refreshes
+// ============================================================================
+
+const AUDIT_DRAFT_KEY = 'audit-draft-session';
+
+export async function saveAuditDraft(session: any): Promise<void> {
+    try {
+        const db = await getDb();
+        const tx = db.transaction('_meta', 'readwrite');
+        tx.objectStore('_meta').put({ collection: AUDIT_DRAFT_KEY, data: JSON.stringify(session), lastSync: Date.now() });
+        return new Promise((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (err) {
+        console.warn('[OfflineDB] Failed to save audit draft:', err);
+    }
+}
+
+export async function loadAuditDraft(): Promise<any | null> {
+    try {
+        const db = await getDb();
+        const tx = db.transaction('_meta', 'readonly');
+        const request = tx.objectStore('_meta').get(AUDIT_DRAFT_KEY);
+        return new Promise((resolve, reject) => {
+            request.onsuccess = () => {
+                const result = request.result;
+                if (result?.data) {
+                    try { resolve(JSON.parse(result.data)); } catch { resolve(null); }
+                } else {
+                    resolve(null);
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (err) {
+        console.warn('[OfflineDB] Failed to load audit draft:', err);
+        return null;
+    }
+}
+
+export async function clearAuditDraft(): Promise<void> {
+    try {
+        const db = await getDb();
+        const tx = db.transaction('_meta', 'readwrite');
+        tx.objectStore('_meta').delete(AUDIT_DRAFT_KEY);
+        return new Promise((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (err) {
+        console.warn('[OfflineDB] Failed to clear audit draft:', err);
+    }
+}
+
+// ============================================================================
 // CACHE ALL: Cache the full AppData response from the API
 // ============================================================================
 
