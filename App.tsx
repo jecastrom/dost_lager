@@ -7,7 +7,7 @@ import {
 import {
   StockItem, ReceiptHeader, ReceiptItem, ReceiptComment, ViewMode, Theme,
   ActiveModule, PurchaseOrder, ReceiptMaster, Ticket, DeliveryLog, StockLog, ReceiptMasterStatus, AuditEntry, LagerortCategory,
-  AuthUser, AuditSession
+  AuthUser, AuditSession, AppNotification
 } from './types';
 import { getDeliveryDateBadge } from './components/ReceiptStatusConfig';
 import { Header } from './components/Header';
@@ -326,6 +326,45 @@ export default function App() {
 
   // Audit Sessions State
   const [auditSessions, setAuditSessions] = useState<AuditSession[]>([]);
+
+  // In-App Notifications
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('notifications');
+      if (saved) try { return JSON.parse(saved); } catch { /* fall through */ }
+    }
+    return [];
+  });
+
+  const addNotification = (n: Omit<AppNotification, 'id' | 'timestamp' | 'isRead'>) => {
+    const notif: AppNotification = {
+      ...n,
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      isRead: false,
+    };
+    setNotifications(prev => {
+      const next = [notif, ...prev].slice(0, 50); // Cap at 50
+      localStorage.setItem('notifications', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const markNotificationRead = (id: string) => {
+    setNotifications(prev => {
+      const next = prev.map(n => n.id === id ? { ...n, isRead: true } : n);
+      localStorage.setItem('notifications', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const markAllNotificationsRead = () => {
+    setNotifications(prev => {
+      const next = prev.map(n => ({ ...n, isRead: true }));
+      localStorage.setItem('notifications', JSON.stringify(next));
+      return next;
+    });
+  };
 
   // Ticket Automation Config State
   // UPDATED: All defaults set to TRUE for maximum coverage
@@ -863,6 +902,35 @@ export default function App() {
       }
     }
     // Rejected or pending-review: no stock changes
+
+    // 6. Generate in-app notification
+    if (session.status === 'approved' && session.mode === 'normal') {
+      // Notify the counter that their audit was approved
+      addNotification({
+        type: 'audit-approved',
+        title: 'Inventur genehmigt',
+        message: `„${session.name}" wurde von ${session.reviewedByName || 'einem Admin'} genehmigt. Bestand wurde aktualisiert.`,
+        targetModule: 'audit',
+        targetId: session.id,
+      });
+    } else if (session.status === 'rejected') {
+      addNotification({
+        type: 'audit-rejected',
+        title: 'Inventur abgelehnt',
+        message: `„${session.name}" wurde von ${session.reviewedByName || 'einem Admin'} abgelehnt.${session.reviewNote ? ` Kommentar: ${session.reviewNote}` : ''}`,
+        targetModule: 'audit',
+        targetId: session.id,
+      });
+    } else if (session.status === 'pending-review') {
+      // Notify admins that a new audit is awaiting review
+      addNotification({
+        type: 'info',
+        title: 'Inventur zur Prüfung',
+        message: `${session.createdByName} hat „${session.name}" zur Prüfung eingereicht.`,
+        targetModule: 'audit',
+        targetId: session.id,
+      });
+    }
   };
 
   // Handlers
@@ -2179,6 +2247,10 @@ export default function App() {
             dataSource={dataSource}
             pendingWrites={pendingWrites}
             isOnline={isOnline}
+            notifications={notifications}
+            onMarkNotificationRead={markNotificationRead}
+            onMarkAllRead={markAllNotificationsRead}
+            onNavigate={handleNavigation}
           />
 
           <div className={`flex-1 ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? 'overflow-hidden' : 'overflow-y-auto p-4 pb-24 md:p-6 lg:p-8 lg:pb-8 scroll-smooth'}`}>

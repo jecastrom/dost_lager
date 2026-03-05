@@ -280,6 +280,22 @@ export interface AuditSession {
   docType?: string;        // 'audit-session' — for Cosmos DB multi-doc containers
 }
 
+// --- In-App Notifications ---
+
+export type NotificationType = 'audit-approved' | 'audit-rejected' | 'info' | 'warning';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  timestamp: number;
+  isRead: boolean;
+  // Navigation hint — where to go when tapped
+  targetModule?: ActiveModule;
+  targetId?: string;       // e.g. audit session ID
+}
+
 // --- Data Import Types (Legacy System Support) ---
 
 export interface RawGermanItem {
