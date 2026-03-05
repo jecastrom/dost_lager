@@ -324,6 +324,9 @@ export default function App() {
     return false;
   });
 
+  // Audit Sessions State
+  const [auditSessions, setAuditSessions] = useState<AuditSession[]>([]);
+
   // Ticket Automation Config State
   // UPDATED: All defaults set to TRUE for maximum coverage
   const [ticketConfig, setTicketConfig] = useState<TicketConfig>(() => {
