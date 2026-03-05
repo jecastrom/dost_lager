@@ -160,6 +160,7 @@ export interface AppData {
   orders: any[];
   receipts: any[];
   tickets: any[];
+  audits: any[];
 }
 
 import { cacheAllData, getCachedAppData } from './offlineDb';
@@ -187,11 +188,12 @@ export interface LoadResult {
 export async function loadAllData(): Promise<LoadResult | null> {
   // Attempt 1: Live API
   try {
-    const [stock, orders, receipts, tickets] = await Promise.all([
+    const [stock, orders, receipts, tickets, audits] = await Promise.all([
       stockApi.getAll(),
       ordersApi.getAll(),
       receiptsApi.getAll(),
       ticketsApi.getAll(),
+      auditsApi.getAll(),
     ]);
 
     const data: AppData = {
@@ -199,6 +201,7 @@ export async function loadAllData(): Promise<LoadResult | null> {
       orders: cleanDocs(orders),
       receipts: cleanDocs(receipts),
       tickets: cleanDocs(tickets),
+      audits: cleanDocs(audits),
     };
 
     // Cache in IndexedDB for offline fallback (fire-and-forget)

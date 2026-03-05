@@ -12,10 +12,10 @@
  */
 
 const DB_NAME = 'procureflow-cache';
-const DB_VERSION = 2; // v2: added _writeQueue store (Step 5b)
+const DB_VERSION = 3; // v3: added audits store (Phase D)
 
 // Collections that mirror the API
-const STORES = ['stock', 'orders', 'receipts', 'tickets'] as const;
+const STORES = ['stock', 'orders', 'receipts', 'tickets', 'audits'] as const;
 export type CacheCollection = typeof STORES[number];
 
 // ============================================================================
@@ -125,20 +125,22 @@ export async function getCachedAppData(): Promise<{
     orders: any[];
     receipts: any[];
     tickets: any[];
+    audits: any[];
 } | null> {
     try {
-        const [stock, orders, receipts, tickets] = await Promise.all([
+        const [stock, orders, receipts, tickets, audits] = await Promise.all([
             getCachedCollection('stock'),
             getCachedCollection('orders'),
             getCachedCollection('receipts'),
             getCachedCollection('tickets'),
+            getCachedCollection('audits'),
         ]);
 
         // Only return if we actually have cached data
-        const hasData = stock.length > 0 || orders.length > 0 || receipts.length > 0 || tickets.length > 0;
+        const hasData = stock.length > 0 || orders.length > 0 || receipts.length > 0 || tickets.length > 0 || audits.length > 0;
         if (!hasData) return null;
 
-        return { stock, orders, receipts, tickets };
+        return { stock, orders, receipts, tickets, audits };
     } catch (err) {
         console.warn('[OfflineDB] Failed to read cached app data:', err);
         return null;
@@ -183,12 +185,13 @@ export async function getOverallLastSync(): Promise<number | null> {
 // CACHE ALL: Cache the full AppData response from the API
 // ============================================================================
 
-export async function cacheAllData(data: { stock: any[]; orders: any[]; receipts: any[]; tickets: any[] }): Promise<void> {
+export async function cacheAllData(data: { stock: any[]; orders: any[]; receipts: any[]; tickets: any[]; audits: any[] }): Promise<void> {
     await Promise.all([
         cacheCollection('stock', data.stock),
         cacheCollection('orders', data.orders),
         cacheCollection('receipts', data.receipts),
         cacheCollection('tickets', data.tickets),
+        cacheCollection('audits', data.audits),
     ]);
 }
 

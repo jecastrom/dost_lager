@@ -548,6 +548,11 @@ export default function App() {
             setTickets(data.tickets);
           }
 
+          // Audits
+          if (data.audits && data.audits.length > 0) {
+            setAuditSessions(data.audits);
+          }
+
           if (source === 'cache') {
             console.info('[App] Running from cached data — writes will queue when offline support is complete');
           }
@@ -602,6 +607,7 @@ export default function App() {
         setDataSource('api');
         if (data.stock.length > 0) setInventory(data.stock);
         if (data.orders.length > 0) setPurchaseOrders(data.orders);
+        if (data.audits && data.audits.length > 0) setAuditSessions(data.audits);
         if (data.receipts.length > 0) {
           const masters = data.receipts.filter((r: any) => r.docType === 'master');
           const headers = data.receipts.filter((r: any) => r.docType === 'header');
