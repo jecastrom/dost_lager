@@ -7,7 +7,7 @@ import {
 import {
   StockItem, ReceiptHeader, ReceiptItem, ReceiptComment, ViewMode, Theme,
   ActiveModule, PurchaseOrder, ReceiptMaster, Ticket, DeliveryLog, StockLog, ReceiptMasterStatus, AuditEntry, LagerortCategory,
-  AuthUser
+  AuthUser, AuditSession
 } from './types';
 import { getDeliveryDateBadge } from './components/ReceiptStatusConfig';
 import { Header } from './components/Header';
@@ -27,6 +27,7 @@ import { SupplierView } from './components/SupplierView';
 import { BottomNav } from './components/BottomNav';
 import { LoginPage } from './components/LoginPage';
 import { TeamManagement } from './components/TeamManagement';
+import { AuditModule } from './components/AuditModule';
 import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi, DataSource } from './api';
 import { flushQueue, onQueueChange, getQueueCount } from './offlineQueue';
 
@@ -2263,12 +2264,14 @@ export default function App() {
               )}
 
               {activeModule === 'audit' && (
-                <div className={`p-6 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                  <h2 className="text-2xl font-bold mb-2">Inventur</h2>
-                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Audit-Modul wird geladen… (Step 5)
-                  </p>
-                </div>
+                <AuditModule
+                  key={viewKey}
+                  theme={theme}
+                  currentUser={currentUser}
+                  inventory={inventory}
+                  auditSessions={auditSessions}
+                  onNavigate={handleNavigation}
+                />
               )}
 
               {activeModule === 'documentation' && (

@@ -592,6 +592,7 @@ dost_lager/
 │   ├── TeamManagement.tsx (admin user CRUD + feature toggles)
 │   ├── LoginPage.tsx (DOST LAGER branding, Microsoft login)
 │   ├── StatusDescription.tsx
+│   ├── AuditModule.tsx (audit landing + setup — Phase D)
 │   ├── StockCard.tsx
 │   ├── StockLogView.tsx
 │   ├── SupplierView.tsx
