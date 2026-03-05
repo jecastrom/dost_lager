@@ -10,7 +10,7 @@ import { Theme, ActiveModule, AuditSession, AuditItem, AuditMode, StockItem, Aut
 // ═══════════════════════════════════════════════════════════
 // SUB-VIEW TYPE — controls which screen is displayed
 // ═══════════════════════════════════════════════════════════
-type AuditView = 'landing' | 'setup' | 'cart';
+type AuditView = 'landing' | 'setup' | 'cart' | 'summary';
 
 // ═══════════════════════════════════════════════════════════
 // PROPS
@@ -278,9 +278,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                 inventory={inventory}
                 onUpdateSession={setActiveSession}
                 onFinish={() => {
-                    // TODO: Navigate to summary — wired in Step 9
-                    console.log('[Audit] Finish:', activeSession);
-                    setView('landing');
+                    setView('summary');
                 }}
                 onCancel={() => {
                     setActiveSession(null);
@@ -290,7 +288,300 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
         );
     }
 
+    // ═══════════════════════════════════════════════════════
+    // SUMMARY VIEW — The Reveal
+    // ═══════════════════════════════════════════════════════
+    if (view === 'summary' && activeSession) {
+        return (
+            <AuditSummary
+                theme={theme}
+                session={activeSession}
+                onBack={() => setView('cart')}
+                onSubmit={(action) => {
+                    // TODO: Step 10 (quick) / Step 13 (normal) — persist + stock update
+                    console.log('[Audit] Submit:', action, activeSession);
+                    setActiveSession(null);
+                    setView('landing');
+                }}
+            />
+        );
+    }
+
     return null;
+};
+
+// ═══════════════════════════════════════════════════════════
+// AUDIT SUMMARY — The Reveal screen
+// ═══════════════════════════════════════════════════════════
+interface AuditSummaryProps {
+    theme: Theme;
+    session: AuditSession;
+    onBack: () => void;
+    onSubmit: (action: 'quick-approve' | 'submit-review') => void;
+}
+
+const AuditSummary: React.FC<AuditSummaryProps> = ({ theme, session, onBack, onSubmit }) => {
+    const isDark = theme === 'dark';
+    const isSoft = theme === 'soft';
+    const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+    const [confirmOpen, setConfirmOpen] = useState(false);
+
+    // ── Categorize items ──
+    const matches = session.items.filter(i => i.variance === 0);
+    const overages = session.items.filter(i => i.variance > 0);
+    const shortages = session.items.filter(i => i.variance < 0);
+
+    const totalExpected = session.items.reduce((s, i) => s + i.expectedQty, 0);
+    const totalCounted = session.items.reduce((s, i) => s + i.countedQty, 0);
+    const totalVariance = totalCounted - totalExpected;
+
+    const isPerfect = session.items.length > 0 && matches.length === session.items.length;
+
+    const cardBg = isDark ? 'bg-slate-900/50 border-slate-800' : isSoft ? 'bg-white/80 border-[#D4DDE2]' : 'bg-white border-slate-200';
+
+    const toggleExpand = (id: string) => {
+        setExpandedItems(prev => {
+            const n = new Set(prev);
+            if (n.has(id)) n.delete(id); else n.add(id);
+            return n;
+        });
+    };
+
+    // ── Variance item row ──
+    const VarianceRow: React.FC<{ item: AuditItem; type: 'match' | 'over' | 'short' }> = ({ item, type }) => {
+        const isExpanded = expandedItems.has(item.id);
+        const colors = {
+            match: isDark ? 'border-emerald-500/20' : 'border-emerald-200',
+            over: isDark ? 'border-amber-500/20' : 'border-amber-200',
+            short: isDark ? 'border-red-500/20' : 'border-red-200',
+        };
+        const varianceColor = {
+            match: isDark ? 'text-emerald-400' : 'text-emerald-600',
+            over: isDark ? 'text-amber-400' : 'text-amber-600',
+            short: isDark ? 'text-red-400' : 'text-red-600',
+        };
+        const bgHighlight = {
+            match: isDark ? 'bg-emerald-500/5' : 'bg-emerald-50/50',
+            over: isDark ? 'bg-amber-500/5' : 'bg-amber-50/50',
+            short: isDark ? 'bg-red-500/5' : 'bg-red-50/50',
+        };
+
+        return (
+            <button
+                onClick={() => toggleExpand(item.id)}
+                className={`w-full text-left rounded-xl border p-3.5 transition-all ${colors[type]} ${bgHighlight[type]}`}
+            >
+                <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm truncate">{item.name}</div>
+                        <div className={`text-xs font-mono ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{item.sku}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                        <div className={`font-bold font-mono text-sm ${varianceColor[type]}`}>
+                            {item.variance > 0 ? '+' : ''}{item.variance}
+                        </div>
+                        <div className={`text-[10px] ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+                            {item.expectedQty} → {item.countedQty}
+                        </div>
+                    </div>
+                </div>
+
+                {isExpanded && (
+                    <div className={`mt-3 pt-3 border-t border-dashed space-y-1.5 text-xs ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                        <div className="flex justify-between">
+                            <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Erwartet</span>
+                            <span className="font-mono font-bold">{item.expectedQty}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Gezählt</span>
+                            <span className="font-mono font-bold">{item.countedQty}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Abweichung</span>
+                            <span className={`font-mono font-bold ${varianceColor[type]}`}>
+                                {item.variance > 0 ? '+' : ''}{item.variance}
+                            </span>
+                        </div>
+                        {item.warehouse && (
+                            <div className="flex justify-between">
+                                <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Lager</span>
+                                <span className="flex items-center gap-1"><MapPin size={10} />{item.warehouse}</span>
+                            </div>
+                        )}
+                        {item.note && (
+                            <div className={`mt-2 px-3 py-2 rounded-lg text-xs ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                                <span className="font-bold">Notiz:</span> {item.note}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </button>
+        );
+    };
+
+    return (
+        <div className="space-y-6 pb-8">
+            {/* Header */}
+            <div className="flex items-center gap-3">
+                <button
+                    onClick={onBack}
+                    className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}
+                >
+                    <ArrowLeft size={20} />
+                </button>
+                <div>
+                    <h2 className="text-xl font-bold">Zusammenfassung</h2>
+                    <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {session.name} · {session.warehouse}
+                    </p>
+                </div>
+            </div>
+
+            {/* Overall Stats Card */}
+            <div className={`rounded-2xl border p-5 ${cardBg}`}>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <div className={`text-2xl font-bold font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{session.items.length}</div>
+                        <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Artikel</div>
+                    </div>
+                    <div>
+                        <div className={`text-2xl font-bold font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{totalCounted}</div>
+                        <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Gezählt</div>
+                    </div>
+                    <div>
+                        <div className={`text-2xl font-bold font-mono ${totalVariance === 0
+                                ? isDark ? 'text-emerald-400' : 'text-emerald-600'
+                                : totalVariance > 0
+                                    ? isDark ? 'text-amber-400' : 'text-amber-600'
+                                    : isDark ? 'text-red-400' : 'text-red-600'
+                            }`}>
+                            {totalVariance > 0 ? '+' : ''}{totalVariance}
+                        </div>
+                        <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Differenz</div>
+                    </div>
+                </div>
+
+                {/* Category breakdown chips */}
+                <div className="flex items-center justify-center gap-3 mt-4 pt-4 border-t border-dashed" style={{ borderColor: isDark ? '#334155' : '#e2e8f0' }}>
+                    {matches.length > 0 && (
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-600'}`}>
+                            <CheckCircle2 size={12} /> {matches.length} OK
+                        </span>
+                    )}
+                    {overages.length > 0 && (
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-600'}`}>
+                            <Plus size={12} /> {overages.length} Mehr
+                        </span>
+                    )}
+                    {shortages.length > 0 && (
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-red-50 border-red-200 text-red-600'}`}>
+                            <Minus size={12} /> {shortages.length} Weniger
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* Perfect match celebration */}
+            {isPerfect && (
+                <div className={`rounded-2xl border p-6 text-center ${isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <div className="text-4xl mb-2">🎉</div>
+                    <p className={`font-bold text-lg ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                        Perfekte Übereinstimmung!
+                    </p>
+                    <p className={`text-sm mt-1 ${isDark ? 'text-emerald-400/60' : 'text-emerald-600/60'}`}>
+                        Alle Bestände stimmen exakt überein.
+                    </p>
+                </div>
+            )}
+
+            {/* Shortages (red) — show first, most important */}
+            {shortages.length > 0 && (
+                <div className="space-y-2">
+                    <h3 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${isDark ? 'text-red-400' : 'text-red-600'}`}>
+                        <AlertTriangle size={14} /> Fehlmengen ({shortages.length})
+                    </h3>
+                    {shortages.map(item => <VarianceRow key={item.id} item={item} type="short" />)}
+                </div>
+            )}
+
+            {/* Overages (amber) */}
+            {overages.length > 0 && (
+                <div className="space-y-2">
+                    <h3 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                        <Plus size={14} /> Übermengen ({overages.length})
+                    </h3>
+                    {overages.map(item => <VarianceRow key={item.id} item={item} type="over" />)}
+                </div>
+            )}
+
+            {/* Matches (green) */}
+            {matches.length > 0 && !isPerfect && (
+                <div className="space-y-2">
+                    <h3 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                        <CheckCircle2 size={14} /> Übereinstimmung ({matches.length})
+                    </h3>
+                    {matches.map(item => <VarianceRow key={item.id} item={item} type="match" />)}
+                </div>
+            )}
+
+            {/* Action buttons */}
+            <div className={`rounded-2xl border p-5 space-y-3 ${cardBg}`}>
+                {session.mode === 'quick' ? (
+                    <>
+                        <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Schnellzählung: Bestand wird sofort auf die gezählten Mengen aktualisiert.
+                            {shortages.length > 0 && ' Fehlmengen werden als Abschreibung im Lagerprotokoll verbucht.'}
+                            {overages.length > 0 && ' Übermengen werden als Zugang gebucht.'}
+                        </p>
+                        {!confirmOpen ? (
+                            <button
+                                onClick={() => shortages.length > 0 ? setConfirmOpen(true) : onSubmit('quick-approve')}
+                                className="w-full py-4 rounded-2xl font-bold text-base bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl active:scale-[0.98] transition-all"
+                            >
+                                Bestand aktualisieren
+                            </button>
+                        ) : (
+                            <div className={`p-4 rounded-xl border space-y-3 ${isDark ? 'bg-red-500/5 border-red-500/20' : 'bg-red-50 border-red-200'}`}>
+                                <p className={`text-sm font-bold ${isDark ? 'text-red-400' : 'text-red-600'}`}>
+                                    {shortages.length} Artikel mit Fehlmengen — sicher buchen?
+                                </p>
+                                <p className={`text-xs ${isDark ? 'text-red-400/60' : 'text-red-600/60'}`}>
+                                    Fehlmengen werden als Abschreibung (write-off) im Lagerprotokoll erfasst. Diese Aktion kann nicht rückgängig gemacht werden.
+                                </p>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setConfirmOpen(false)}
+                                        className={`flex-1 py-3 rounded-xl font-bold text-sm border transition-colors ${isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-100 text-slate-700'
+                                            }`}
+                                    >
+                                        Abbrechen
+                                    </button>
+                                    <button
+                                        onClick={() => onSubmit('quick-approve')}
+                                        className="flex-1 py-3 rounded-xl font-bold text-sm bg-red-500 text-white hover:bg-red-600 transition-colors"
+                                    >
+                                        Ja, buchen
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Normale Inventur: Ergebnisse werden zur Prüfung eingereicht. Ein Manager muss die Abweichungen genehmigen, bevor der Bestand aktualisiert wird.
+                        </p>
+                        <button
+                            onClick={() => onSubmit('submit-review')}
+                            className="w-full py-4 rounded-2xl font-bold text-base bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl active:scale-[0.98] transition-all"
+                        >
+                            Zur Prüfung einreichen
+                        </button>
+                    </>
+                )}
+            </div>
+        </div>
+    );
 };
 
 // ═══════════════════════════════════════════════════════════
