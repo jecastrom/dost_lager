@@ -20,6 +20,7 @@ interface AuditModuleProps {
     currentUser: AuthUser | null;
     inventory: StockItem[];
     auditSessions: AuditSession[];
+    globalBlindMode: boolean;
     onNavigate: (module: ActiveModule) => void;
     onCompleteAudit: (session: AuditSession, action: 'quick-approve' | 'submit-review') => void;
 }
@@ -41,6 +42,14 @@ const AuditAnimations = () => (
         @keyframes audit-qty-flash {
             0% { background-color: rgba(0, 119, 181, 0.2); }
             100% { background-color: transparent; }
+        }
+        @keyframes audit-slide-in-right {
+            0% { opacity: 0; transform: translateX(2rem); }
+            100% { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes audit-slide-in-left {
+            0% { opacity: 0; transform: translateX(-2rem); }
+            100% { opacity: 1; transform: translateX(0); }
         }
         @keyframes audit-count-in {
             0% { opacity: 0; transform: scale(0.5); }
@@ -172,6 +181,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
     currentUser,
     inventory,
     auditSessions,
+    globalBlindMode,
     onNavigate,
     onCompleteAudit,
 }) => {
@@ -428,6 +438,8 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                 theme={theme}
                 inventory={inventory}
                 currentUser={currentUser}
+                auditSessions={auditSessions}
+                globalBlindMode={globalBlindMode}
                 onBack={() => setView('landing')}
                 onStart={(name, warehouse, mode, blindMode) => {
                     const session: AuditSession = {
@@ -1591,16 +1603,21 @@ interface AuditSetupProps {
     theme: Theme;
     inventory: StockItem[];
     currentUser: AuthUser | null;
+    auditSessions: AuditSession[];
+    globalBlindMode: boolean;
     onBack: () => void;
     onStart: (name: string, warehouse: string, mode: AuditMode, blindMode: boolean) => void;
 }
 
-const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, onBack, onStart }) => {
+const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, auditSessions, globalBlindMode, onBack, onStart }) => {
     const isDark = theme === 'dark';
     const isSoft = theme === 'soft';
 
-    const [name, setName] = useState('');
+    // Wizard step: 1 = Wo zählen?, 2 = Name, 3 = Audit Type
+    const [step, setStep] = useState(1);
+    const [slideDir, setSlideDir] = useState<'forward' | 'back'>('forward');
     const [warehouse, setWarehouse] = useState('');
+    const [name, setName] = useState('');
     const [mode, setMode] = useState<AuditMode>('quick');
     const [blindMode, setBlindMode] = useState(false);
 
@@ -1609,183 +1626,388 @@ const AuditSetup: React.FC<AuditSetupProps> = ({ theme, inventory, currentUser, 
         inventory.map(i => i.warehouseLocation).filter(Boolean) as string[]
     )].sort();
 
-    const canStart = name.trim().length > 0 && warehouse.trim().length > 0;
+    // Count items per warehouse for display
+    const warehouseItemCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        inventory.forEach(i => {
+            const wh = i.warehouseLocation;
+            if (wh) counts[wh] = (counts[wh] || 0) + 1;
+        });
+        return counts;
+    }, [inventory]);
+
+    // Last audit date per warehouse
+    const lastAuditByWarehouse = useMemo(() => {
+        const map: Record<string, number> = {};
+        auditSessions.forEach(s => {
+            if (s.warehouse && s.status !== 'cancelled') {
+                const ts = s.completedAt || s.createdAt;
+                if (!map[s.warehouse] || ts > map[s.warehouse]) {
+                    map[s.warehouse] = ts;
+                }
+            }
+        });
+        return map;
+    }, [auditSessions]);
+
+    // Auto-generate name when warehouse is picked
+    useEffect(() => {
+        if (warehouse && !name) {
+            const dateStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            setName(`Inventur – ${warehouse} – ${dateStr}`);
+        }
+    }, [warehouse]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const goForward = () => { setSlideDir('forward'); setStep(s => Math.min(3, s + 1)); };
+    const goBack = () => { setSlideDir('back'); setStep(s => Math.max(1, s - 1)); };
+
+    const handleStart = () => {
+        const effectiveBlind = globalBlindMode || blindMode;
+        onStart(name.trim(), warehouse.trim(), mode, effectiveBlind);
+    };
 
     const cardBg = isDark ? 'bg-slate-900/50 border-slate-800' : isSoft ? 'bg-white/80 border-[#D4DDE2]' : 'bg-white border-slate-200';
+    const subtleTxt = isDark ? 'text-slate-400' : isSoft ? 'text-[#5C7E8F]' : 'text-slate-500';
+    const headerBg = isDark ? 'bg-[#0f172a]/90' : isSoft ? 'bg-[#E8EDF0]/90' : 'bg-white/90';
+
+    // Format relative date
+    const formatLastAudit = (ts: number) => {
+        const days = Math.floor((Date.now() - ts) / 86400000);
+        if (days === 0) return 'Heute';
+        if (days === 1) return 'Gestern';
+        if (days < 7) return `Vor ${days} Tagen`;
+        if (days < 30) return `Vor ${Math.floor(days / 7)} Wo.`;
+        return new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    };
+
+    // Step indicator dots
+    const StepDots = () => (
+        <div className="flex items-center gap-2 justify-center">
+            {[1, 2, 3].map(s => (
+                <div
+                    key={s}
+                    className={`rounded-full transition-all duration-300 ${s === step
+                        ? 'w-6 h-2 bg-[#0077B5]'
+                        : s < step
+                            ? `w-2 h-2 bg-[#0077B5]/40`
+                            : `w-2 h-2 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`
+                    }`}
+                />
+            ))}
+        </div>
+    );
 
     return (
-        <div className="space-y-6 max-w-lg mx-auto">
-            {/* Back */}
-            <button
-                onClick={onBack}
-                className={`flex items-center gap-2 text-sm font-medium transition-colors ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
-                    }`}
-            >
-                <ArrowLeft size={16} /> Zurück
-            </button>
-
-            {/* Title */}
-            <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0077B5]/20' : 'bg-[#0077B5]/10'}`}>
-                    <ClipboardCheck size={28} className="text-[#0077B5]" />
+        <div className="flex flex-col min-h-[calc(100vh-10rem)] max-w-lg mx-auto">
+            {/* ── FIXED TOP HEADER ── */}
+            <div className={`sticky top-0 z-20 pb-4 pt-1 backdrop-blur-xl ${headerBg}`}>
+                {/* Back + Step dots */}
+                <div className="flex items-center justify-between mb-3">
+                    <button
+                        onClick={step === 1 ? onBack : goBack}
+                        className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}
+                    >
+                        <ArrowLeft size={16} /> {step === 1 ? 'Abbrechen' : 'Zurück'}
+                    </button>
+                    <StepDots />
+                    <div className="w-16" /> {/* Spacer for centering */}
                 </div>
-                <div>
-                    <h2 className="text-2xl font-bold">Neue Inventur</h2>
-                    <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        Name, Lager und Modus wählen.
-                    </p>
-                </div>
-            </div>
 
-            {/* Name Input */}
-            <div>
-                <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                    Bezeichnung
-                </label>
-                <input
-                    type="text"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    placeholder="z.B. Akku Service März 2026"
-                    className={`w-full px-4 py-3 rounded-xl border text-sm transition-colors ${isDark
-                        ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus:border-slate-700'
-                        : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#0077B5]/30'
-                        } focus:outline-none focus:ring-2 focus:ring-[#0077B5]/20`}
-                    autoFocus
-                />
-            </div>
-
-            {/* Warehouse Selection */}
-            <div>
-                <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                    Lager / Standort
-                </label>
-                {warehouseOptions.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2">
-                        {warehouseOptions.map(wh => (
-                            <button
-                                key={wh}
-                                onClick={() => setWarehouse(wh)}
-                                className={`px-4 py-3 rounded-xl border text-sm font-medium text-left transition-all ${warehouse === wh
-                                    ? 'bg-[#0077B5] text-white border-[#0077B5] shadow-md shadow-blue-500/20'
-                                    : `${cardBg} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`
-                                    }`}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <MapPin size={14} className={warehouse === wh ? 'text-white/80' : 'text-[#0077B5]'} />
-                                    <span className="truncate">{wh}</span>
-                                </div>
-                            </button>
-                        ))}
+                {/* Context header — grows with each step */}
+                <div className="flex items-center gap-3">
+                    <div className={`p-2.5 rounded-2xl ${isDark ? 'bg-[#0077B5]/20' : 'bg-[#0077B5]/10'}`}>
+                        <ClipboardCheck size={24} className="text-[#0077B5]" />
                     </div>
-                ) : (
-                    <input
-                        type="text"
-                        value={warehouse}
-                        onChange={e => setWarehouse(e.target.value)}
-                        placeholder="Lagerort eingeben…"
-                        className={`w-full px-4 py-3 rounded-xl border text-sm transition-colors ${isDark
-                            ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus:border-slate-700'
-                            : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#0077B5]/30'
-                            } focus:outline-none focus:ring-2 focus:ring-[#0077B5]/20`}
-                    />
+                    <div className="min-w-0">
+                        <h2 className="text-xl font-bold truncate">
+                            {step === 1 && 'Inventur starten'}
+                            {step === 2 && `Inventur – ${warehouse}`}
+                            {step === 3 && `Inventur – ${warehouse}`}
+                        </h2>
+                        <div className={`flex items-center gap-2 text-xs ${subtleTxt}`}>
+                            {step >= 2 && (
+                                <>
+                                    <MapPin size={11} /> <span className="truncate">{warehouse}</span>
+                                    <span>·</span>
+                                </>
+                            )}
+                            <span>{new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                            {step >= 2 && currentUser?.displayName && (
+                                <>
+                                    <span>·</span>
+                                    <span className="truncate">{currentUser.displayName}</span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── STEP CONTENT (animated) ── */}
+            <div className="flex-1 overflow-hidden relative">
+                <div
+                    key={step}
+                    className={`animate-in duration-300 ${slideDir === 'forward' ? 'slide-in-from-right-8' : 'slide-in-from-left-8'} fade-in`}
+                >
+                    {/* ════════════════════════════════════════════════
+                        STEP 1 — Wo zählen?
+                       ════════════════════════════════════════════════ */}
+                    {step === 1 && (
+                        <div className="space-y-4 pb-24">
+                            <div>
+                                <h3 className={`text-lg font-bold mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    Wo zählen?
+                                </h3>
+                                <p className={`text-sm ${subtleTxt}`}>
+                                    Wähle den Standort für die Inventur.
+                                </p>
+                            </div>
+
+                            {warehouseOptions.length > 0 ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    {warehouseOptions.map(wh => {
+                                        const isSelected = warehouse === wh;
+                                        const itemCount = warehouseItemCounts[wh] || 0;
+                                        const lastTs = lastAuditByWarehouse[wh];
+                                        return (
+                                            <button
+                                                key={wh}
+                                                onClick={() => setWarehouse(wh)}
+                                                className={`relative rounded-2xl border p-4 text-left transition-all duration-200 ${isSelected
+                                                    ? 'bg-gradient-to-br from-[#0077B5]/10 to-[#00A0DC]/10 border-[#0077B5] shadow-lg shadow-blue-500/10 ring-2 ring-[#0077B5]/30'
+                                                    : `${cardBg} ${isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50'} active:scale-[0.97]`
+                                                }`}
+                                            >
+                                                <div className="flex items-start gap-2.5">
+                                                    <div className={`p-2 rounded-xl shrink-0 ${isSelected ? 'bg-[#0077B5]/20' : isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                                                        <MapPin size={18} className={isSelected ? 'text-[#0077B5]' : isDark ? 'text-slate-400' : 'text-slate-500'} />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className={`font-bold text-sm truncate ${isSelected ? 'text-[#0077B5]' : ''}`}>{wh}</div>
+                                                        <div className={`text-xs mt-0.5 ${subtleTxt}`}>
+                                                            {itemCount} Artikel
+                                                        </div>
+                                                        {lastTs ? (
+                                                            <div className={`text-[10px] mt-1 flex items-center gap-1 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+                                                                <Clock size={10} /> {formatLastAudit(lastTs)}
+                                                            </div>
+                                                        ) : (
+                                                            <div className={`text-[10px] mt-1 ${isDark ? 'text-amber-500/70' : 'text-amber-600/70'}`}>
+                                                                Noch nie gezählt
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {isSelected && (
+                                                    <div className="absolute top-2.5 right-2.5">
+                                                        <CheckCircle2 size={16} className="text-[#0077B5]" />
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div>
+                                    <input
+                                        type="text"
+                                        value={warehouse}
+                                        onChange={e => setWarehouse(e.target.value)}
+                                        placeholder="Lagerort eingeben…"
+                                        className={`w-full px-4 py-3.5 rounded-2xl border text-sm transition-colors ${isDark
+                                            ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus:border-slate-700'
+                                            : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#0077B5]/30'
+                                        } focus:outline-none focus:ring-2 focus:ring-[#0077B5]/20`}
+                                        autoFocus
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ════════════════════════════════════════════════
+                        STEP 2 — Name
+                       ════════════════════════════════════════════════ */}
+                    {step === 2 && (
+                        <div className="space-y-4 pb-24">
+                            <div>
+                                <h3 className={`text-lg font-bold mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    Bezeichnung
+                                </h3>
+                                <p className={`text-sm ${subtleTxt}`}>
+                                    Name für diese Inventur. Automatisch generiert — du kannst ihn anpassen.
+                                </p>
+                            </div>
+
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={e => setName(e.target.value)}
+                                placeholder="z.B. Akku Service März 2026"
+                                className={`w-full px-4 py-3.5 rounded-2xl border text-sm transition-colors ${isDark
+                                    ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 focus:border-slate-700'
+                                    : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#0077B5]/30'
+                                } focus:outline-none focus:ring-2 focus:ring-[#0077B5]/20`}
+                                autoFocus
+                            />
+
+                            {/* Preview card */}
+                            <div className={`rounded-2xl border p-4 ${cardBg}`}>
+                                <div className={`text-[10px] uppercase tracking-wider font-bold mb-2 ${subtleTxt}`}>Vorschau</div>
+                                <div className="font-bold text-sm mb-1">{name || '—'}</div>
+                                <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs ${subtleTxt}`}>
+                                    <span className="flex items-center gap-1"><MapPin size={11} /> {warehouse}</span>
+                                    <span>{new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                                    {currentUser?.displayName && <span>{currentUser.displayName}</span>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ════════════════════════════════════════════════
+                        STEP 3 — Audit Type + Blind Mode
+                       ════════════════════════════════════════════════ */}
+                    {step === 3 && (
+                        <div className="space-y-5 pb-24">
+                            <div>
+                                <h3 className={`text-lg font-bold mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    Art der Zählung
+                                </h3>
+                                <p className={`text-sm ${subtleTxt}`}>
+                                    Schnellzählung bucht sofort. Normale Inventur erfordert Genehmigung.
+                                </p>
+                            </div>
+
+                            {/* Mode cards */}
+                            <div className="grid grid-cols-1 gap-3">
+                                {/* Quick Count — green accent */}
+                                <button
+                                    onClick={() => setMode('quick')}
+                                    className={`relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 ${mode === 'quick'
+                                        ? 'bg-gradient-to-br from-emerald-500/10 to-emerald-400/5 border-emerald-500 shadow-lg shadow-emerald-500/10 ring-2 ring-emerald-500/30'
+                                        : `${cardBg} ${isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50'} active:scale-[0.98]`
+                                    }`}
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className={`p-2.5 rounded-xl ${mode === 'quick' ? 'bg-emerald-500/20' : isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                                            <Zap size={22} className={mode === 'quick' ? 'text-emerald-500' : isDark ? 'text-slate-400' : 'text-slate-500'} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className={`font-bold ${mode === 'quick' ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : ''}`}>Schnellzählung</div>
+                                            <div className={`text-xs mt-1 ${subtleTxt}`}>
+                                                Zählen → sofort buchen. Bestand wird direkt aktualisiert.
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {mode === 'quick' && (
+                                        <div className="absolute top-3 right-3">
+                                            <CheckCircle2 size={18} className="text-emerald-500" />
+                                        </div>
+                                    )}
+                                </button>
+
+                                {/* Normal Audit — blue accent */}
+                                <button
+                                    onClick={() => setMode('normal')}
+                                    className={`relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 ${mode === 'normal'
+                                        ? 'bg-gradient-to-br from-[#0077B5]/10 to-[#00A0DC]/10 border-[#0077B5] shadow-lg shadow-blue-500/10 ring-2 ring-[#0077B5]/30'
+                                        : `${cardBg} ${isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50'} active:scale-[0.98]`
+                                    }`}
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className={`p-2.5 rounded-xl ${mode === 'normal' ? 'bg-[#0077B5]/20' : isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                                            <ShieldCheck size={22} className={mode === 'normal' ? 'text-[#0077B5]' : isDark ? 'text-slate-400' : 'text-slate-500'} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className={`font-bold ${mode === 'normal' ? 'text-[#0077B5]' : ''}`}>Normale Inventur</div>
+                                            <div className={`text-xs mt-1 ${subtleTxt}`}>
+                                                Zählen → Prüfung → Genehmigung. Manager gibt frei, dann wird gebucht.
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {mode === 'normal' && (
+                                        <div className="absolute top-3 right-3">
+                                            <CheckCircle2 size={18} className="text-[#0077B5]" />
+                                        </div>
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Per-audit Blind Mode toggle — only shown if global blind is OFF */}
+                            {!globalBlindMode && (
+                                <div className={`flex items-center justify-between rounded-2xl border p-4 ${cardBg}`}>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-xl ${blindMode ? 'bg-[#0077B5]/20' : isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                                            {blindMode ? <EyeOff size={18} className="text-[#0077B5]" /> : <Eye size={18} className={isDark ? 'text-slate-400' : 'text-slate-500'} />}
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-bold">Blind Count?</div>
+                                            <div className={`text-xs ${subtleTxt}`}>
+                                                Erwartete Mengen erst am Ende zeigen
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setBlindMode(!blindMode)}
+                                        className={`relative w-12 h-7 rounded-full transition-colors ${blindMode ? 'bg-[#0077B5]' : isDark ? 'bg-slate-700' : 'bg-slate-300'}`}
+                                    >
+                                        <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${blindMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Global blind active notice */}
+                            {globalBlindMode && (
+                                <div className={`flex items-center gap-3 rounded-2xl border p-4 ${isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
+                                    <EyeOff size={18} className={isDark ? 'text-amber-400' : 'text-amber-600'} />
+                                    <div>
+                                        <div className={`text-sm font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>Blindmodus aktiv (global)</div>
+                                        <div className={`text-xs ${isDark ? 'text-amber-500/70' : 'text-amber-600/70'}`}>
+                                            Erwartete Mengen werden in allen Inventuren ausgeblendet.
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* ── STICKY BOTTOM BAR ── */}
+            <div className={`sticky bottom-0 pt-3 pb-4 backdrop-blur-xl ${headerBg}`} style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}>
+                {step === 1 && (
+                    <button
+                        onClick={goForward}
+                        disabled={!warehouse.trim()}
+                        className={`w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 ${warehouse.trim()
+                            ? 'bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98]'
+                            : isDark ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        }`}
+                    >
+                        Weiter
+                    </button>
+                )}
+                {step === 2 && (
+                    <button
+                        onClick={goForward}
+                        disabled={!name.trim()}
+                        className={`w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 ${name.trim()
+                            ? 'bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98]'
+                            : isDark ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        }`}
+                    >
+                        Weiter
+                    </button>
+                )}
+                {step === 3 && (
+                    <button
+                        onClick={handleStart}
+                        className="w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98]"
+                    >
+                        {mode === 'quick' ? 'Schnellzählung starten' : 'Inventur starten'}
+                    </button>
                 )}
             </div>
-
-            {/* Mode Selection — The glossy cards */}
-            <div>
-                <label className={`block text-sm font-bold mb-3 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                    Modus
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Quick Count */}
-                    <button
-                        onClick={() => setMode('quick')}
-                        className={`relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 ${mode === 'quick'
-                            ? 'bg-gradient-to-br from-[#0077B5]/10 to-[#00A0DC]/10 border-[#0077B5] shadow-lg shadow-blue-500/10 ring-2 ring-[#0077B5]/30'
-                            : `${cardBg} ${isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50'}`
-                            }`}
-                    >
-                        <div className="flex items-start gap-3">
-                            <div className={`p-2 rounded-xl ${mode === 'quick' ? 'bg-[#0077B5]/20' : isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                                <Zap size={20} className={mode === 'quick' ? 'text-[#0077B5]' : isDark ? 'text-slate-400' : 'text-slate-500'} />
-                            </div>
-                            <div>
-                                <div className="font-bold text-sm">Schnellzählung</div>
-                                <div className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                    Zählen → sofort buchen. Bestand wird direkt aktualisiert.
-                                </div>
-                            </div>
-                        </div>
-                        {mode === 'quick' && (
-                            <div className="absolute top-3 right-3">
-                                <CheckCircle2 size={18} className="text-[#0077B5]" />
-                            </div>
-                        )}
-                    </button>
-
-                    {/* Normal Audit */}
-                    <button
-                        onClick={() => setMode('normal')}
-                        className={`relative overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 ${mode === 'normal'
-                            ? 'bg-gradient-to-br from-[#0077B5]/10 to-[#00A0DC]/10 border-[#0077B5] shadow-lg shadow-blue-500/10 ring-2 ring-[#0077B5]/30'
-                            : `${cardBg} ${isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50'}`
-                            }`}
-                    >
-                        <div className="flex items-start gap-3">
-                            <div className={`p-2 rounded-xl ${mode === 'normal' ? 'bg-[#0077B5]/20' : isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                                <ShieldCheck size={20} className={mode === 'normal' ? 'text-[#0077B5]' : isDark ? 'text-slate-400' : 'text-slate-500'} />
-                            </div>
-                            <div>
-                                <div className="font-bold text-sm">Normale Inventur</div>
-                                <div className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                    Zählen → Prüfung → Genehmigung. Manager gibt frei, dann wird gebucht.
-                                </div>
-                            </div>
-                        </div>
-                        {mode === 'normal' && (
-                            <div className="absolute top-3 right-3">
-                                <CheckCircle2 size={18} className="text-[#0077B5]" />
-                            </div>
-                        )}
-                    </button>
-                </div>
-            </div>
-
-            {/* Blind Mode Toggle */}
-            <div className={`flex items-center justify-between rounded-2xl border p-4 ${cardBg}`}>
-                <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl ${blindMode ? 'bg-[#0077B5]/20' : isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
-                        {blindMode ? <EyeOff size={18} className="text-[#0077B5]" /> : <Eye size={18} className={isDark ? 'text-slate-400' : 'text-slate-500'} />}
-                    </div>
-                    <div>
-                        <div className="text-sm font-bold">Blindmodus</div>
-                        <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Erwartete Mengen erst am Ende zeigen
-                        </div>
-                    </div>
-                </div>
-                <button
-                    onClick={() => setBlindMode(!blindMode)}
-                    className={`relative w-12 h-7 rounded-full transition-colors ${blindMode ? 'bg-[#0077B5]' : isDark ? 'bg-slate-700' : 'bg-slate-300'}`}
-                >
-                    <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${blindMode ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-            </div>
-
-            {/* Start Button */}
-            <button
-                onClick={() => canStart && onStart(name.trim(), warehouse.trim(), mode, blindMode)}
-                disabled={!canStart}
-                className={`w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 ${canStart
-                    ? 'bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98]'
-                    : isDark
-                        ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                        : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                    }`}
-            >
-                {mode === 'quick' ? 'Schnellzählung starten' : 'Inventur starten'}
-            </button>
         </div>
     );
 };

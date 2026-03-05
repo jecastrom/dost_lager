@@ -366,6 +366,20 @@ export default function App() {
     });
   };
 
+  // Global Blind Mode for Audits
+  const [globalBlindMode, setGlobalBlindMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('globalBlindMode');
+      if (saved) return JSON.parse(saved);
+    }
+    return false;
+  });
+
+  const handleSetGlobalBlindMode = (val: boolean) => {
+    setGlobalBlindMode(val);
+    localStorage.setItem('globalBlindMode', JSON.stringify(val));
+  };
+
   // Ticket Automation Config State
   // UPDATED: All defaults set to TRUE for maximum coverage
   const [ticketConfig, setTicketConfig] = useState<TicketConfig>(() => {
@@ -2418,6 +2432,8 @@ export default function App() {
                   auditTrail={auditTrail}
                   lagerortCategories={lagerortCategories}
                   onSetLagerortCategories={handleSetLagerortCategories}
+                  globalBlindMode={globalBlindMode}
+                  onSetGlobalBlindMode={handleSetGlobalBlindMode}
                 />
               )}
 
@@ -2437,6 +2453,7 @@ export default function App() {
                   currentUser={currentUser}
                   inventory={inventory}
                   auditSessions={auditSessions}
+                  globalBlindMode={globalBlindMode}
                   onNavigate={handleNavigation}
                   onCompleteAudit={handleAuditComplete}
                 />

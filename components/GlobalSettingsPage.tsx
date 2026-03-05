@@ -3,9 +3,9 @@ import { Theme, ActiveModule, AuditEntry, LagerortCategory } from '../types';
 import {
   ArrowLeft, Shield, Sparkles, Calendar, Ticket, List,
   AlertTriangle, PlusCircle, AlertCircle, Ban, ChevronDown, ChevronUp,
-  Info, Clock, FileText, Eye, Lock, MapPin, GripVertical,
+  Info, Clock, FileText, Eye, EyeOff, Lock, MapPin, GripVertical,
   Pencil, Trash2, Plus, Check, X, ArrowUp, ArrowDown, FolderOpen, Layers,
-  Users, ChevronRight
+  Users, ChevronRight, ClipboardCheck
 } from 'lucide-react';
 import { TicketConfig, TimelineConfig } from './SettingsPage';
 import { MessageSquare } from 'lucide-react';
@@ -32,6 +32,9 @@ interface GlobalSettingsPageProps {
   // Lagerorte (categorized)
   lagerortCategories: LagerortCategory[];
   onSetLagerortCategories: (cats: LagerortCategory[]) => void;
+  // Inventur — Global Blind Mode
+  globalBlindMode: boolean;
+  onSetGlobalBlindMode: (val: boolean) => void;
 }
 
 export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
@@ -49,13 +52,16 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
   onSetTimelineConfig,
   auditTrail = [],
   lagerortCategories,
-  onSetLagerortCategories
+  onSetLagerortCategories,
+  globalBlindMode,
+  onSetGlobalBlindMode,
 }) => {
   const isDark = theme === 'dark';
   const [isTicketConfigOpen, setIsTicketConfigOpen] = useState(false);
   const [isTimelineConfigOpen, setIsTimelineConfigOpen] = useState(false);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [isLagerorteOpen, setIsLagerorteOpen] = useState(false);
+  const [isInventurOpen, setIsInventurOpen] = useState(false);
   // Category-level editing
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editingCatName, setEditingCatName] = useState('');
@@ -416,6 +422,55 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
               label="Bei Ablehnung"
               description="Erstellt Eintrag wenn Positionen komplett abgelehnt wurden."
               action={<Toggle checked={timelineConfig.rejected} onChange={(v) => onSetTimelineConfig({ ...timelineConfig, rejected: v })} />}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════
+          CATEGORY 3c: INVENTUR-EINSTELLUNGEN
+          ═══════════════════════════════════════════════════════ */}
+      <div className={`rounded-2xl border overflow-hidden mb-6 ${isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+        <button
+          onClick={() => setIsInventurOpen(!isInventurOpen)}
+          className={`w-full transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}
+        >
+          <div className={`px-6 py-3 flex items-center justify-between ${isDark ? 'bg-amber-500/5' : 'bg-amber-500/5'
+            } ${isInventurOpen ? 'border-b ' + (isDark ? 'border-slate-800' : 'border-slate-200') : ''}`}>
+            <div className="flex items-center gap-3">
+              <div className={`p-1.5 rounded-lg ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-500/10 text-amber-600'}`}>
+                <ClipboardCheck size={16} />
+              </div>
+              <div className="text-left">
+                <span className={`text-xs font-bold uppercase tracking-wider block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Inventur
+                </span>
+                <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Globale Einstellungen für Zählungen und Audits
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {globalBlindMode && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-500/10 text-amber-600'}`}>
+                  Blind aktiv
+                </span>
+              )}
+              {isInventurOpen
+                ? <ChevronUp size={16} className="text-slate-400" />
+                : <ChevronDown size={16} className="text-slate-400" />
+              }
+            </div>
+          </div>
+        </button>
+
+        {isInventurOpen && (
+          <div>
+            <SettingRow
+              icon={<EyeOff size={20} className={globalBlindMode ? 'text-amber-500' : isDark ? 'text-slate-400' : 'text-slate-500'} />}
+              label="Blind Mode Permanent"
+              description="Erwartete Bestände in allen Inventuren ausblenden — überschreibt die Einzelwahl pro Zählung."
+              action={<Toggle checked={globalBlindMode} onChange={onSetGlobalBlindMode} />}
             />
           </div>
         )}
