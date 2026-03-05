@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  LayoutDashboard, ClipboardList,
+  LayoutDashboard, ClipboardList, ClipboardCheck,
   Settings, FileText, Package, History, Box, Users
 } from 'lucide-react';
 import { ActiveModule, Theme, AuthUser } from '../types';
@@ -33,6 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     'receipt-management': 'receipts',
     'stock-logs': 'stock',
     'suppliers': 'suppliers',
+    'audit': 'audit',
   };
 
   const isAdmin = currentUser?.role === 'admin';
@@ -45,6 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'receipt-management', label: 'Wareneingang', icon: <ClipboardList size={20} /> },
     { id: 'stock-logs', label: 'Lagerprotokoll', icon: <History size={20} /> },
     { id: 'suppliers', label: 'Lieferanten', icon: <Users size={20} /> },
+    { id: 'audit', label: 'Inventur', icon: <ClipboardCheck size={20} /> },
   ];
 
   // Admins see everything; team members filtered by featureAccess

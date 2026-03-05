@@ -16,7 +16,7 @@ const MODULE_FEATURE_MAP: Record<string, string | null> = {
     'inventory': 'stock',
     'order-management': 'orders',
     'receipt-management': 'receipts',
-    'audit-placeholder': 'audit',
+    'audit': 'audit',
 };
 
 const ALL_NAV_ITEMS: { id: ActiveModule; label: string; icon: React.ElementType; featureKey?: string }[] = [
@@ -24,8 +24,7 @@ const ALL_NAV_ITEMS: { id: ActiveModule; label: string; icon: React.ElementType;
     { id: 'inventory', label: 'Artikel', icon: Box, featureKey: 'stock' },
     { id: 'order-management', label: 'Bestell.', icon: FileText, featureKey: 'orders' },
     { id: 'receipt-management', label: 'Eingang', icon: ClipboardList, featureKey: 'receipts' },
-    // Audit placeholder — navigates nowhere yet, visually ready
-    { id: 'dashboard' as ActiveModule, label: 'Audit', icon: ClipboardCheck, featureKey: 'audit' },
+    { id: 'audit', label: 'Inventur', icon: ClipboardCheck, featureKey: 'audit' },
 ];
 
 export const BottomNav: React.FC<BottomNavProps> = ({ theme, activeModule, onNavigate, hidden, currentUser }) => {
@@ -57,19 +56,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ theme, activeModule, onNav
             <div className="flex items-stretch justify-around h-[5.7rem] max-w-lg mx-auto">
                 {NAV_ITEMS.map((item, idx) => {
                     const Icon = item.icon;
-                    const isAuditPlaceholder = idx === 4;
-                    // Active = exact match, except audit placeholder is never "active"
-                    const isActive = !isAuditPlaceholder && activeModule === item.id;
+                    const isActive = activeModule === item.id;
 
                     return (
                         <button
                             key={`${item.id}-${idx}`}
-                            onClick={() => {
-                                if (isAuditPlaceholder) return; // No-op for now
-                                onNavigate(item.id);
-                            }}
+                            onClick={() => onNavigate(item.id)}
                             className={`relative flex flex-col items-center justify-center flex-1 gap-0.5 transition-colors duration-150
-                ${isAuditPlaceholder ? 'opacity-35 cursor-default' : ''}
                 ${isActive ? activeColor : inactiveColor}
               `}
                             // Native tap feel: prevent highlight delay

@@ -2262,6 +2262,15 @@ export default function App() {
                 />
               )}
 
+              {activeModule === 'audit' && (
+                <div className={`p-6 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  <h2 className="text-2xl font-bold mb-2">Inventur</h2>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Audit-Modul wird geladen… (Step 5)
+                  </p>
+                </div>
+              )}
+
               {activeModule === 'documentation' && (
                 <DocumentationPage
                   theme={theme}
