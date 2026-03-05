@@ -3,14 +3,14 @@ import {
     ClipboardCheck, Plus, Zap, ShieldCheck, MapPin,
     Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight,
     ArrowLeft, Search, X, Minus, StickyNote, ShoppingCart,
-    Hash, Package
+    Hash, Package, Eye, RotateCcw
 } from 'lucide-react';
 import { Theme, ActiveModule, AuditSession, AuditItem, AuditMode, StockItem, AuthUser } from '../types';
 
 // ═══════════════════════════════════════════════════════════
 // SUB-VIEW TYPE — controls which screen is displayed
 // ═══════════════════════════════════════════════════════════
-type AuditView = 'landing' | 'setup' | 'cart' | 'summary';
+type AuditView = 'landing' | 'setup' | 'cart' | 'summary' | 'review';
 
 // ═══════════════════════════════════════════════════════════
 // PROPS
@@ -52,18 +52,30 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
     const [view, setView] = useState<AuditView>('landing');
     const [searchTerm, setSearchTerm] = useState('');
     const [activeSession, setActiveSession] = useState<AuditSession | null>(null);
+    const [statusFilter, setStatusFilter] = useState<'all' | 'pending-review' | 'approved' | 'rejected'>('all');
 
     // ── Derived data ──
     const activeCount = auditSessions.filter(s => s.status === 'in-progress').length;
     const pendingCount = auditSessions.filter(s => s.status === 'pending-review').length;
 
     const filteredSessions = auditSessions.filter(s => {
+        // Status filter
+        if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+        // Search filter
         if (!searchTerm) return true;
         const term = searchTerm.toLowerCase();
         return s.name.toLowerCase().includes(term) ||
             s.warehouse.toLowerCase().includes(term) ||
             s.createdByName.toLowerCase().includes(term);
     });
+
+    // Counts for filter tabs
+    const statusCounts = {
+        all: auditSessions.length,
+        'pending-review': auditSessions.filter(s => s.status === 'pending-review').length,
+        approved: auditSessions.filter(s => s.status === 'approved').length,
+        rejected: auditSessions.filter(s => s.status === 'rejected').length,
+    };
 
     // Sort: in-progress first, then pending-review, then by date descending
     const sortedSessions = [...filteredSessions].sort((a, b) => {
@@ -165,11 +177,44 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                     </div>
                 )}
 
+                {/* STATUS FILTER TABS */}
+                {auditSessions.length > 0 && (
+                    <div className={`flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar`}>
+                        {([
+                            { key: 'all', label: 'Alle', count: statusCounts.all },
+                            { key: 'pending-review', label: 'Prüfung', count: statusCounts['pending-review'] },
+                            { key: 'approved', label: 'Genehmigt', count: statusCounts.approved },
+                            { key: 'rejected', label: 'Abgelehnt', count: statusCounts.rejected },
+                        ] as const).map(tab => (
+                            <button
+                                key={tab.key}
+                                onClick={() => setStatusFilter(tab.key)}
+                                className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${statusFilter === tab.key
+                                        ? 'bg-[#0077B5] text-white shadow-md shadow-blue-500/20'
+                                        : isDark
+                                            ? 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-white'
+                                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+                                    }`}
+                            >
+                                {tab.label}
+                                {tab.count > 0 && (
+                                    <span className={`min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-bold ${statusFilter === tab.key
+                                            ? 'bg-white/20 text-white'
+                                            : isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-500'
+                                        }`}>
+                                        {tab.count}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
                 {/* AUDIT HISTORY LIST */}
                 {sortedSessions.length > 0 ? (
                     <div className="space-y-3">
                         <h3 className={`text-sm font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                            Verlauf
+                            {statusFilter === 'all' ? 'Verlauf' : statusFilter === 'pending-review' ? 'Zur Prüfung' : statusFilter === 'approved' ? 'Genehmigt' : 'Abgelehnt'}
                         </h3>
                         {sortedSessions.map(session => {
                             const cfg = STATUS_CONFIG[session.status] || STATUS_CONFIG['cancelled'];
@@ -181,7 +226,12 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                 <button
                                     key={session.id}
                                     onClick={() => {
-                                        // TODO: Open session detail/resume — wired in later steps
+                                        setActiveSession(session);
+                                        if (session.status === 'in-progress') {
+                                            setView('cart');
+                                        } else {
+                                            setView('review');
+                                        }
                                     }}
                                     className={`w-full text-left rounded-2xl border p-4 transition-all ${cardBg} ${cardHover} group`}
                                 >
@@ -283,6 +333,35 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                     setView('summary');
                 }}
                 onCancel={() => {
+                    setActiveSession(null);
+                    setView('landing');
+                }}
+            />
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // REVIEW VIEW — Read-only detail for completed/pending sessions
+    // ═══════════════════════════════════════════════════════
+    if (view === 'review' && activeSession) {
+        return (
+            <AuditReview
+                theme={theme}
+                session={activeSession}
+                currentUser={currentUser}
+                onBack={() => {
+                    setActiveSession(null);
+                    setView('landing');
+                }}
+                onApprove={(session, reviewNote) => {
+                    // TODO: Step 13 — wire approval to stock update
+                    console.log('[Audit] Approve:', session.id, reviewNote);
+                    setActiveSession(null);
+                    setView('landing');
+                }}
+                onReject={(session, reviewNote) => {
+                    // TODO: Step 13 — wire rejection
+                    console.log('[Audit] Reject:', session.id, reviewNote);
                     setActiveSession(null);
                     setView('landing');
                 }}
@@ -999,6 +1078,260 @@ const AuditCart: React.FC<AuditCartProps> = ({
                     </button>
                 </div>
             </div>
+        </div>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════
+// AUDIT REVIEW — Manager view for pending/completed audits
+// ═══════════════════════════════════════════════════════════
+interface AuditReviewProps {
+    theme: Theme;
+    session: AuditSession;
+    currentUser: AuthUser | null;
+    onBack: () => void;
+    onApprove: (session: AuditSession, reviewNote: string) => void;
+    onReject: (session: AuditSession, reviewNote: string) => void;
+}
+
+const AuditReview: React.FC<AuditReviewProps> = ({ theme, session, currentUser, onBack, onApprove, onReject }) => {
+    const isDark = theme === 'dark';
+    const isSoft = theme === 'soft';
+    const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+    const [reviewNote, setReviewNote] = useState('');
+    const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | null>(null);
+
+    const isAdmin = currentUser?.role === 'admin';
+    const isPending = session.status === 'pending-review';
+    const canReview = isAdmin && isPending;
+
+    const matches = session.items.filter(i => i.variance === 0);
+    const overages = session.items.filter(i => i.variance > 0);
+    const shortages = session.items.filter(i => i.variance < 0);
+    const totalExpected = session.items.reduce((s, i) => s + i.expectedQty, 0);
+    const totalCounted = session.items.reduce((s, i) => s + i.countedQty, 0);
+    const totalVariance = totalCounted - totalExpected;
+    const isPerfect = session.items.length > 0 && matches.length === session.items.length;
+
+    const cardBg = isDark ? 'bg-slate-900/50 border-slate-800' : isSoft ? 'bg-white/80 border-[#D4DDE2]' : 'bg-white border-slate-200';
+
+    const cfg = STATUS_CONFIG[session.status] || STATUS_CONFIG['cancelled'];
+    const StatusIcon = cfg.icon;
+
+    const toggleExpand = (id: string) => {
+        setExpandedItems(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+    };
+
+    const formatDate = (ts: number) => {
+        const d = new Date(ts);
+        return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+            ', ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    // Reusable variance row (same visual pattern as AuditSummary)
+    const ReviewRow: React.FC<{ item: AuditItem; type: 'match' | 'over' | 'short' }> = ({ item, type }) => {
+        const isExpanded = expandedItems.has(item.id);
+        const colors = { match: isDark ? 'border-emerald-500/20' : 'border-emerald-200', over: isDark ? 'border-amber-500/20' : 'border-amber-200', short: isDark ? 'border-red-500/20' : 'border-red-200' };
+        const varColor = { match: isDark ? 'text-emerald-400' : 'text-emerald-600', over: isDark ? 'text-amber-400' : 'text-amber-600', short: isDark ? 'text-red-400' : 'text-red-600' };
+        const bgH = { match: isDark ? 'bg-emerald-500/5' : 'bg-emerald-50/50', over: isDark ? 'bg-amber-500/5' : 'bg-amber-50/50', short: isDark ? 'bg-red-500/5' : 'bg-red-50/50' };
+
+        return (
+            <button onClick={() => toggleExpand(item.id)} className={`w-full text-left rounded-xl border p-3.5 transition-all ${colors[type]} ${bgH[type]}`}>
+                <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm truncate">{item.name}</div>
+                        <div className={`text-xs font-mono ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{item.sku}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                        <div className={`font-bold font-mono text-sm ${varColor[type]}`}>{item.variance > 0 ? '+' : ''}{item.variance}</div>
+                        <div className={`text-[10px] ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>{item.expectedQty} → {item.countedQty}</div>
+                    </div>
+                </div>
+                {isExpanded && (
+                    <div className={`mt-3 pt-3 border-t border-dashed space-y-1.5 text-xs ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                        <div className="flex justify-between"><span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Erwartet</span><span className="font-mono font-bold">{item.expectedQty}</span></div>
+                        <div className="flex justify-between"><span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Gezählt</span><span className="font-mono font-bold">{item.countedQty}</span></div>
+                        <div className="flex justify-between"><span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Abweichung</span><span className={`font-mono font-bold ${varColor[type]}`}>{item.variance > 0 ? '+' : ''}{item.variance}</span></div>
+                        {item.warehouse && <div className="flex justify-between"><span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Lager</span><span className="flex items-center gap-1"><MapPin size={10} />{item.warehouse}</span></div>}
+                        {item.note && <div className={`mt-2 px-3 py-2 rounded-lg text-xs ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}><span className="font-bold">Notiz:</span> {item.note}</div>}
+                    </div>
+                )}
+            </button>
+        );
+    };
+
+    return (
+        <div className="space-y-6 pb-8">
+            {/* Header */}
+            <div className="flex items-center gap-3">
+                <button onClick={onBack} className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+                    <ArrowLeft size={20} />
+                </button>
+                <div className="flex-1">
+                    <h2 className="text-xl font-bold">{session.name}</h2>
+                    <div className={`flex items-center gap-2 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                        <MapPin size={12} /> {session.warehouse}
+                        <span>·</span>
+                        <span>{formatDate(session.createdAt)}</span>
+                    </div>
+                </div>
+                <div className={`px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-1.5 ${isDark ? cfg.darkColor : cfg.color}`}>
+                    <StatusIcon size={14} /> {cfg.label}
+                </div>
+            </div>
+
+            {/* Meta info card */}
+            <div className={`rounded-2xl border p-4 space-y-2 ${cardBg}`}>
+                <div className="flex justify-between text-xs">
+                    <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Modus</span>
+                    <span className="font-bold">{session.mode === 'quick' ? 'Schnellzählung' : 'Normale Inventur'}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                    <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Gezählt von</span>
+                    <span className="font-bold">{session.createdByName}</span>
+                </div>
+                {session.reviewedByName && (
+                    <div className="flex justify-between text-xs">
+                        <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>{session.status === 'approved' ? 'Genehmigt von' : 'Geprüft von'}</span>
+                        <span className="font-bold">{session.reviewedByName}</span>
+                    </div>
+                )}
+                {session.reviewedAt && (
+                    <div className="flex justify-between text-xs">
+                        <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Geprüft am</span>
+                        <span className="font-bold">{formatDate(session.reviewedAt)}</span>
+                    </div>
+                )}
+                {session.reviewNote && (
+                    <div className={`mt-2 px-3 py-2 rounded-lg text-xs ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                        <span className="font-bold">Kommentar:</span> {session.reviewNote}
+                    </div>
+                )}
+            </div>
+
+            {/* Stats */}
+            <div className={`rounded-2xl border p-5 ${cardBg}`}>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <div className={`text-2xl font-bold font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{session.items.length}</div>
+                        <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Artikel</div>
+                    </div>
+                    <div>
+                        <div className={`text-2xl font-bold font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{totalCounted}</div>
+                        <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Gezählt</div>
+                    </div>
+                    <div>
+                        <div className={`text-2xl font-bold font-mono ${totalVariance === 0 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : totalVariance > 0 ? (isDark ? 'text-amber-400' : 'text-amber-600') : (isDark ? 'text-red-400' : 'text-red-600')}`}>
+                            {totalVariance > 0 ? '+' : ''}{totalVariance}
+                        </div>
+                        <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Differenz</div>
+                    </div>
+                </div>
+                <div className="flex items-center justify-center gap-3 mt-4 pt-4 border-t border-dashed" style={{ borderColor: isDark ? '#334155' : '#e2e8f0' }}>
+                    {matches.length > 0 && <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-600'}`}><CheckCircle2 size={12} /> {matches.length} OK</span>}
+                    {overages.length > 0 && <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-600'}`}><Plus size={12} /> {overages.length} Mehr</span>}
+                    {shortages.length > 0 && <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${isDark ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-red-50 border-red-200 text-red-600'}`}><Minus size={12} /> {shortages.length} Weniger</span>}
+                </div>
+            </div>
+
+            {isPerfect && (
+                <div className={`rounded-2xl border p-6 text-center ${isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <div className="text-4xl mb-2">🎉</div>
+                    <p className={`font-bold text-lg ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>Perfekte Übereinstimmung!</p>
+                </div>
+            )}
+
+            {/* Variance sections */}
+            {shortages.length > 0 && (
+                <div className="space-y-2">
+                    <h3 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${isDark ? 'text-red-400' : 'text-red-600'}`}><AlertTriangle size={14} /> Fehlmengen ({shortages.length})</h3>
+                    {shortages.map(item => <ReviewRow key={item.id} item={item} type="short" />)}
+                </div>
+            )}
+            {overages.length > 0 && (
+                <div className="space-y-2">
+                    <h3 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}><Plus size={14} /> Übermengen ({overages.length})</h3>
+                    {overages.map(item => <ReviewRow key={item.id} item={item} type="over" />)}
+                </div>
+            )}
+            {matches.length > 0 && !isPerfect && (
+                <div className="space-y-2">
+                    <h3 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}><CheckCircle2 size={14} /> Übereinstimmung ({matches.length})</h3>
+                    {matches.map(item => <ReviewRow key={item.id} item={item} type="match" />)}
+                </div>
+            )}
+
+            {/* Manager approval actions */}
+            {canReview && (
+                <div className={`rounded-2xl border p-5 space-y-4 ${cardBg}`}>
+                    <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Prüfung & Freigabe</h3>
+
+                    {/* Review note */}
+                    <div>
+                        <label className={`block text-xs font-bold mb-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Kommentar (optional)</label>
+                        <input
+                            type="text"
+                            value={reviewNote}
+                            onChange={e => setReviewNote(e.target.value)}
+                            placeholder="Anmerkung zur Prüfung…"
+                            className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-600' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400'} focus:outline-none focus:ring-2 focus:ring-[#0077B5]/20`}
+                        />
+                    </div>
+
+                    {!confirmAction ? (
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setConfirmAction('reject')}
+                                className={`flex-1 py-3 rounded-xl font-bold text-sm border flex items-center justify-center gap-2 transition-colors ${isDark ? 'border-red-500/30 text-red-400 hover:bg-red-500/10' : 'border-red-200 text-red-600 hover:bg-red-50'}`}
+                            >
+                                <XCircle size={16} /> Ablehnen
+                            </button>
+                            <button
+                                onClick={() => setConfirmAction('approve')}
+                                className="flex-1 py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-[#0077B5] to-[#00A0DC] text-white shadow-lg shadow-blue-500/20 hover:shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                            >
+                                <CheckCircle2 size={16} /> Genehmigen
+                            </button>
+                        </div>
+                    ) : (
+                        <div className={`p-4 rounded-xl border space-y-3 ${confirmAction === 'approve' ? (isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200') : (isDark ? 'bg-red-500/5 border-red-500/20' : 'bg-red-50 border-red-200')}`}>
+                            <p className={`text-sm font-bold ${confirmAction === 'approve' ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-red-400' : 'text-red-600')}`}>
+                                {confirmAction === 'approve'
+                                    ? `Inventur genehmigen? Bestand wird auf gezählte Mengen aktualisiert.${shortages.length > 0 ? ` ${shortages.length} Fehlmengen werden als Abschreibung gebucht.` : ''}`
+                                    : 'Inventur ablehnen? Der Zähler wird benachrichtigt und kann die Zählung wiederholen.'
+                                }
+                            </p>
+                            <div className="flex gap-2">
+                                <button onClick={() => setConfirmAction(null)} className={`flex-1 py-3 rounded-xl font-bold text-sm border transition-colors ${isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-100 text-slate-700'}`}>
+                                    Abbrechen
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (confirmAction === 'approve') onApprove(session, reviewNote);
+                                        else onReject(session, reviewNote);
+                                    }}
+                                    className={`flex-1 py-3 rounded-xl font-bold text-sm text-white transition-colors ${confirmAction === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'}`}
+                                >
+                                    {confirmAction === 'approve' ? 'Ja, genehmigen' : 'Ja, ablehnen'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Read-only state indicator for non-admins or already-reviewed */}
+            {!canReview && (
+                <div className={`rounded-2xl border p-4 flex items-center gap-3 ${cardBg}`}>
+                    <Eye size={16} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                    <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {session.status === 'approved' ? 'Diese Inventur wurde genehmigt und der Bestand aktualisiert.'
+                            : session.status === 'rejected' ? 'Diese Inventur wurde abgelehnt.'
+                                : session.status === 'pending-review' ? 'Diese Inventur wartet auf Genehmigung durch einen Administrator.'
+                                    : 'Schreibgeschützte Ansicht.'}
+                    </span>
+                </div>
+            )}
         </div>
     );
 };
