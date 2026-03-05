@@ -190,17 +190,17 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                 key={tab.key}
                                 onClick={() => setStatusFilter(tab.key)}
                                 className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${statusFilter === tab.key
-                                        ? 'bg-[#0077B5] text-white shadow-md shadow-blue-500/20'
-                                        : isDark
-                                            ? 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-white'
-                                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+                                    ? 'bg-[#0077B5] text-white shadow-md shadow-blue-500/20'
+                                    : isDark
+                                        ? 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-white'
+                                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
                                     }`}
                             >
                                 {tab.label}
                                 {tab.count > 0 && (
                                     <span className={`min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-bold ${statusFilter === tab.key
-                                            ? 'bg-white/20 text-white'
-                                            : isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-500'
+                                        ? 'bg-white/20 text-white'
+                                        : isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-500'
                                         }`}>
                                         {tab.count}
                                     </span>
@@ -354,14 +354,28 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                     setView('landing');
                 }}
                 onApprove={(session, reviewNote) => {
-                    // TODO: Step 13 — wire approval to stock update
-                    console.log('[Audit] Approve:', session.id, reviewNote);
+                    const approvedSession: AuditSession = {
+                        ...session,
+                        status: 'approved',
+                        reviewedAt: Date.now(),
+                        reviewedBy: currentUser?.userId || 'unknown',
+                        reviewedByName: currentUser?.displayName || 'Unbekannt',
+                        reviewNote: reviewNote || undefined,
+                    };
+                    onCompleteAudit(approvedSession, 'quick-approve');
                     setActiveSession(null);
                     setView('landing');
                 }}
                 onReject={(session, reviewNote) => {
-                    // TODO: Step 13 — wire rejection
-                    console.log('[Audit] Reject:', session.id, reviewNote);
+                    const rejectedSession: AuditSession = {
+                        ...session,
+                        status: 'rejected',
+                        reviewedAt: Date.now(),
+                        reviewedBy: currentUser?.userId || 'unknown',
+                        reviewedByName: currentUser?.displayName || 'Unbekannt',
+                        reviewNote: reviewNote || undefined,
+                    };
+                    onCompleteAudit(rejectedSession, 'submit-review');
                     setActiveSession(null);
                     setView('landing');
                 }}

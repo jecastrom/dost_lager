@@ -781,26 +781,37 @@ export default function App() {
 
   // ── Audit Complete Handler ──
   const handleAuditComplete = (session: AuditSession, action: 'quick-approve' | 'submit-review') => {
-    // 1. Save session to state
-    setAuditSessions(prev => [session, ...prev]);
+    // 1. Save or update session in state
+    setAuditSessions(prev => {
+      const idx = prev.findIndex(s => s.id === session.id);
+      if (idx >= 0) {
+        // Update existing session (approval/rejection of pending session)
+        const updated = [...prev];
+        updated[idx] = session;
+        return updated;
+      }
+      // New session (fresh quick count or new normal submission)
+      return [session, ...prev];
+    });
 
     // 2. Persist session to Cosmos DB
     auditsApi.upsert(session).catch(console.warn);
 
-    if (action === 'quick-approve') {
-      // 3. Quick Count: Update stock levels + create audit-tagged log entries
+    // 3. Stock updates — only when session is 'approved' (quick count OR manager approval)
+    if (session.status === 'approved') {
       markWrite(); // K14: Prevent sync overwrite
 
-      const auditContext = session.mode === 'quick' ? 'audit-quick' : 'audit-normal';
+      const auditContext: 'audit-quick' | 'audit-normal' = session.mode === 'quick' ? 'audit-quick' : 'audit-normal';
       const auditSource = `Inventur: ${session.name}`;
       const counterName = session.createdByName;
+      const approverName = session.reviewedByName || counterName; // Quick: self-approved, Normal: manager
       const now = new Date();
 
       // Build log entries for all items with variance
       const newLogs: StockLog[] = [];
 
       session.items.forEach(item => {
-        if (item.variance === 0) return; // No change needed
+        if (item.variance === 0) return;
 
         const logAction: 'add' | 'write-off' = item.variance > 0 ? 'add' : 'write-off';
         const absVariance = Math.abs(item.variance);
@@ -820,8 +831,7 @@ export default function App() {
           auditSessionId: session.id,
           auditSessionName: session.name,
           countedByName: counterName,
-          // Quick audit: counter is also the approver
-          approvedByName: counterName,
+          approvedByName: approverName,
         });
       });
 
@@ -837,7 +847,6 @@ export default function App() {
               stockLevel: auditItem.countedQty,
               lastUpdated: Date.now(),
             };
-            // API write-through inline (avoids stale closure)
             stockApi.upsert(updated[idx]).catch(console.warn);
           }
         });
@@ -853,7 +862,7 @@ export default function App() {
         });
       }
     }
-    // Normal audit: status is 'pending-review' — stock changes happen on approval (Step 13)
+    // Rejected or pending-review: no stock changes
   };
 
   // Handlers
