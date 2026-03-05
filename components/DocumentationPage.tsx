@@ -34,7 +34,6 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
 
   const t = (de: string, en: string) => lang === 'de' ? de : en;
 
-  // ── Section Config ──
   const sections: { id: DocSection; label: string; icon: React.ReactNode }[] = [
     { id: 'intro', label: t('Übersicht', 'Overview'), icon: <Layout size={16} /> },
     { id: 'cloud', label: t('Cloud & API', 'Cloud & API'), icon: <Cloud size={16} /> },
@@ -49,19 +48,13 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
     { id: 'settings', label: t('Einstellungen', 'Settings'), icon: <Settings size={16} /> },
   ];
 
-  // ── Reusable Components ──
-
   const DocCard = ({ title, icon, children, id }: { title: string; icon: React.ReactNode; children: React.ReactNode; id?: string }) => (
     <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
       <div className="flex items-center gap-3 p-4 md:p-5">
-        <div className={`p-2 rounded-xl shrink-0 ${isDark ? 'bg-slate-800 text-[#0077B5]' : 'bg-blue-50 text-[#0077B5]'}`}>
-          {icon}
-        </div>
+        <div className={`p-2 rounded-xl shrink-0 ${isDark ? 'bg-slate-800 text-[#0077B5]' : 'bg-blue-50 text-[#0077B5]'}`}>{icon}</div>
         <h3 className={`font-bold text-base md:text-lg ${isDark ? 'text-white' : 'text-slate-800'}`}>{title}</h3>
       </div>
-      <div className={`px-4 pb-4 md:px-5 md:pb-5 text-sm leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-        {children}
-      </div>
+      <div className={`px-4 pb-4 md:px-5 md:pb-5 text-sm leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{children}</div>
     </div>
   );
 
@@ -69,10 +62,7 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
     const isExpanded = expandedCards.has(id);
     return (
       <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
-        <button
-          onClick={() => toggleCard(id)}
-          className={`w-full flex items-center gap-3 p-4 md:p-5 text-left transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}
-        >
+        <button onClick={() => toggleCard(id)} className={`w-full flex items-center gap-3 p-4 md:p-5 text-left transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
           <div className={`p-2 rounded-xl shrink-0 ${isDark ? 'bg-slate-800 text-[#0077B5]' : 'bg-blue-50 text-[#0077B5]'}`}>{icon}</div>
           <h3 className={`font-bold text-sm md:text-base flex-1 ${isDark ? 'text-white' : 'text-slate-800'}`}>{title}</h3>
           {isExpanded ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
@@ -105,24 +95,16 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
 
   return (
     <div className="max-w-3xl mx-auto pb-20 animate-in fade-in slide-in-from-bottom-4 duration-300">
-      {/* ── PAGE HEADER ── */}
       <div className="mb-6">
-        <button
-          onClick={onBack}
-          className={`flex items-center gap-2 text-sm font-bold mb-4 transition-colors ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}
-        >
+        <button onClick={onBack} className={`flex items-center gap-2 text-sm font-bold mb-4 transition-colors ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}>
           <ArrowLeft size={16} /> {t('Zurück zu Einstellungen', 'Back to Settings')}
         </button>
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0077B5]/20' : 'bg-[#0077B5]/10'}`}>
-              <Book size={28} className="text-[#0077B5]" />
-            </div>
+            <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0077B5]/20' : 'bg-[#0077B5]/10'}`}><Book size={28} className="text-[#0077B5]" /></div>
             <div>
               <h1 className="text-2xl font-bold">{t('App Dokumentation', 'App Documentation')}</h1>
-              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {t('Architektur, Module, Datenmodell & Geschäftslogik', 'Architecture, Modules, Data Model & Business Logic')}
-              </p>
+              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('Architektur, Module, Datenmodell & Geschäftslogik', 'Architecture, Modules, Data Model & Business Logic')}</p>
             </div>
           </div>
           <div className={`flex p-0.5 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
@@ -132,845 +114,405 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
         </div>
       </div>
 
-      {/* ── NAVIGATION TABS ── */}
       <div className="mb-6 -mx-4 px-4 md:mx-0 md:px-0">
         <div className="flex gap-2 overflow-x-auto pb-2 md:flex-wrap md:overflow-visible scrollbar-hide">
           {sections.map(s => (
-            <button
-              key={s.id}
-              onClick={() => setActiveSection(s.id)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${activeSection === s.id
-                ? 'bg-[#0077B5] text-white shadow-md'
-                : isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-900'
-                }`}
-            >
+            <button key={s.id} onClick={() => setActiveSection(s.id)} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${activeSection === s.id ? 'bg-[#0077B5] text-white shadow-md' : isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-900'}`}>
               {s.icon} {s.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 1: OVERVIEW
-          ═══════════════════════════════════════════════════════ */}
-      {activeSection === 'intro' && (
-        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">{t('Systemarchitektur', 'System Architecture')}</h2>
-            <p className={`text-sm md:text-base ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {t(
-                'DOST Lager ist eine Progressive Web App (PWA) für den gesamten Procure-to-Pay-Prozess — von der Bestellanlage über den Wareneingang bis zur Reklamation und Lieferantenbewertung. Die App läuft auf Azure Static Web Apps mit einem Azure Functions v4 API-Backend und Azure Cosmos DB als Datenbank.',
-                'DOST Lager is a Progressive Web App (PWA) for the entire Procure-to-Pay process — from order creation through goods receipt to complaints management and supplier scoring. The app runs on Azure Static Web Apps with an Azure Functions v4 API backend and Azure Cosmos DB as the database.'
-              )}
-            </p>
-          </div>
-
-          <DocCard title="Tech Stack" icon={<Zap size={20} />}>
-            <div className="space-y-3">
-              <div>
-                <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Frontend</p>
-                <div className="flex flex-wrap gap-2">
-                  <TechBadge label="React 19" /><TechBadge label="TypeScript" /><TechBadge label="Tailwind CSS" />
-                  <TechBadge label="Vite" /><TechBadge label="Lucide Icons" /><TechBadge label="jsPDF" />
-                </div>
-              </div>
-              <div>
-                <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Backend & Infrastructure</p>
-                <div className="flex flex-wrap gap-2">
-                  <TechBadge label="Azure Static Web Apps" /><TechBadge label="Azure Functions v4" />
-                  <TechBadge label="Azure Cosmos DB (NoSQL)" /><TechBadge label="Node.js 20" />
-                </div>
-              </div>
-              <div>
-                <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Offline & Storage</p>
-                <div className="flex flex-wrap gap-2">
-                  <TechBadge label="IndexedDB" /><TechBadge label="Service Worker" />
-                  <TechBadge label="localStorage" /><TechBadge label="PWA Manifest" />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3 text-xs mt-4">
-              <div className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>App.tsx:</strong> {t('Zentraler State-Container mit ~40 Handlern. Hält Orders, Inventory, ReceiptMasters, Tickets, StockLogs. Alle Schreibvorgänge sind optimistisch (UI sofort) + API write-through (Cosmos DB im Hintergrund).', 'Central state container with ~40 handlers. Holds Orders, Inventory, ReceiptMasters, Tickets, StockLogs. All writes are optimistic (instant UI) + API write-through (Cosmos DB in background).')}</span></div>
-              <div className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>api.ts:</strong> {t('REST-Client mit 3-Stufen-Fallback: API → IndexedDB Cache → Mock-Daten. Schreibfehler werden automatisch in die Offline-Queue eingereiht.', 'REST client with 3-tier fallback: API → IndexedDB cache → mock data. Write failures are automatically enqueued in the offline queue.')}</span></div>
-              <div className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>types.ts:</strong> {t('Definiert alle TypeScript-Interfaces für PurchaseOrder, ReceiptMaster, StockItem, Ticket, StockLog, etc.', 'Defines all TypeScript interfaces for PurchaseOrder, ReceiptMaster, StockItem, Ticket, StockLog, etc.')}</span></div>
-              <div className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>data.ts:</strong> {t('Mock-Datenbank (Fallback). Enthält ~800 Artikel aus SharePoint-Import, Bestellungen und Wareneingänge. Wird nur verwendet, wenn API UND Cache leer sind.', 'Mock database (fallback). Contains ~800 items from SharePoint import, orders and receipts. Only used when API AND cache are empty.')}</span></div>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Design Philosophie', 'Design Philosophy')} icon={<Star size={20} />}>
-            <div className="space-y-3 text-xs">
-              <div><strong>Mobile First:</strong> {t('Alle Komponenten sind zuerst für Mobilgeräte entwickelt. Touch-Targets ≥ 44px. Bottom Navigation auf Mobilgeräten, CSS hover-expand Sidebar auf Desktop. Sticky Headers, Swipe-Navigation und Safe-Area-Padding.', 'All components are mobile-first. Touch targets ≥ 44px. Bottom navigation on mobile, CSS hover-expand sidebar on desktop. Sticky headers, swipe navigation and safe-area padding.')}</div>
-              <div><strong>Optimistic UI:</strong> {t('Alle Benutzeraktionen aktualisieren sofort den React State. API-Schreibvorgänge laufen im Hintergrund. Bei Netzwerkfehlern werden sie automatisch in die Offline-Queue eingereiht und bei Verbindung nachsynchronisiert.', 'All user actions update React state immediately. API writes run in the background. Network failures are automatically queued and synced when back online.')}</div>
-              <div><strong>3 Themes:</strong> {t('Light, Soft (Frosted Aura Farbschema — augenschonende Blaugrau-Töne) und Dark. Soft Mode verwendet einen eigenen Farbsatz (#E8EDF0, #D4DDE2, #5C7E8F) der sich deutlich vom Light Mode unterscheidet.', 'Light, Soft (Frosted Aura color scheme — eye-friendly blue-gray tones) and Dark. Soft mode uses its own distinct color palette (#E8EDF0, #D4DDE2, #5C7E8F) that clearly differs from Light mode.')}</div>
-              <div><strong>Ledger Principle:</strong> {t('Daten werden nie gelöscht, nur archiviert. Jede Änderung wird im Audit Trail protokolliert. Bestands-Korrekturen werden im Lagerprotokoll (StockLog) festgehalten.', 'Data is never deleted, only archived. Every change is logged in the audit trail. Stock corrections are recorded in the stock log (StockLog).')}</div>
-              <div><strong>PWA:</strong> {t('Installierbar auf iOS und Android. Service Worker cachet App-Shell und CDN-Assets für sofortiges Laden. Funktioniert offline im Lager.', 'Installable on iOS and Android. Service Worker caches app shell and CDN assets for instant loading. Works offline in the warehouse.')}</div>
-            </div>
-          </DocCard>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 2: CLOUD & API
-          ═══════════════════════════════════════════════════════ */}
-      {activeSection === 'cloud' && (
-        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">{t('Cloud-Architektur & API', 'Cloud Architecture & API')}</h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {t('Die App wurde von einer rein lokalen Anwendung (localStorage) zu einer Multi-User Cloud-Lösung migriert.', 'The app was migrated from a purely local application (localStorage) to a multi-user cloud solution.')}
-            </p>
-          </div>
-
-          <DocCard title={t('Azure Infrastruktur', 'Azure Infrastructure')} icon={<Server size={20} />}>
-            <div className="space-y-3 text-xs">
-              <div className="flex items-start gap-2"><Cloud size={14} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>Azure Static Web Apps:</strong> {t('Hostet das React-Frontend (Vite Build). Automatisches HTTPS, globales CDN, SPA-Routing via staticwebapp.config.json.', 'Hosts the React frontend (Vite build). Automatic HTTPS, global CDN, SPA routing via staticwebapp.config.json.')}</span></div>
-              <div className="flex items-start gap-2"><Server size={14} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>Azure Functions v4 (Node.js 20):</strong> {t('RESTful API unter /api/*. Serverless — skaliert automatisch. TypeScript mit @azure/functions v4 Programmiermodell.', 'RESTful API under /api/*. Serverless — scales automatically. TypeScript with @azure/functions v4 programming model.')}</span></div>
-              <div className="flex items-start gap-2"><Database size={14} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>Azure Cosmos DB (NoSQL):</strong> {t('5 Container mit jeweils eigener Partition Key Strategie. Free Tier (1000 RU/s geteilt). Daten persistiert als JSON-Dokumente.', '5 containers each with their own partition key strategy. Free tier (1000 RU/s shared). Data persisted as JSON documents.')}</span></div>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Cosmos DB Container', 'Cosmos DB Containers')} icon={<Database size={20} />}>
-            <div className="space-y-2 text-xs font-mono">
-              <div className={`rounded-lg p-3 ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
-                <div><strong>stock</strong> <span className="opacity-60">partition: /id</span></div>
-                <div className="opacity-60 font-sans text-[10px]">{t('~800 Artikel (StockItem Dokumente)', '~800 items (StockItem documents)')}</div>
-              </div>
-              <div className={`rounded-lg p-3 ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
-                <div><strong>orders</strong> <span className="opacity-60">partition: /id</span></div>
-                <div className="opacity-60 font-sans text-[10px]">{t('PurchaseOrder Dokumente', 'PurchaseOrder documents')}</div>
-              </div>
-              <div className={`rounded-lg p-3 ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
-                <div><strong>receipts</strong> <span className="opacity-60">partition: /poId</span></div>
-                <div className="opacity-60 font-sans text-[10px]">{t('Multi-Typ: master, header, item, comment — unterschieden durch docType Feld', 'Multi-type: master, header, item, comment — distinguished by docType field')}</div>
-              </div>
-              <div className={`rounded-lg p-3 ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
-                <div><strong>tickets</strong> <span className="opacity-60">partition: /poId</span></div>
-                <div className="opacity-60 font-sans text-[10px]">{t('Reklamations-Tickets (Schäden, Fehlmengen, etc.)', 'Complaint tickets (damage, shortages, etc.)')}</div>
-              </div>
-              <div className={`rounded-lg p-3 ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
-                <div><strong>delivery-logs</strong> <span className="opacity-60">partition: /poId</span></div>
-                <div className="opacity-60 font-sans text-[10px]">{t('Lieferprotokolle (geplant)', 'Delivery logs (planned)')}</div>
-              </div>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('API Endpunkte', 'API Endpoints')} icon={<Globe size={20} />}>
-            <div className="space-y-1.5 text-xs font-mono">
-              <div>GET /api/stock → {t('Alle Artikel', 'All items')}</div>
-              <div>POST /api/stock → {t('Upsert Artikel', 'Upsert item')}</div>
-              <div>GET /api/orders → {t('Alle Bestellungen', 'All orders')}</div>
-              <div>POST /api/orders → {t('Upsert Bestellung', 'Upsert order')}</div>
-              <div>GET /api/receipts → {t('Alle Wareneingänge', 'All receipts')}</div>
-              <div>GET /api/receipts?poId=X&docType=Y → {t('Gefiltert', 'Filtered')}</div>
-              <div>POST /api/receipts → {t('Upsert Dokument', 'Upsert document')}</div>
-              <div>POST /api/receipts/bulk → {t('Massen-Upsert (Array)', 'Bulk upsert (Array)')}</div>
-              <div>GET /api/tickets → {t('Alle Tickets', 'All tickets')}</div>
-              <div>POST /api/tickets → {t('Upsert Ticket', 'Upsert ticket')}</div>
-            </div>
-            <div className="mt-3 text-xs">
-              <strong>{t('Antwort-Bereinigung', 'Response Cleanup')}:</strong> {t('Frontend cleanDocs() entfernt Cosmos-Metadaten (_rid, _self, _etag, _attachments, _ts) aus allen API-Antworten.', 'Frontend cleanDocs() strips Cosmos metadata (_rid, _self, _etag, _attachments, _ts) from all API responses.')}
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Datenlade-Strategie', 'Data Loading Strategy')} icon={<RefreshCw size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p className="font-bold">{t('Beim Start (loadAllData):', 'On startup (loadAllData):')}</p>
-              <div className="flex items-start gap-2"><span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>1</span>{t('API aufrufen → bei Erfolg: Daten in IndexedDB cachen → Quelle: "api"', 'Call API → on success: cache data in IndexedDB → source: "api"')}</div>
-              <div className="flex items-start gap-2"><span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-600'}`}>2</span>{t('API fehlgeschlagen → IndexedDB Cache lesen → Quelle: "cache"', 'API failed → read IndexedDB cache → source: "cache"')}</div>
-              <div className="flex items-start gap-2"><span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isDark ? 'bg-slate-500/20 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>3</span>{t('Cache leer → Mock-Daten aus data.ts → Quelle: "mock"', 'Cache empty → mock data from data.ts → source: "mock"')}</div>
-              <p className="mt-2"><strong>{t('Laufender Sync', 'Ongoing Sync')}:</strong> {t('Alle 10 Sekunden pollt syncFromApi() für neue Daten. Zusätzlich bei Browser-Tab-Fokus (visibilitychange Event).', 'Every 10 seconds syncFromApi() polls for new data. Also on browser tab focus (visibilitychange event).')}</p>
-            </div>
-          </DocCard>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 3: OFFLINE & SYNC
-          ═══════════════════════════════════════════════════════ */}
-      {activeSection === 'offline' && (
-        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">{t('Offline-Betrieb & Synchronisation', 'Offline Operation & Synchronization')}</h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {t('Die App ist für den Einsatz in unterirdischen Lagern und Bereichen ohne Mobilfunkempfang konzipiert. 4 Schichten bilden die Offline-Infrastruktur.', 'The app is designed for use in underground warehouses and areas without cellular reception. 4 layers form the offline infrastructure.')}
-            </p>
-          </div>
-
-          <DocCard title={t('Schicht 1: IndexedDB Cache (Step 5a)', 'Layer 1: IndexedDB Cache (Step 5a)')} icon={<HardDrive size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Datenbank: procureflow-cache (Version 2). Object Stores: stock, orders, receipts, tickets + _meta (Sync-Zeitstempel) + _writeQueue (Offline-Schreibwarteschlange).', 'Database: procureflow-cache (version 2). Object stores: stock, orders, receipts, tickets + _meta (sync timestamps) + _writeQueue (offline write queue).')}</p>
-              <p><strong>{t('Modul', 'Module')}:</strong> <TechBadge label="offlineDb.ts" /></p>
-              <p>{t('Funktionen: cacheCollection(), getCachedCollection(), getCachedAppData(), cacheAllData(), clearCache(), getLastSyncTime()', 'Functions: cacheCollection(), getCachedCollection(), getCachedAppData(), cacheAllData(), clearCache(), getLastSyncTime()')}</p>
-              <p>{t('Kapazität: Hunderte MB (vs. 5-10 MB bei localStorage). Asynchron — blockiert nicht den Main Thread.', 'Capacity: hundreds of MB (vs. 5-10 MB for localStorage). Asynchronous — does not block the main thread.')}</p>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Schicht 2: Offline Write Queue (Step 5b)', 'Layer 2: Offline Write Queue (Step 5b)')} icon={<RefreshCw size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Wenn ein API-Schreibvorgang (POST/PUT/DELETE) wegen Netzwerkfehler fehlschlägt, wird er automatisch in die IndexedDB _writeQueue eingereiht. FIFO-Verarbeitung, max. 5 Wiederholungsversuche pro Eintrag.', 'When an API write (POST/PUT/DELETE) fails due to network error, it is automatically enqueued in the IndexedDB _writeQueue. FIFO processing, max 5 retries per entry.')}</p>
-              <p><strong>{t('Modul', 'Module')}:</strong> <TechBadge label="offlineQueue.ts" /></p>
-              <p><strong>{t('Netzwerkerkennung', 'Network Detection')}:</strong> {t('Erkennt Offline-Fehler browserübergreifend: "Failed to fetch" (Chrome), "Load failed" (Safari/iOS), "NetworkError" (Firefox), plus navigator.onLine Fallback. Kritisch für iOS Safari, wo die Standard-Fehlermeldung anders lautet.', 'Cross-browser offline detection: "Failed to fetch" (Chrome), "Load failed" (Safari/iOS), "NetworkError" (Firefox), plus navigator.onLine fallback. Critical for iOS Safari where the standard error message differs.')}</p>
-              <p><strong>{t('Flush-Auslöser', 'Flush Triggers')}:</strong></p>
-              <div className="space-y-1 ml-2">
-                <div className="flex items-start gap-2"><CheckCircle2 size={12} className="text-emerald-500 shrink-0 mt-0.5" /><span className="font-mono">online</span> {t('Event — Browser erkennt Netzwerk wieder', 'event — browser detects network again')}</div>
-                <div className="flex items-start gap-2"><CheckCircle2 size={12} className="text-emerald-500 shrink-0 mt-0.5" /><span className="font-mono">visibilitychange</span> {t('Event — Benutzer kehrt zum Tab zurück', 'event — user returns to tab')}</div>
-                <div className="flex items-start gap-2"><CheckCircle2 size={12} className="text-emerald-500 shrink-0 mt-0.5" />{t('Beim App-Start — VOR dem Laden der API-Daten (Queue-Flush hat Priorität, damit die API aktuelle Daten hat)', 'On app startup — BEFORE loading API data (queue flush takes priority so API has current data)')}</div>
-              </div>
-              <p><strong>{t('Sync-Schutz (4 Ebenen)', 'Sync Guards (4 layers)')}:</strong></p>
-              <div className="space-y-1 ml-2">
-                <div className="flex items-start gap-2"><Shield size={12} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>navigator.onLine:</strong> {t('Sync-Poll wird komplett übersprungen wenn offline — verhindert dass staler IndexedDB-Cache den React-State überschreibt', 'Sync poll completely skipped when offline — prevents stale IndexedDB cache from overwriting React state')}</span></div>
-                <div className="flex items-start gap-2"><Shield size={12} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>pendingWritesRef:</strong> {t('Sync blockiert solange Einträge in der Queue — lokaler State ist aktueller als API', 'Sync blocked while queue has entries — local state is more current than API')}</span></div>
-                <div className="flex items-start gap-2"><Shield size={12} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>K14 Cooldown (15s):</strong> {t('Nach lokalem Schreibvorgang 15 Sekunden Sync-Sperre — gibt der API Zeit den Write zu verarbeiten', 'After local write, 15-second sync block — gives API time to process the write')}</span></div>
-                <div className="flex items-start gap-2"><Shield size={12} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>source !== api:</strong> {t('Selbst wenn alle anderen Guards passieren: State wird NUR von Live-API-Antworten aktualisiert, nie von Cache', 'Even if all other guards pass: state is ONLY updated from live API responses, never from cache')}</span></div>
-              </div>
-              <p><strong>{t('Change Listener', 'Change Listener')}:</strong> {t('onQueueChange() benachrichtigt die UI über Warteschlangen-Änderungen → pendingWrites State + pendingWritesRef in App.tsx → Sync-Indikator im Header.', 'onQueueChange() notifies the UI of queue changes → pendingWrites state + pendingWritesRef in App.tsx → sync indicator in header.')}</p>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Schicht 3: Service Worker (Step 5c)', 'Layer 3: Service Worker (Step 5c)')} icon={<Globe size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p><strong>{t('Modul', 'Module')}:</strong> <TechBadge label="public/sw.js" /></p>
-              <p>{t('Registriert beim Laden in index.html. Pre-cached: /, /index.html, /index.css, /manifest.json.', 'Registered on load in index.html. Pre-cached: /, /index.html, /index.css, /manifest.json.')}</p>
-              <p><strong>{t('Caching-Strategien', 'Caching Strategies')}:</strong></p>
-              <div className="space-y-1.5 ml-2">
-                <div><strong>App Shell (HTML):</strong> Stale-while-revalidate — {t('sofortige Anzeige aus Cache, Aktualisierung im Hintergrund', 'instant display from cache, background update')}</div>
-                <div><strong>{t('Statische Assets', 'Static Assets')} (JS/CSS/Images):</strong> Cache-first — {t('schnelles Laden, Update bei neuer SW-Version', 'fast loading, update on new SW version')}</div>
-                <div><strong>CDN (esm.sh, Google Fonts, Tailwind):</strong> Cache-first — {t('Content-hashed URLs, unveränderlich', 'content-hashed URLs, immutable')}</div>
-                <div><strong>API (/api/*):</strong> Network-first — {t('Live-Daten bevorzugt, Cache als Fallback', 'live data preferred, cache as fallback')}</div>
-                <div><strong>{t('Schreibvorgänge', 'Writes')} (POST/PUT/DELETE):</strong> Passthrough — {t('von offlineQueue.ts verwaltet', 'managed by offlineQueue.ts')}</div>
-              </div>
-              <p>{t('Cache-Versionierung: CACHE_VERSION in sw.js hochzählen bei Deploy → alte Caches werden beim Aktivieren gelöscht.', 'Cache versioning: bump CACHE_VERSION in sw.js on deploy → old caches are deleted on activation.')}</p>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Schicht 4: Sync-Indikator (Step 5d)', 'Layer 4: Sync Indicator (Step 5d)')} icon={<Wifi size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Immer sichtbar im Header-Bereich. Reagiert in Echtzeit auf online/offline Events (navigator.onLine + window events). 5 Zustände:', 'Always visible in the header area. Reacts in real-time to online/offline events (navigator.onLine + window events). 5 states:')}</p>
-              <div className="space-y-1.5 ml-2">
-                <div className="flex items-center gap-2"><Cloud size={12} className="text-emerald-500" /> <strong className="text-emerald-500">{t('Verbunden', 'Connected')}</strong> — {t('Live API, alle Daten synchron', 'Live API, all data synced')}</div>
-                <div className="flex items-center gap-2"><RefreshCw size={12} className="text-amber-500" /> <strong className="text-amber-500">{t('X ausstehend', 'X pending')}</strong> — {t('Verbunden, aber Schreibvorgänge in der Warteschlange', 'Connected but writes queued')}</div>
-                <div className="flex items-center gap-2"><span className="flex items-center gap-0.5"><WifiOff size={12} className="text-orange-500" /><Database size={10} className="text-orange-500" /></span> <strong className="text-orange-500">{t('Offline · X', 'Offline · X')}</strong> — {t('Gerät offline, Daten werden lokal in IndexedDB gesichert', 'Device offline, data saved locally in IndexedDB')}</div>
-                <div className="flex items-center gap-2"><Database size={12} className="text-amber-500 animate-pulse" /> <strong className="text-amber-500">{t('Synchronisiere…', 'Syncing…')}</strong> — {t('Wieder online, Queue wird abgearbeitet, Cache aktiv', 'Back online, queue flushing, cache active')}</div>
-                <div className="flex items-center gap-2"><CloudOff size={12} className="text-slate-400" /> <strong className="text-slate-400">{t('Lokal', 'Local')}</strong> — {t('Kein Cache, Mock-Daten', 'No cache, mock data')}</div>
-              </div>
-              <p>{t('Klick auf den Indikator öffnet ein Dropdown mit Details: Verbindungsstatus, Anzahl ausstehender Änderungen und Erklärungstext.', 'Clicking the indicator opens a dropdown with details: connection status, pending changes count and explanatory text.')}</p>
-            </div>
-          </DocCard>
-
-          <InfoBox>
-            {t(
-              'Typischer Offline-Ablauf: Techniker geht ins Untergeschoss → Indikator wechselt sofort zu WifiOff + Database (orange) → App-Shell lädt aus SW-Cache → Daten laden aus IndexedDB → Wareneingang wird verarbeitet → API-Schreibvorgänge werden automatisch in die Queue eingereiht → UI zeigt "Offline · X" → Techniker kommt zurück → Indikator wechselt zu Database (pulsierend, "Synchronisiere…") → Queue wird VOR dem Datenladen abgearbeitet → API-Daten werden geladen → Indikator wechselt zu grüner Cloud ("Verbunden").',
-              'Typical offline flow: Technician goes underground → indicator immediately switches to WifiOff + Database (orange) → app shell loads from SW cache → data loads from IndexedDB → goods receipt is processed → API writes are automatically queued → UI shows "Offline · X" → technician returns → indicator switches to Database (pulsing, "Syncing…") → queue flushes BEFORE data loading → API data is loaded → indicator switches to green Cloud ("Connected").'
-            )}
-          </InfoBox>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 4: MODULES
-          ═══════════════════════════════════════════════════════ */}
-      {activeSection === 'modules' && (
-        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">{t('App Module', 'App Modules')}</h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {t('Jedes Modul ist eine eigene React-Komponente, gesteuert über activeModule State in App.tsx. Navigation über Sidebar (Desktop), Bottom Nav (Mobile) oder programmatische Aufrufe.', 'Each module is its own React component, controlled via activeModule state in App.tsx. Navigation via sidebar (desktop), bottom nav (mobile) or programmatic calls.')}
-            </p>
-          </div>
-
-          <Collapsible id="mod-dashboard" title={t('Dashboard (Lager)', 'Dashboard')} icon={<BarChart3 size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Zentrale Übersicht mit 4 KPI-Karten (Command Center): Offene Bestellungen, Erwartete Lieferungen (heute/morgen), Verspätungen, Abweichungen. Quick-Actions für häufige Aufgaben. Insights-Zeile (InsightsRow) zeigt bestandskritische Highlights.', 'Central overview with 4 KPI cards (Command Center): Open orders, Expected deliveries (today/tomorrow), Delays, Deviations. Quick actions for common tasks. Insights row shows stock-critical highlights.')}</p>
-              <p><strong>{t('Letzte Aktivitäten', 'Recent Activities')}:</strong> {t('Kombinierter Activity Feed aus StockLogs, Bestellungen, Wareneingängen und Tickets. Letzte 10 Einträge, sortiert nach Zeitstempel. Mobil-optimierte Kartendarstellung.', 'Combined activity feed from StockLogs, orders, receipts and tickets. Last 10 entries sorted by timestamp. Mobile-optimized card display.')}</p>
-              <p><strong>{t('Komponenten', 'Components')}:</strong> <TechBadge label="Dashboard.tsx" /> <TechBadge label="InsightsRow.tsx" /></p>
-            </div>
-          </Collapsible>
-
-          <Collapsible id="mod-inventory" title={t('Artikelverwaltung', 'Inventory Management')} icon={<Box size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('~800 Artikel mit Grid- und List-Ansicht. Volltextsuche über Name, SKU, System, Hersteller. Inline-Bestandskorrekturen (+/-) mit Bulk-Eingabe. Jede Änderung wird im StockLog protokolliert und an die API persistiert.', '~800 items with grid and list views. Full-text search across name, SKU, system, manufacturer. Inline stock corrections (+/-) with bulk input. Every change is logged in StockLog and persisted to the API.')}</p>
-              <p><strong>{t('Features', 'Features')}:</strong> {t('Artikel erstellen, bearbeiten, duplizieren. CSV-Export. Mobile-Karten + Desktop-Tabelle. Lagerort-Feld als ComboboxSelect mit gruppierten Kategorien.', 'Create, edit, duplicate items. CSV export. Mobile cards + desktop table. Warehouse field as ComboboxSelect with grouped categories.')}</p>
-              <p><strong>{t('Komponenten', 'Components')}:</strong> <TechBadge label="InventoryView.tsx" /> <TechBadge label="ItemModal.tsx" /></p>
-            </div>
-          </Collapsible>
-
-          <Collapsible id="mod-orders" title={t('Bestellverwaltung', 'Order Management')} icon={<FileText size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Übersicht aller PurchaseOrders mit Filter-Tabs (Alle, Offen, Teillieferung, Abgeschlossen, Archiv). Status-Badges, Archivierung, Stornierung mit Kaskade (schließt verknüpfte Tickets, archiviert Wareneingänge).', 'Overview of all PurchaseOrders with filter tabs (All, Open, Partial, Completed, Archive). Status badges, archiving, cancellation with cascade (closes linked tickets, archives receipts).')}</p>
-              <p><strong>{t('Erstellung', 'Creation')}:</strong> {t('CreateOrderWizard — Schritt-für-Schritt Wizard mit Lieferant, Artikel, Lieferdatum. Smart Import (PDF/Text → automatische Artikelerkennung). Unterstützt Lager- und Projekt-Bestellungen. Bulk-Erstellung (Sammelbestellung für mehrere Lieferanten).', 'CreateOrderWizard — step-by-step wizard with supplier, items, delivery date. Smart import (PDF/text → automatic item recognition). Supports warehouse and project orders. Bulk creation (collective order for multiple suppliers).')}</p>
-              <p><strong>{t('Komponenten', 'Components')}:</strong> <TechBadge label="OrderManagement.tsx" /> <TechBadge label="CreateOrderWizard.tsx" /></p>
-            </div>
-          </Collapsible>
-
-          <Collapsible id="mod-receipt" title={t('Wareneingangsverwaltung', 'Receipt Management')} icon={<ClipboardList size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Verwaltung aller Wareneingänge mit automatischer Gruppierung nach Bestellnummer. 3-Badge-Statussystem (Identität, Status, Tickets). Detail-Ansicht mit Lieferverlauf (Lieferhistorie), Positionen und Historie & Notizen (Ticket-System).', 'Management of all goods receipts with automatic grouping by order number. 3-badge status system (identity, status, tickets). Detail view with delivery history, positions and history & notes (ticket system).')}</p>
-              <p><strong>{t('Retouren', 'Returns')}:</strong> {t('Vollständiger Rücksendungs-Flow mit Grund, Versandart, Tracking-Nummer. Automatische Bestandskorrektur, automatische Ticket-Erstellung, Auto-Kommentare in Historie & Notizen. Orangene LKW-Icons mit Pulse-Animation.', 'Complete return flow with reason, carrier, tracking number. Automatic stock correction, automatic ticket creation, auto-comments in history & notes. Orange truck icons with pulse animation.')}</p>
-              <p><strong>{t('Komponenten', 'Components')}:</strong> <TechBadge label="ReceiptManagement.tsx" /> <TechBadge label="GoodsReceiptFlow.tsx" /> <TechBadge label="ReceiptStatusBadges.tsx" /> <TechBadge label="StatusDescription.tsx" /> <TechBadge label="TicketSystem.tsx" /></p>
-            </div>
-          </Collapsible>
-
-          <Collapsible id="mod-suppliers" title={t('Lieferantenbewertung', 'Supplier Scoring')} icon={<Users size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Automatische Bewertung aller Lieferanten basierend auf Lieferhistorie: Pünktlichkeit, Qualität (Schäden, Falschlieferungen), Vollständigkeit. Score von 0-100. Abgeleitet aus ReceiptMasters und ReceiptHeaders.', 'Automatic scoring of all suppliers based on delivery history: punctuality, quality (damage, wrong deliveries), completeness. Score from 0-100. Derived from ReceiptMasters and ReceiptHeaders.')}</p>
-              <p><strong>{t('Komponente', 'Component')}:</strong> <TechBadge label="SupplierView.tsx" /></p>
-            </div>
-          </Collapsible>
-
-          <Collapsible id="mod-stocklog" title={t('Lagerprotokoll', 'Stock Logs')} icon={<History size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Chronologisches Protokoll aller Bestandsbewegungen. 5 Filter-Tabs: Alle, Manuell, PO-Normal, PO-Projekt, Inventur. Zeigt Quelle, Kontext und bei Inventur-Einträgen auch Zähler/Genehmiger.', 'Chronological log of all stock movements. 5 filter tabs: All, Manual, PO-Normal, PO-Project, Audit. Shows source, context and for audit entries also counter/approver.')}</p>
-              <p><strong>{t('Inventur-Einträge', 'Audit Entries')}:</strong> {t('Lila SCHNELL/INVENTUR-Badge, rotes ABSCHREIBUNG-Badge bei write-off. Referenz zeigt Inventur-Name. Zusätzliche Zeile "Genehmigt von" (Normal) oder "Gezählt von" (Schnell).', 'Purple SCHNELL/INVENTUR badge, red ABSCHREIBUNG badge for write-offs. Reference shows audit name. Additional line "Approved by" (Normal) or "Counted by" (Quick).')}</p>
-              <p><strong>{t('Komponente', 'Component')}:</strong> <TechBadge label="StockLogView.tsx" /></p>
-            </div>
-          </Collapsible>
-
-          <Collapsible id="mod-tickets" title={t('Ticket-System (Reklamationen)', 'Ticket System (Complaints)')} icon={<Ticket size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Automatisch oder manuell erstellte Support-Fälle bei Abweichungen. Jedes Ticket ist an einen Wareneingang gebunden. Status: Open → In Progress → Resolved → Closed. Prioritäten: Low, Medium, High, Critical. Ticket-Typen: damage, shortage, excess, wrong, rejected. Konfigurierbar über Globale Einstellungen (welche Abweichungen automatisch Tickets erstellen).', 'Automatically or manually created support cases for deviations. Each ticket is linked to a goods receipt. Status: Open → In Progress → Resolved → Closed. Priorities: Low, Medium, High, Critical. Types: damage, shortage, excess, wrong, rejected. Configurable via Global Settings (which deviations auto-create tickets).')}</p>
-              <p><strong>{t('Komponente', 'Component')}:</strong> <TechBadge label="TicketSystem.tsx" /> {t('(eingebettet in ReceiptManagement)', '(embedded in ReceiptManagement)')}</p>
-            </div>
-          </Collapsible>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 5: ORDERS (DETAILED)
-          ═══════════════════════════════════════════════════════ */}
-      {activeSection === 'orders' && (
-        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">{t('Bestellungen — Detailansicht', 'Orders — Detailed View')}</h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {t('Der gesamte Lebenszyklus einer Bestellung von Erstellung bis Archivierung.', 'The complete lifecycle of an order from creation to archival.')}
-            </p>
-          </div>
-
-          <DocCard title={t('Bestelltypen', 'Order Types')} icon={<FileText size={20} />}>
-            <div className="space-y-2 text-xs">
-              <div className="flex items-start gap-2"><Box size={14} className="text-slate-500 shrink-0 mt-0.5" /><span><strong>Lager:</strong> {t('Standard-Lagerbestellung. Bestand wird bei Wareneingang zum Lager addiert. Status-Zyklus: Offen → Teilweise geliefert → Abgeschlossen.', 'Standard warehouse order. Stock is added to warehouse on receipt. Status cycle: Open → Partial → Completed.')}</span></div>
-              <div className="flex items-start gap-2"><Briefcase size={14} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Projekt:</strong> {t('Projektbezogene Bestellung. Bestand wird NICHT zum Lager addiert (wird direkt an Projekt verbucht). Unterschiedliche Badge-Farbe (blau). Status bleibt "Projekt" bis manuell geschlossen.', 'Project-related order. Stock is NOT added to warehouse (booked directly to project). Different badge color (blue). Status stays "Projekt" until manually closed.')}</span></div>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Kaskadierende Aktionen', 'Cascading Actions')} icon={<GitBranch size={20} />}>
-            <div className="space-y-3 text-xs">
-              <div>
-                <strong>{t('Archivierung', 'Archiving')}:</strong>
-                <div className="ml-4 mt-1 space-y-1">
-                  <div>→ {t('Setzt isArchived: true auf PurchaseOrder', 'Sets isArchived: true on PurchaseOrder')}</div>
-                  <div>→ {t('Archiviert alle verknüpften Receipt-Gruppen (via archivedReceiptGroups)', 'Archives all linked receipt groups (via archivedReceiptGroups)')}</div>
-                  <div>→ {t('Schließt automatisch alle offenen Tickets mit System-Nachricht', 'Automatically closes all open tickets with system message')}</div>
-                  <div>→ {t('Persistiert an Cosmos DB', 'Persists to Cosmos DB')}</div>
-                </div>
-              </div>
-              <div>
-                <strong>{t('Stornierung', 'Cancellation')}:</strong>
-                <div className="ml-4 mt-1 space-y-1">
-                  <div>→ {t('Status → "Storniert", isArchived: true', 'Status → "Storniert", isArchived: true')}</div>
-                  <div>→ {t('ReceiptMaster Status → "Storniert"', 'ReceiptMaster status → "Storniert"')}</div>
-                  <div>→ {t('Alle ReceiptHeaders → Status "Storniert"', 'All ReceiptHeaders → status "Storniert"')}</div>
-                  <div>→ {t('Alle offenen Tickets geschlossen', 'All open tickets closed')}</div>
-                  <div>→ {t('Alles an Cosmos DB persistiert', 'Everything persisted to Cosmos DB')}</div>
-                </div>
-              </div>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Smart Import', 'Smart Import')} icon={<Sparkles size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Text-Import-Tool im CreateOrderWizard. Erkennt automatisch Artikelnummern, Mengen und Beschreibungen aus kopierten Bestellbestätigungen oder Angeboten. Matching gegen vorhandene ~800 Artikel im Bestand (Fuzzy-Match auf Name und SKU).', 'Text import tool in CreateOrderWizard. Automatically recognizes item numbers, quantities and descriptions from copied order confirmations or quotes. Matching against existing ~800 items in stock (fuzzy match on name and SKU).')}</p>
-              <p>{t('Konfigurierbar über Globale Einstellungen (Smart Import an/aus).', 'Configurable via Global Settings (Smart Import on/off).')}</p>
-            </div>
-          </DocCard>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 6: GOODS RECEIPT (DETAILED)
-          ═══════════════════════════════════════════════════════ */}
-      {activeSection === 'receipt' && (
-        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">{t('Wareneingang — Prozessdetails', 'Goods Receipt — Process Details')}</h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {t('Der Wareneingang ist der Kernprozess der App. Hier werden Lieferungen geprüft, Bestände aktualisiert und Abweichungen dokumentiert.', 'The goods receipt is the core process of the app. Here deliveries are inspected, stock levels updated and deviations documented.')}
-            </p>
-          </div>
-
-          <DocCard title={t('Prüfungs-Flow (GoodsReceiptFlow)', 'Inspection Flow (GoodsReceiptFlow)')} icon={<ClipboardList size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Vollbild-Wizard (mobil-optimiert) mit folgenden Schritten:', 'Full-screen wizard (mobile-optimized) with these steps:')}</p>
-              <div className="space-y-1.5 ml-2">
-                <div className="flex items-start gap-2"><span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>1</span>{t('Lieferschein-Daten eingeben (Nummer, Lieferant)', 'Enter delivery note data (number, supplier)')}</div>
-                <div className="flex items-start gap-2"><span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>2</span>{t('Pro Artikel: Menge prüfen, Akzeptiert/Abgelehnt/Überliefert', 'Per item: check quantity, accepted/rejected/over-delivered')}</div>
-                <div className="flex items-start gap-2"><span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>3</span>{t('Bei Abweichungen: Ablehnungsgrund, Fotos, Notizen', 'On deviations: rejection reason, photos, notes')}</div>
-                <div className="flex items-start gap-2"><span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>4</span>{t('Zusammenfassung → Buchen', 'Summary → Book')}</div>
-              </div>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Lieferung ablehnen', 'Delivery Refusal')} icon={<Ban size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Komplette Lieferung kann abgelehnt werden (z.B. falsche Ware, beschädigtes Paket). Erstellt automatisch ein Ticket, setzt ReceiptMaster auf "Abgelehnt", postet Auto-Kommentar in Historie & Notizen.', 'Complete delivery can be refused (e.g. wrong goods, damaged package). Automatically creates a ticket, sets ReceiptMaster to "Abgelehnt", posts auto-comment in History & Notes.')}</p>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Retouren-Prozess', 'Returns Process')} icon={<Truck size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Aus der Wareneingangsverwaltung: "Rücksendung" Modus wählen → Menge, Grund, Versandart, Tracking-Nummer eingeben → Verarbeiten.', 'From receipt management: select "Return" mode → enter quantity, reason, carrier, tracking number → process.')}</p>
-              <p><strong>{t('Automatische Aktionen', 'Automatic Actions')}:</strong></p>
-              <div className="space-y-1 ml-2">
-                <div>→ {t('Bestand wird um Rücksendemenge reduziert (bei Lager-Bestellungen)', 'Stock is reduced by return quantity (for warehouse orders)')}</div>
-                <div>→ {t('PO-Status wird ggf. auf "Offen" zurückgesetzt', 'PO status may be reset to "Offen"')}</div>
-                <div>→ {t('ReceiptMaster wird aktualisiert (deliveries Array)', 'ReceiptMaster is updated (deliveries array)')}</div>
-                <div>→ {t('Rücksende-Header + Items als Receipt-Dokumente gespeichert', 'Return header + items saved as receipt documents')}</div>
-                <div>→ {t('Auto-Ticket erstellt (Typ: Rücksendung)', 'Auto-ticket created (type: return)')}</div>
-                <div>→ {t('Formatierter Auto-Kommentar in Historie & Notizen', 'Formatted auto-comment in History & Notes')}</div>
-                <div>→ {t('Cross-Post an offene Tickets derselben Bestellung', 'Cross-post to open tickets for same order')}</div>
-              </div>
-              <p><strong>{t('Visuelle Kennzeichnung', 'Visual Indicators')}:</strong> {t('Orangene LKW-Icons (Truck) mit Fade-in Pulse-Animation. Label wechselt von "Lieferschein" zu "Zurücksendung". Rücksende-Nummer enthält Datum-Formatierung.', 'Orange truck icons with fade-in pulse animation. Label changes from "Lieferschein" to "Zurücksendung". Return number contains date formatting.')}</p>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('API Persistierung (handleReceiptSuccess)', 'API Persistence (handleReceiptSuccess)')} icon={<Database size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Kritischer Handler — alle Schreibvorgänge inline in setState-Callbacks (keine setTimeout, keine stale Closures):', 'Critical handler — all writes inline in setState callbacks (no setTimeout, no stale closures):')}</p>
-              <div className="space-y-1 ml-2 font-mono text-[10px]">
-                <div>setPurchaseOrders(prev =&gt; ...) → ordersApi.upsert()</div>
-                <div>setReceiptMasters(prev =&gt; ...) → receiptsApi.upsert()</div>
-                <div>setInventory(prev =&gt; ...) → stockApi.upsert()</div>
-                <div>receiptsApi.bulkUpsert([header, ...items])</div>
-                <div>{t('Auto-Kommentare + Auto-Tickets separat persistiert', 'Auto-comments + auto-tickets persisted separately')}</div>
-              </div>
-            </div>
-          </DocCard>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════
-          SECTION: INVENTUR (AUDIT MODULE)
-          ═══════════════════════════════════════════════════════ */}
+      {/* SECTION: AUDIT */}
       {activeSection === 'audit' && (
         <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
           <div>
             <h2 className="text-2xl font-bold mb-2">{t('Inventur — Bestandszählung', 'Audit — Inventory Count')}</h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {t(
-                'Shopping-Cart-Erlebnis für Bestandszählungen. Zwei Modi (Schnell / Normal), Offline-fähig, mit Genehmigungsworkflow und vollständiger Rückverfolgbarkeit im Lagerprotokoll.',
-                'Shopping cart experience for inventory counts. Two modes (Quick / Normal), offline-capable, with approval workflow and full traceability in the stock log.'
-              )}
-            </p>
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{t('Shopping-Cart-Erlebnis für Bestandszählungen. Zwei Modi (Schnell / Normal), Offline-fähig, mit Genehmigungsworkflow und vollständiger Rückverfolgbarkeit im Lagerprotokoll.', 'Shopping cart experience for inventory counts. Two modes (Quick / Normal), offline-capable, with approval workflow and full traceability in the stock log.')}</p>
           </div>
 
           <DocCard title={t('Konzept: Baue was du findest', 'Concept: Build What You Find')} icon={<ClipboardCheck size={20} />}>
             <div className="space-y-2 text-xs">
-              <p>{t(
-                'Keine vorausgefüllten Listen, keine erwarteten Mengen vorab. Der Zähler startet mit einem leeren "Warenkorb", sucht Artikel per Name/SKU/System, fügt sie einzeln hinzu und gibt die tatsächlich gezählte Menge ein. Erst in der Zusammenfassung zeigt die App die Abweichungen — sauber, überraschungsfrei.',
-                'No pre-filled lists, no expected quantities upfront. The counter starts with an empty "cart", searches items by name/SKU/system, adds them one by one and enters the actually counted quantity. Only in the summary does the app reveal variances — clean, surprise-free.'
-              )}</p>
+              <p>{t('Keine vorausgefüllten Listen, keine erwarteten Mengen vorab. Der Zähler startet mit einem leeren "Warenkorb", sucht Artikel per Name/SKU/System, fügt sie einzeln hinzu und gibt die tatsächlich gezählte Menge ein. Erst in der Zusammenfassung zeigt die App die Abweichungen.', 'No pre-filled lists, no expected quantities upfront. The counter starts with an empty "cart", searches items by name/SKU/system, adds them one by one and enters the actually counted quantity. Only in the summary does the app reveal variances.')}</p>
             </div>
           </DocCard>
 
           <DocCard title={t('Zwei Modi', 'Two Modes')} icon={<Zap size={20} />}>
             <div className="space-y-3 text-xs">
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Zap size={14} className="text-amber-500" />
-                  <strong>{t('Schnellzählung (Quick Count)', 'Quick Count')}</strong>
-                </div>
-                <p>{t(
-                  'Schnell, ohne Drama. Zählen → Zusammenfassung → sofort buchen. Bestand wird direkt aktualisiert. Übermengen als Zugang, Fehlmengen als Abschreibung (write-off) im Lagerprotokoll.',
-                  'Fast, no drama. Count → summary → instant booking. Stock updated immediately. Overages as additions, shortages as write-offs in the stock log.'
-                )}</p>
+                <div className="flex items-center gap-2 mb-1"><Zap size={14} className="text-amber-500" /><strong>{t('Schnellzählung (Quick Count)', 'Quick Count')}</strong></div>
+                <p>{t('Schnell, ohne Drama. Zählen → Zusammenfassung → sofort buchen. Bestand wird direkt aktualisiert. Übermengen als Zugang, Fehlmengen als Abschreibung (write-off) im Lagerprotokoll.', 'Fast, no drama. Count → summary → instant booking. Stock updated immediately. Overages as additions, shortages as write-offs in the stock log.')}</p>
               </div>
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Shield size={14} className="text-blue-500" />
-                  <strong>{t('Normale Inventur (Normal Audit)', 'Normal Audit')}</strong>
-                </div>
-                <p>{t(
-                  'Für offizielle Zählungen mit Vier-Augen-Prinzip. Zählen → Zusammenfassung → zur Prüfung einreichen → Manager prüft Abweichungen → genehmigt oder lehnt ab. Erst nach Genehmigung wird der Bestand aktualisiert.',
-                  'For official counts with four-eyes principle. Count → summary → submit for review → manager reviews variances → approves or rejects. Stock is only updated after approval.'
-                )}</p>
+                <div className="flex items-center gap-2 mb-1"><Shield size={14} className="text-blue-500" /><strong>{t('Normale Inventur (Normal Audit)', 'Normal Audit')}</strong></div>
+                <p>{t('Für offizielle Zählungen mit Vier-Augen-Prinzip. Zählen → Zusammenfassung → zur Prüfung einreichen → Manager prüft → genehmigt oder lehnt ab. Erst nach Genehmigung wird der Bestand aktualisiert.', 'For official counts with four-eyes principle. Count → summary → submit for review → manager reviews → approves or rejects. Stock is only updated after approval.')}</p>
               </div>
             </div>
           </DocCard>
 
           <DocCard title={t('Ablauf — Schritt für Schritt', 'Flow — Step by Step')} icon={<ArrowRight size={20} />}>
             <div className="space-y-3 text-xs">
-              <div>
-                <strong>{t('1. Setup', '1. Setup')}</strong>
-                <p>{t(
-                  'Bezeichnung eingeben (z.B. "Akku Service März 2026"), Lager/Standort wählen (Grid-Picker aus vorhandenen Lagerorten), Modus wählen (Schnell/Normal), optional Blindmodus aktivieren.',
-                  'Enter name (e.g. "Akku Service März 2026"), pick warehouse/location (grid picker from existing locations), choose mode (Quick/Normal), optionally enable blind mode.'
-                )}</p>
-              </div>
-              <div>
-                <strong>{t('2. Zählung — Warenkorb', '2. Counting — Shopping Cart')}</strong>
-                <p>{t(
-                  'Leerer Warenkorb mit Suchleiste oben. Artikelsuche per Name, SKU, System, Hersteller (Live-Autocomplete). Antippen fügt Artikel als Karte hinzu. Pro Karte: Produktinfo, große +/−-Stepper (Daumen-freundlich, 44px), Direkteingabe per Tipp auf die Zahl, Notiz-Toggle, Entfernen-Button. Swipe-Gesten: links = entfernen, rechts = Notiz.',
-                  'Empty cart with search bar on top. Search by name, SKU, system, manufacturer (live autocomplete). Tapping adds item as a card. Per card: product info, large +/− steppers (thumb-friendly, 44px), direct entry by tapping the number, note toggle, remove button. Swipe gestures: left = remove, right = note.'
-                )}</p>
-              </div>
-              <div>
-                <strong>{t('3. Zusammenfassung — Die Enthüllung', '3. Summary — The Reveal')}</strong>
-                <p>{t(
-                  'Übersichtskarte mit Gesamtzahlen (Artikel, Gezählt, Differenz). Kategorisierung: Grün (Übereinstimmung), Orange (Übermenge), Rot (Fehlmenge). Jede Abweichung aufklappbar mit Details. Bei Schnellzählung: "Bestand aktualisieren" (mit Bestätigungsdialog bei Fehlmengen). Bei Normal: "Zur Prüfung einreichen".',
-                  'Stats card with totals (items, counted, variance). Categorization: green (match), orange (overage), red (shortage). Each variance expandable with details. Quick count: "Update stock" (with confirmation dialog for shortages). Normal: "Submit for review".'
-                )}</p>
-              </div>
-              <div>
-                <strong>{t('4. Prüfung (nur Normal-Modus)', '4. Review (Normal mode only)')}</strong>
-                <p>{t(
-                  'Manager sieht die gleiche Zusammenfassung wie der Zähler. Meta-Daten: Wer hat gezählt, wann, welcher Modus. Optionaler Prüfkommentar. Genehmigen → Bestand wird aktualisiert + Lagerprotokoll-Einträge erstellt. Ablehnen → Keine Bestandsänderung, Zähler wird benachrichtigt.',
-                  'Manager sees the same summary as the counter. Metadata: who counted, when, which mode. Optional review comment. Approve → stock updated + stock log entries created. Reject → no stock change, counter gets notified.'
-                )}</p>
-              </div>
+              <div><strong>{t('1. Setup', '1. Setup')}</strong><p>{t('Bezeichnung eingeben, Lager/Standort wählen (Grid-Picker), Modus wählen (Schnell/Normal), optional Blindmodus aktivieren.', 'Enter name, pick warehouse/location (grid picker), choose mode (Quick/Normal), optionally enable blind mode.')}</p></div>
+              <div><strong>{t('2. Zählung — Warenkorb', '2. Counting — Shopping Cart')}</strong><p>{t('Leerer Warenkorb mit Suchleiste. Artikelsuche per Name, SKU, System, Hersteller (Live-Autocomplete). Antippen fügt als Karte hinzu. Pro Karte: Produktinfo, große +/−-Stepper (44px), Direkteingabe, Notiz-Toggle, Entfernen. Swipe-Gesten: links = entfernen, rechts = Notiz.', 'Empty cart with search bar. Search by name, SKU, system, manufacturer (live autocomplete). Tapping adds as card. Per card: product info, large +/− steppers (44px), direct entry, note toggle, remove. Swipe gestures: left = remove, right = note.')}</p></div>
+              <div><strong>{t('3. Zusammenfassung — Die Enthüllung', '3. Summary — The Reveal')}</strong><p>{t('Übersichtskarte mit Gesamtzahlen. Kategorisierung: Grün (OK), Orange (Übermenge), Rot (Fehlmenge). Jede Abweichung aufklappbar. Schnell: "Bestand aktualisieren" (Bestätigung bei Fehlmengen). Normal: "Zur Prüfung einreichen".', 'Stats card with totals. Categorization: green (OK), orange (overage), red (shortage). Each variance expandable. Quick: "Update stock" (confirmation for shortages). Normal: "Submit for review".')}</p></div>
+              <div><strong>{t('4. Prüfung (nur Normal)', '4. Review (Normal only)')}</strong><p>{t('Manager sieht Zusammenfassung + Meta-Daten. Optionaler Kommentar. Genehmigen → Bestand aktualisiert + Lagerprotokoll. Ablehnen → Keine Änderung, Zähler wird benachrichtigt.', 'Manager sees summary + metadata. Optional comment. Approve → stock updated + stock log. Reject → no change, counter gets notified.')}</p></div>
             </div>
           </DocCard>
 
           <DocCard title={t('Blindmodus', 'Blind Mode')} icon={<Eye size={20} />}>
             <div className="space-y-2 text-xs">
-              <p>{t(
-                'Optional beim Setup aktivierbar. Verbirgt die erwarteten Bestandsmengen während der gesamten Zählung — die "Bestand"-Spalte in den Suchergebnissen wird ausgeblendet. Der Zähler arbeitet ohne Vorwissen über Soll-Mengen. Erst in der Zusammenfassung werden Erwartet vs. Gezählt offengelegt. Verhindert bestätigungsverzerrte Zählungen.',
-                'Optionally enabled during setup. Hides expected stock quantities throughout the entire count — the "Stock" column in search results is hidden. Counter works without prior knowledge of expected quantities. Only the summary reveals expected vs. counted. Prevents confirmation-biased counts.'
-              )}</p>
+              <p>{t('Optional beim Setup aktivierbar. Verbirgt die erwarteten Bestandsmengen während der gesamten Zählung — die "Bestand"-Spalte in den Suchergebnissen wird ausgeblendet. Erst in der Zusammenfassung werden Erwartet vs. Gezählt offengelegt. Verhindert bestätigungsverzerrte Zählungen.', 'Optionally enabled during setup. Hides expected stock quantities throughout the entire count — the "Stock" column in search results is hidden. Only the summary reveals expected vs. counted. Prevents confirmation-biased counts.')}</p>
             </div>
           </DocCard>
 
           <DocCard title={t('Warenkorb-UX — Premium-Feeling', 'Cart UX — Premium Feel')} icon={<Package size={20} />}>
             <div className="space-y-2 text-xs">
-              <p><strong>{t('Gesten', 'Gestures')}:</strong> {t('Swipe links = Artikel entfernen (rote Hintergrundaktion). Swipe rechts = Notiz ein/ausblenden (blaue Hintergrundaktion). 40px Totes-Zone verhindert Fehlauslösung. Vertikales Scrollen hat Priorität.', 'Swipe left = remove item (red background action). Swipe right = toggle note (blue background action). 40px dead zone prevents accidental triggers. Vertical scrolling has priority.')}</p>
-              <p><strong>{t('Animationen', 'Animations')}:</strong> {t('Karten-Eingangs-Bounce beim Hinzufügen. Mengen-Blitz (blauer Puls) bei +/−. Zusammenfassung: gestaffelte Fade-Up-Einblendung der Abschnitte. Stat-Zahlen: Pop-In mit Verzögerung. Konfetti-Partikel bei perfekter Übereinstimmung.', 'Card entrance bounce on add. Quantity flash (blue pulse) on +/−. Summary: staggered fade-up of sections. Stat numbers: pop-in with delay. Confetti particles on perfect match.')}</p>
-              <p><strong>{t('Haptik', 'Haptics')}:</strong> {t('Vibrationsfeedback (Android): 5ms bei +/−, 10ms bei Hinzufügen, 15ms bei Swipe-Entfernen. iOS: Kein navigator.vibrate — visuelle Animationen kompensieren (active:scale-90, Mengen-Blitz).', 'Vibration feedback (Android): 5ms on +/−, 10ms on add, 15ms on swipe remove. iOS: no navigator.vibrate — visual animations compensate (active:scale-90, quantity flash).')}</p>
-              <p><strong>{t('Bodenleiste', 'Bottom Bar')}:</strong> {t('Fixiert, mit Artikelanzahl, Stück-Gesamt, Fortschrittsbalken, "Fertig →"-Button. Berücksichtigt safe-area-inset und Sidebar-Offset auf Desktop.', 'Fixed, with item count, piece total, progress bar, "Done →" button. Accounts for safe-area-inset and sidebar offset on desktop.')}</p>
+              <p><strong>{t('Gesten', 'Gestures')}:</strong> {t('Swipe links = entfernen (rote Aktion). Swipe rechts = Notiz (blaue Aktion). 40px Totes-Zone. Vertikales Scrollen hat Priorität.', 'Swipe left = remove (red action). Swipe right = note (blue action). 40px dead zone. Vertical scrolling has priority.')}</p>
+              <p><strong>{t('Animationen', 'Animations')}:</strong> {t('Karten-Bounce beim Hinzufügen. Mengen-Blitz (blauer Puls) bei +/−. Zusammenfassung: gestaffelte Fade-Ups. Stat-Zahlen Pop-In. Konfetti bei perfekter Übereinstimmung.', 'Card bounce on add. Quantity flash (blue pulse) on +/−. Summary: staggered fade-ups. Stat number pop-in. Confetti on perfect match.')}</p>
+              <p><strong>{t('Haptik', 'Haptics')}:</strong> {t('Vibration (Android): 5ms +/−, 10ms Hinzufügen, 15ms Swipe-Entfernen. iOS: Kein navigator.vibrate — visuelle Animationen kompensieren.', 'Vibration (Android): 5ms +/−, 10ms add, 15ms swipe remove. iOS: no navigator.vibrate — visual animations compensate.')}</p>
+              <p><strong>{t('Bodenleiste', 'Bottom Bar')}:</strong> {t('Fixiert, Artikelanzahl, Stück-Gesamt, Fortschrittsbalken, "Fertig →". Safe-area-inset + Sidebar-Offset.', 'Fixed, item count, piece total, progress bar, "Done →". Safe-area-inset + sidebar offset.')}</p>
             </div>
           </DocCard>
 
           <DocCard title={t('Lagerprotokoll-Integration', 'Stock Log Integration')} icon={<History size={20} />}>
             <div className="space-y-2 text-xs">
-              <p>{t(
-                'Jede genehmigte Inventur (Schnell oder Normal) erzeugt Einträge im Lagerprotokoll (StockLogView). Neue Felder auf StockLog:',
-                'Every approved audit (Quick or Normal) generates entries in the stock log (StockLogView). New fields on StockLog:'
-              )}</p>
+              <p>{t('Jede genehmigte Inventur erzeugt Einträge im Lagerprotokoll. Neue Felder auf StockLog:', 'Every approved audit generates stock log entries. New fields on StockLog:')}</p>
               <div className="space-y-1 ml-2 font-mono text-[10px]">
-                <div>action: 'add' | 'remove' | <strong>'write-off'</strong> — {t('Abschreibung bei Fehlmengen', 'Write-off for shortages')}</div>
+                <div>action: 'add' | 'remove' | <strong>'write-off'</strong></div>
                 <div>context: ... | <strong>'audit-quick'</strong> | <strong>'audit-normal'</strong></div>
-                <div>auditSessionId?: string — {t('FK zur AuditSession', 'FK to AuditSession')}</div>
-                <div>auditSessionName?: string — {t('z.B. "Akku Service März 2026"', 'e.g. "Akku Service March 2026"')}</div>
-                <div>countedByName?: string — {t('Wer hat gezählt', 'Who counted')}</div>
-                <div>approvedByName?: string — {t('Wer hat genehmigt (nur Normal)', 'Who approved (Normal only)')}</div>
+                <div>auditSessionId?, auditSessionName?, countedByName?, approvedByName?</div>
               </div>
-              <p>{t(
-                'Neuer "Inventur"-Filter-Tab im Lagerprotokoll. Lila SCHNELL/INVENTUR-Badge und rotes ABSCHREIBUNG-Badge. Referenz-Spalte zeigt Inventur-Name + Genehmiger.',
-                'New "Inventur" filter tab in stock log. Purple SCHNELL/INVENTUR badge and red ABSCHREIBUNG badge. Reference column shows audit name + approver.'
-              )}</p>
+              <p>{t('Neuer "Inventur"-Filter-Tab. Lila SCHNELL/INVENTUR-Badge, rotes ABSCHREIBUNG-Badge. Referenz zeigt Inventur-Name + Genehmiger.', 'New "Inventur" filter tab. Purple SCHNELL/INVENTUR badge, red ABSCHREIBUNG badge. Reference shows audit name + approver.')}</p>
+            </div>
+          </DocCard>
+
+          {/* RICH OFFLINE SECTION */}
+          <DocCard title={t('Offline-Fähigkeit — Was funktioniert ohne Netz?', 'Offline Capability — What Works Without Signal?')} icon={<WifiOff size={20} />}>
+            <div className="space-y-4 text-xs">
+              <p>{t('Die Inventur ist für unterirdische Lager und Transporter ohne Empfang konzipiert.', 'The audit module is built for underground warehouses and vans without signal.')}</p>
+              <div className={`rounded-xl border p-4 ${isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50/50 border-emerald-200'}`}>
+                <div className={`flex items-center gap-2 mb-3 font-bold text-sm ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}><CheckCircle2 size={16} /> {t('Funktioniert offline', 'Works offline')}</div>
+                <div className="space-y-2.5">
+                  <div className="flex items-start gap-2.5"><span className={`shrink-0 mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`}><Search size={12} /></span><span><strong>{t('Artikelsuche', 'Item search')}:</strong> {t('Alle ~800 Artikel in IndexedDB gecacht. Sofort verfügbar.', 'All ~800 items cached in IndexedDB. Instantly available.')}</span></div>
+                  <div className="flex items-start gap-2.5"><span className={`shrink-0 mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`}><PlusCircle size={12} /></span><span><strong>{t('Neue Inventur starten', 'Start new audit')}:</strong> {t('Session lokal erstellt. Lagerort-Picker, Modus, Blindmodus — alles lokal.', 'Session created locally. Location picker, mode, blind mode — all local.')}</span></div>
+                  <div className="flex items-start gap-2.5"><span className={`shrink-0 mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`}><Package size={12} /></span><span><strong>{t('Warenkorb', 'Cart operations')}:</strong> {t('Hinzufügen, entfernen, Mengen, Notizen, Swipe — alles React State.', 'Add, remove, quantities, notes, swipe — all React state.')}</span></div>
+                  <div className="flex items-start gap-2.5"><span className={`shrink-0 mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`}><Zap size={12} /></span><span><strong>{t('Schnellzählung abschließen', 'Complete quick count')}:</strong> {t('Bestand lokal aktualisiert. API-Writes automatisch in Offline-Queue.', 'Stock updated locally. API writes auto-queued.')}</span></div>
+                  <div className="flex items-start gap-2.5"><span className={`shrink-0 mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`}><Shield size={12} /></span><span><strong>{t('Normal einreichen', 'Submit normal')}:</strong> {t('Session gespeichert, API-Write gequeued. Bei Empfang auto-sync.', 'Session saved, API write queued. Auto-syncs on signal.')}</span></div>
+                  <div className="flex items-start gap-2.5"><span className={`shrink-0 mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`}><History size={12} /></span><span><strong>{t('Verlauf', 'History')}:</strong> {t('Alle Inventuren aus IndexedDB Cache. Filter und Suche funktionieren.', 'All audits from IndexedDB cache. Filters and search work.')}</span></div>
+                </div>
+              </div>
+              <div className={`rounded-xl border p-4 ${isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50/50 border-amber-200'}`}>
+                <div className={`flex items-center gap-2 mb-3 font-bold text-sm ${isDark ? 'text-amber-400' : 'text-amber-600'}`}><Wifi size={16} /> {t('Benötigt Verbindung', 'Requires connection')}</div>
+                <div className="space-y-2.5">
+                  <div className="flex items-start gap-2.5"><span className={`shrink-0 mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-500'}`}><Users size={12} /></span><span><strong>{t('Anderes Gerät', 'Other device')}:</strong> {t('Erst nach Sync sichtbar (60s Polling). Kein Echtzeit-Push.', 'Only visible after sync (60s polling). No real-time push.')}</span></div>
+                  <div className="flex items-start gap-2.5"><span className={`shrink-0 mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-500'}`}><Bell size={12} /></span><span><strong>{t('Benachrichtigungen', 'Notifications')}:</strong> {t('Derzeit pro Gerät (localStorage). Push geplant.', 'Currently per-device (localStorage). Push planned.')}</span></div>
+                  <div className="flex items-start gap-2.5"><span className={`shrink-0 mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-500'}`}><RefreshCw size={12} /></span><span><strong>{t('Aktuelle Bestände', 'Current stock')}:</strong> {t('Erwartete Mengen basieren auf letztem Sync.', 'Expected quantities based on last sync.')}</span></div>
+                </div>
+              </div>
+              <div className={`rounded-xl border p-4 ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div className={`font-bold text-sm mb-3 ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('Typischer Offline-Ablauf', 'Typical Offline Flow')}</div>
+                <div className="space-y-0 relative">
+                  <div className={`absolute left-[15px] top-3 bottom-3 w-0.5 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`} />
+                  {[
+                    { icon: '\uD83D\uDCF6', de: 'Im Büro — App synchronisiert frische Daten', en: 'In office — app syncs fresh data' },
+                    { icon: '\uD83D\uDD3D', de: 'Untergeschoss — Indikator wechselt zu Offline', en: 'Underground — indicator switches to Offline' },
+                    { icon: '\uD83D\uDCCB', de: 'Neue Inventur — Session lokal erstellt', en: 'New audit — session created locally' },
+                    { icon: '\uD83D\uDD0D', de: 'Artikelsuche — IndexedDB liefert ~800 Produkte', en: 'Item search — IndexedDB delivers ~800 products' },
+                    { icon: '\uD83D\uDED2', de: '47 Artikel gezählt — alles im lokalen State', en: '47 items counted — all in local state' },
+                    { icon: '\u2705', de: 'Abgeschlossen — Bestand lokal aktualisiert, 3 Writes in Queue', en: 'Done — stock updated locally, 3 writes queued' },
+                    { icon: '\uD83D\uDD3C', de: 'Zurück oben — "Synchronisiere…"', en: 'Back upstairs — "Syncing..."' },
+                    { icon: '\uD83D\uDD04', de: 'Queue abgearbeitet — 3 Writes gesendet', en: 'Queue flushed — 3 writes sent' },
+                    { icon: '\u2601\uFE0F', de: '"Verbunden" — alles synchron', en: '"Connected" — everything synced' },
+                  ].map((step, idx) => (
+                    <div key={idx} className="flex items-start gap-3 pb-3 relative">
+                      <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm z-10 ${isDark ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200 shadow-sm'}`}>{step.icon}</div>
+                      <div className={`pt-1.5 text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{t(step.de, step.en)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className={`rounded-xl border p-4 ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <div className={`font-bold text-sm mb-3 ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('Sync-Indikator', 'Sync Indicator')}</div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3"><Cloud size={13} className="text-emerald-500 shrink-0" /><span className={`text-[11px] px-2 py-0.5 rounded font-bold ${isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>{t('Verbunden', 'Connected')}</span><span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>— {t('Ideal vor dem Start.', 'Ideal before starting.')}</span></div>
+                  <div className="flex items-center gap-3"><span className="shrink-0 flex items-center gap-0.5"><WifiOff size={13} className="text-orange-500" /><Database size={11} className="text-orange-500" /></span><span className={`text-[11px] px-2 py-0.5 rounded font-bold ${isDark ? 'bg-orange-500/10 text-orange-400' : 'bg-orange-50 text-orange-600'}`}>{t('Offline', 'Offline')}</span><span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>— {t('Zählung läuft normal weiter.', 'Counting continues normally.')}</span></div>
+                  <div className="flex items-center gap-3"><Database size={13} className="text-amber-500 animate-pulse shrink-0" /><span className={`text-[11px] px-2 py-0.5 rounded font-bold ${isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600'}`}>{t('Synchronisiere', 'Syncing')}</span><span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>— {t('Queue wird abgearbeitet.', 'Queue flushing.')}</span></div>
+                </div>
+              </div>
             </div>
           </DocCard>
 
           <DocCard title={t('Benachrichtigungen', 'Notifications')} icon={<Bell size={20} />}>
             <div className="space-y-2 text-xs">
-              <p>{t(
-                'Glocken-Icon im Header mit rotem Badge für ungelesene Benachrichtigungen. Dropdown-Panel mit Benachrichtigungsliste. Automatisch generierte Benachrichtigungen bei Audit-Events:',
-                'Bell icon in header with red badge for unread notifications. Dropdown panel with notification list. Auto-generated notifications from audit events:'
-              )}</p>
-              <div className="space-y-1 ml-2">
-                <div>• <strong>{t('Zur Prüfung eingereicht', 'Submitted for review')}:</strong> {t('"[Name] hat Inventur zur Prüfung eingereicht"', '"[Name] submitted audit for review"')}</div>
-                <div>• <strong>{t('Genehmigt', 'Approved')}:</strong> {t('"Inventur genehmigt von [Manager]. Bestand aktualisiert."', '"Audit approved by [Manager]. Stock updated."')}</div>
-                <div>• <strong>{t('Abgelehnt', 'Rejected')}:</strong> {t('"Inventur abgelehnt von [Manager]." + optionaler Kommentar', '"Audit rejected by [Manager]." + optional comment')}</div>
+              <p>{t('Glocken-Icon im Header mit rotem Badge (max. "9+"). Automatisch bei Audit-Events:', 'Bell icon in header with red badge (max "9+"). Auto-generated from audit events:')}</p>
+              <div className="space-y-2 ml-2">
+                <div className="flex items-start gap-2"><Info size={12} className="shrink-0 mt-0.5 text-blue-500" /><span><strong>{t('Eingereicht', 'Submitted')}:</strong> {t('"[Name] hat Inventur zur Prüfung eingereicht"', '"[Name] submitted audit for review"')}</span></div>
+                <div className="flex items-start gap-2"><CheckCircle2 size={12} className="shrink-0 mt-0.5 text-emerald-500" /><span><strong>{t('Genehmigt', 'Approved')}:</strong> {t('"Inventur genehmigt von [Manager]."', '"Audit approved by [Manager]."')}</span></div>
+                <div className="flex items-start gap-2"><XCircle size={12} className="shrink-0 mt-0.5 text-red-500" /><span><strong>{t('Abgelehnt', 'Rejected')}:</strong> {t('"Inventur abgelehnt." + Kommentar', '"Audit rejected." + comment')}</span></div>
               </div>
-              <p>{t('Persistiert in localStorage (max. 50). Tipp auf Benachrichtigung → markiert als gelesen + navigiert zum Inventur-Modul. "Alle gelesen"-Button zum Zurücksetzen.', 'Persisted in localStorage (max 50). Tapping notification → marks as read + navigates to audit module. "Mark all read" button to reset.')}</p>
+              <InfoBox variant="warn">{t('Benachrichtigungen sind derzeit pro Gerät (localStorage, max. 50). Geräteübergreifende Push-Benachrichtigungen sind geplant.', 'Notifications are currently per-device (localStorage, max 50). Cross-device push notifications planned.')}</InfoBox>
             </div>
           </DocCard>
 
-          <DocCard title={t('Technische Architektur', 'Technical Architecture')} icon={<Database size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p><strong>{t('Cosmos DB Container', 'Cosmos DB Container')}:</strong> <TechBadge label="audits" /> ({t('Partition Key: /id', 'Partition key: /id')})</p>
-              <p><strong>{t('API Endpunkt', 'API Endpoint')}:</strong> <TechBadge label="/api/audits" /> — GET, POST, PUT, DELETE. {t('Filter: ?status=, ?createdBy=. Server-seitig stripMeta().', 'Filters: ?status=, ?createdBy=. Server-side stripMeta().')}</p>
-              <p><strong>{t('Frontend Service', 'Frontend Service')}:</strong> <TechBadge label="auditsApi" /> {t('in api.ts — getAll, getByStatus, getByCreator, getById, upsert, delete.', 'in api.ts — getAll, getByStatus, getByCreator, getById, upsert, delete.')}</p>
-              <p><strong>{t('Offline', 'Offline')}:</strong> {t('IndexedDB v3 mit "audits" Object Store. Beim Start über loadAllData() geladen. Sync-Polling erfasst neue Sitzungen von anderen Geräten.', 'IndexedDB v3 with "audits" object store. Loaded on start via loadAllData(). Sync polling picks up new sessions from other devices.')}</p>
-              <p><strong>{t('State', 'State')}:</strong> <TechBadge label="auditSessions" /> {t('in App.tsx. Handler: handleAuditComplete() — verarbeitet Schnellzählung (sofort) und Genehmigung (nach Review). Verwendet markWrite() für K14-Schutz.', 'in App.tsx. Handler: handleAuditComplete() — processes quick count (instant) and approval (after review). Uses markWrite() for K14 protection.')}</p>
-              <p><strong>{t('Komponente', 'Component')}:</strong> <TechBadge label="AuditModule.tsx" /> — {t('5 Sub-Views: Landing, Setup, Cart, Summary, Review. Extrahierte Sub-Komponenten: AuditSetup, AuditCart, AuditCartItem, AuditSummary, AuditReview, ConfettiBurst.', '5 sub-views: Landing, Setup, Cart, Summary, Review. Extracted sub-components: AuditSetup, AuditCart, AuditCartItem, AuditSummary, AuditReview, ConfettiBurst.')}</p>
+          <DocCard title={t('Technische Architektur (Deep Dive)', 'Technical Architecture (Deep Dive)')} icon={<Database size={20} />}>
+            <div className="space-y-4 text-xs">
+              <div>
+                <div className={`font-bold text-sm mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('Infrastruktur', 'Infrastructure')}</div>
+                <div className="space-y-1.5">
+                  <div className="flex items-start gap-2"><Server size={12} className="shrink-0 mt-0.5 text-[#0077B5]" /><span><strong>Cosmos DB:</strong> <TechBadge label="audits" /> — Partition: <TechBadge label="/id" />. docType: "audit-session".</span></div>
+                  <div className="flex items-start gap-2"><Globe size={12} className="shrink-0 mt-0.5 text-[#0077B5]" /><span><strong>API:</strong> <TechBadge label="/api/audits" /> — GET (?status=, ?createdBy=), POST/PUT, DELETE. {t('Server-seitig stripMeta().', 'Server-side stripMeta().')}</span></div>
+                  <div className="flex items-start gap-2"><HardDrive size={12} className="shrink-0 mt-0.5 text-[#0077B5]" /><span><strong>IndexedDB v3:</strong> {t('Object Store "audits". Via loadAllData() mit 5 parallelen API-Calls geladen.', 'Object store "audits". Loaded via loadAllData() with 5 parallel API calls.')}</span></div>
+                </div>
+              </div>
+              <div>
+                <div className={`font-bold text-sm mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('Komponenten', 'Components')}</div>
+                <div className="space-y-1.5">
+                  <div className="flex items-start gap-2"><Layout size={12} className="shrink-0 mt-0.5 text-[#0077B5]" /><span><TechBadge label="AuditModule.tsx" /> — {t('5 Sub-Views:', '5 sub-views:')} <span className="font-mono opacity-60">landing | setup | cart | summary | review</span></span></div>
+                  <div className="flex items-start gap-2"><Layers size={12} className="shrink-0 mt-0.5 text-[#0077B5]" /><span>AuditSetup, AuditCart, AuditCartItem, AuditSummary, AuditReview, ConfettiBurst</span></div>
+                  <div className="flex items-start gap-2"><Shield size={12} className="shrink-0 mt-0.5 text-[#0077B5]" /><span><TechBadge label="activeSession" /> → <TechBadge label="onCompleteAudit" /> → handleAuditComplete() in App.tsx</span></div>
+                </div>
+              </div>
+              <div>
+                <div className={`font-bold text-sm mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>handleAuditComplete()</div>
+                <div className={`space-y-1 font-mono text-[10px] p-3 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                  <div className="opacity-60">// 1. {t('Session speichern', 'Save session')}</div>
+                  <div>setAuditSessions(prev =&gt; findIndex → update or prepend)</div>
+                  <div>auditsApi.upsert(session) <span className="opacity-40">// offline queue fallback</span></div>
+                  <div className="opacity-60">// 2. {t('Nur wenn approved:', 'Only if approved:')}</div>
+                  <div>markWrite() <span className="opacity-40">// K14: 15s cooldown</span></div>
+                  <div>items.forEach → StockLog (add | write-off)</div>
+                  <div>setInventory → stockApi.upsert() <span className="opacity-40">// inline write-through</span></div>
+                  <div>setStockLogs → localStorage (max 500)</div>
+                  <div className="opacity-60">// 3. {t('Benachrichtigung', 'Notification')}</div>
+                  <div>addNotification(type, title, message)</div>
+                </div>
+              </div>
+              <div>
+                <div className={`font-bold text-sm mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>{t('Zugriff', 'Access')}</div>
+                <p>{t('MODULE_FEATURE_MAP: \'audit\': \'audit\'. Admins sehen alles. Team braucht "audit" in featureAccess. Genehmigung nur für admin.', 'MODULE_FEATURE_MAP: \'audit\': \'audit\'. Admins see all. Team needs "audit" in featureAccess. Approval admin-only.')}</p>
+              </div>
             </div>
           </DocCard>
 
           <DocCard title={t('Datenmodell', 'Data Model')} icon={<Layers size={20} />}>
-            <div className="space-y-2 text-xs">
-              <div className="font-mono space-y-1 text-[10px]">
-                <div><strong>AuditSession</strong></div>
-                <div className="ml-3">id, name, mode: <span className="opacity-60">'quick' | 'normal'</span></div>
-                <div className="ml-3">status: <span className="opacity-60">'in-progress' | 'pending-review' | 'approved' | 'rejected' | 'cancelled'</span></div>
-                <div className="ml-3">blindMode: <span className="opacity-60">boolean</span></div>
-                <div className="ml-3">warehouse: <span className="opacity-60">string</span></div>
-                <div className="ml-3">items: <span className="opacity-60">AuditItem[]</span></div>
-                <div className="ml-3">createdBy/createdByName, reviewedBy/reviewedByName, reviewNote</div>
-                <div className="mt-2"><strong>AuditItem</strong></div>
-                <div className="ml-3">itemId, sku, name, warehouse</div>
-                <div className="ml-3">expectedQty, countedQty, variance: <span className="opacity-60">number</span></div>
-                <div className="ml-3">note?: <span className="opacity-60">string</span></div>
+            <div className="space-y-3 text-xs">
+              <div className={`font-mono space-y-1 text-[10px] p-3 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                <div className="font-bold text-xs text-[#0077B5]">AuditSession</div>
+                <div>id, name, mode: <span className="opacity-60">'quick' | 'normal'</span></div>
+                <div>status: <span className="opacity-60">'in-progress' | 'pending-review' | 'approved' | 'rejected' | 'cancelled'</span></div>
+                <div>blindMode: <span className="opacity-60">boolean</span>, warehouse: <span className="opacity-60">string</span>, items: <span className="opacity-60">AuditItem[]</span></div>
+                <div>createdAt, createdBy, createdByName, completedAt?</div>
+                <div>reviewedAt?, reviewedBy?, reviewedByName?, reviewNote?</div>
+                <div>docType: <span className="opacity-60">'audit-session'</span></div>
+              </div>
+              <div className={`font-mono space-y-1 text-[10px] p-3 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                <div className="font-bold text-xs text-[#0077B5]">AuditItem</div>
+                <div>id, itemId <span className="opacity-40">→ StockItem.id</span>, sku, name, warehouse</div>
+                <div>expectedQty <span className="opacity-40">(stockLevel at add time)</span>, countedQty, variance <span className="opacity-40">(counted - expected)</span></div>
+                <div>note?: <span className="opacity-60">string</span></div>
               </div>
             </div>
           </DocCard>
 
-          <InfoBox>
-            {t(
-              'Feature-Zugriff: Das Inventur-Modul erfordert die Berechtigung "audit" im featureAccess-Array des Benutzerprofils. Admins haben automatisch Zugriff. Konfigurierbar über Team-Verwaltung → Benutzer bearbeiten → Zugriffsrechte.',
-              'Feature access: The audit module requires "audit" permission in the user profile\'s featureAccess array. Admins have automatic access. Configurable via Team Management → Edit user → Access rights.'
-            )}
-          </InfoBox>
+          <InfoBox>{t('Feature-Zugriff: Berechtigung "audit" im featureAccess-Array erforderlich. Admins haben automatisch Zugriff. Konfigurierbar über Team-Verwaltung.', 'Feature access: "audit" permission required in featureAccess array. Admins have automatic access. Configurable via Team Management.')}</InfoBox>
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 7: DATA MODEL
-          ═══════════════════════════════════════════════════════ */}
+      {/* SECTION 1: OVERVIEW */}
+      {activeSection === 'intro' && (
+        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+          <div>
+            <h2 className="text-2xl font-bold mb-2">{t('Systemarchitektur', 'System Architecture')}</h2>
+            <p className={`text-sm md:text-base ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{t('DOST Lager ist eine Progressive Web App (PWA) für den gesamten Procure-to-Pay-Prozess — von der Bestellanlage über den Wareneingang bis zur Reklamation und Lieferantenbewertung. Die App läuft auf Azure Static Web Apps mit einem Azure Functions v4 API-Backend und Azure Cosmos DB als Datenbank.', 'DOST Lager is a Progressive Web App (PWA) for the entire Procure-to-Pay process — from order creation through goods receipt to complaints management and supplier scoring. The app runs on Azure Static Web Apps with an Azure Functions v4 API backend and Azure Cosmos DB as the database.')}</p>
+          </div>
+          <DocCard title="Tech Stack" icon={<Zap size={20} />}>
+            <div className="space-y-3">
+              <div><p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Frontend</p><div className="flex flex-wrap gap-2"><TechBadge label="React 19" /><TechBadge label="TypeScript" /><TechBadge label="Tailwind CSS" /><TechBadge label="Vite" /><TechBadge label="Lucide Icons" /><TechBadge label="jsPDF" /></div></div>
+              <div><p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Backend & Infrastructure</p><div className="flex flex-wrap gap-2"><TechBadge label="Azure Static Web Apps" /><TechBadge label="Azure Functions v4" /><TechBadge label="Azure Cosmos DB (NoSQL)" /><TechBadge label="Node.js 20" /></div></div>
+              <div><p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Offline & Storage</p><div className="flex flex-wrap gap-2"><TechBadge label="IndexedDB" /><TechBadge label="Service Worker" /><TechBadge label="localStorage" /><TechBadge label="PWA Manifest" /></div></div>
+            </div>
+            <div className="space-y-3 text-xs mt-4">
+              <div className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>App.tsx:</strong> {t('Zentraler State-Container mit ~40 Handlern.', 'Central state container with ~40 handlers.')}</span></div>
+              <div className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>api.ts:</strong> {t('REST-Client mit 3-Stufen-Fallback: API → IndexedDB Cache → Mock-Daten.', 'REST client with 3-tier fallback: API → IndexedDB cache → mock data.')}</span></div>
+              <div className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>types.ts:</strong> {t('Alle TypeScript-Interfaces.', 'All TypeScript interfaces.')}</span></div>
+              <div className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>data.ts:</strong> {t('Mock-Datenbank (Fallback). ~800 Artikel.', 'Mock database (fallback). ~800 items.')}</span></div>
+            </div>
+          </DocCard>
+          <DocCard title={t('Design Philosophie', 'Design Philosophy')} icon={<Star size={20} />}>
+            <div className="space-y-3 text-xs">
+              <div><strong>Mobile First:</strong> {t('Touch-Targets ≥ 44px. Bottom Nav mobil, CSS hover-expand Sidebar Desktop.', 'Touch targets ≥ 44px. Bottom nav mobile, CSS hover-expand sidebar desktop.')}</div>
+              <div><strong>Optimistic UI:</strong> {t('Sofortige State-Updates. API im Hintergrund. Offline-Queue bei Netzwerkfehler.', 'Instant state updates. API in background. Offline queue on network failure.')}</div>
+              <div><strong>3 Themes:</strong> Light, Soft (Frosted Aura), Dark</div>
+              <div><strong>Ledger Principle:</strong> {t('Nie löschen, nur archivieren. Audit Trail für jede Änderung.', 'Never delete, only archive. Audit trail for every change.')}</div>
+              <div><strong>PWA:</strong> {t('Installierbar. Service Worker. Offline-fähig.', 'Installable. Service Worker. Offline-capable.')}</div>
+            </div>
+          </DocCard>
+        </div>
+      )}
+
+      {/* SECTION 2: CLOUD & API */}
+      {activeSection === 'cloud' && (
+        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+          <div>
+            <h2 className="text-2xl font-bold mb-2">{t('Cloud-Architektur & API', 'Cloud Architecture & API')}</h2>
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{t('Multi-User Cloud-Lösung auf Azure.', 'Multi-user cloud solution on Azure.')}</p>
+          </div>
+          <DocCard title={t('Azure Infrastruktur', 'Azure Infrastructure')} icon={<Server size={20} />}>
+            <div className="space-y-3 text-xs">
+              <div className="flex items-start gap-2"><Cloud size={14} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>Azure Static Web Apps:</strong> {t('React-Frontend, HTTPS, CDN.', 'React frontend, HTTPS, CDN.')}</span></div>
+              <div className="flex items-start gap-2"><Server size={14} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>Azure Functions v4:</strong> {t('RESTful API, Serverless, TypeScript.', 'RESTful API, serverless, TypeScript.')}</span></div>
+              <div className="flex items-start gap-2"><Database size={14} className="text-[#0077B5] shrink-0 mt-0.5" /><span><strong>Azure Cosmos DB:</strong> {t('NoSQL, Free Tier, JSON-Dokumente.', 'NoSQL, free tier, JSON documents.')}</span></div>
+            </div>
+          </DocCard>
+          <DocCard title={t('Cosmos DB Container', 'Cosmos DB Containers')} icon={<Database size={20} />}>
+            <div className="space-y-2 text-xs font-mono">
+              {[
+                { name: 'stock', pk: '/id', desc: t('~800 Artikel', '~800 items') },
+                { name: 'purchase-orders', pk: '/id', desc: t('Bestellungen', 'Orders') },
+                { name: 'receipts', pk: '/poId', desc: t('Multi-Typ: master, header, item, comment', 'Multi-type: master, header, item, comment') },
+                { name: 'tickets', pk: '/poId', desc: t('Reklamationen', 'Complaints') },
+                { name: 'delivery-logs', pk: '/receiptId', desc: t('Lieferprotokolle', 'Delivery logs') },
+                { name: 'suppliers', pk: '/id', desc: t('Lieferanten', 'Suppliers') },
+                { name: 'audits', pk: '/id', desc: t('Inventur-Sitzungen', 'Audit sessions') },
+                { name: 'user-profiles', pk: '/id', desc: t('Benutzerprofile', 'User profiles') },
+                { name: 'notifications', pk: '/userId', desc: t('Geplant', 'Planned') },
+              ].map(c => (
+                <div key={c.name} className={`rounded-lg p-2 ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
+                  <strong>{c.name}</strong> <span className="opacity-60">partition: {c.pk}</span> — <span className="opacity-60 font-sans text-[10px]">{c.desc}</span>
+                </div>
+              ))}
+            </div>
+          </DocCard>
+          <DocCard title={t('API Endpunkte', 'API Endpoints')} icon={<Globe size={20} />}>
+            <div className="space-y-1.5 text-xs font-mono">
+              <div>GET/POST /api/stock, /api/orders, /api/receipts, /api/tickets</div>
+              <div>GET/POST /api/delivery-logs, /api/suppliers, /api/audits</div>
+              <div>GET/POST/PUT/DELETE /api/user-profiles</div>
+              <div>POST /api/receipts/bulk — {t('Massen-Upsert', 'Bulk upsert')}</div>
+              <div>GET /api/health — {t('Diagnose', 'Diagnostic')}</div>
+            </div>
+          </DocCard>
+        </div>
+      )}
+
+      {/* SECTION 3: OFFLINE */}
+      {activeSection === 'offline' && (
+        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+          <div>
+            <h2 className="text-2xl font-bold mb-2">{t('Offline-Betrieb & Synchronisation', 'Offline Operation & Synchronization')}</h2>
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{t('4 Schichten bilden die Offline-Infrastruktur.', '4 layers form the offline infrastructure.')}</p>
+          </div>
+          <DocCard title={t('Schicht 1: IndexedDB Cache', 'Layer 1: IndexedDB Cache')} icon={<HardDrive size={20} />}>
+            <div className="space-y-2 text-xs">
+              <p>{t('procureflow-cache (v3). Stores: stock, orders, receipts, tickets, audits + _meta + _writeQueue.', 'procureflow-cache (v3). Stores: stock, orders, receipts, tickets, audits + _meta + _writeQueue.')}</p>
+              <p><TechBadge label="offlineDb.ts" /> — cacheCollection(), getCachedAppData(), cacheAllData()</p>
+            </div>
+          </DocCard>
+          <DocCard title={t('Schicht 2: Offline Write Queue', 'Layer 2: Offline Write Queue')} icon={<RefreshCw size={20} />}>
+            <div className="space-y-2 text-xs">
+              <p><TechBadge label="offlineQueue.ts" /> — {t('FIFO, max 5 Retries. Cross-Browser: "Failed to fetch", "Load failed" (iOS), "NetworkError".', 'FIFO, max 5 retries. Cross-browser: "Failed to fetch", "Load failed" (iOS), "NetworkError".')}</p>
+              <p><strong>{t('4-Stufen Sync-Schutz', '4-layer sync guard')}:</strong> {t('navigator.onLine → pendingWritesRef → K14 15s Cooldown → source === api only', 'navigator.onLine → pendingWritesRef → K14 15s cooldown → source === api only')}</p>
+            </div>
+          </DocCard>
+          <DocCard title={t('Schicht 3: Service Worker', 'Layer 3: Service Worker')} icon={<Globe size={20} />}>
+            <div className="space-y-2 text-xs"><p><TechBadge label="public/sw.js" /> — {t('App Shell: stale-while-revalidate. Assets: cache-first. API: network-first. Writes: passthrough.', 'App shell: stale-while-revalidate. Assets: cache-first. API: network-first. Writes: passthrough.')}</p></div>
+          </DocCard>
+          <DocCard title={t('Schicht 4: Sync-Indikator', 'Layer 4: Sync Indicator')} icon={<Wifi size={20} />}>
+            <div className="space-y-2 text-xs">
+              <div className="space-y-1.5 ml-2">
+                <div className="flex items-center gap-2"><Cloud size={12} className="text-emerald-500" /> <strong className="text-emerald-500">{t('Verbunden', 'Connected')}</strong></div>
+                <div className="flex items-center gap-2"><RefreshCw size={12} className="text-amber-500" /> <strong className="text-amber-500">{t('X ausstehend', 'X pending')}</strong></div>
+                <div className="flex items-center gap-2"><span className="flex items-center gap-0.5"><WifiOff size={12} className="text-orange-500" /><Database size={10} className="text-orange-500" /></span> <strong className="text-orange-500">{t('Offline', 'Offline')}</strong></div>
+                <div className="flex items-center gap-2"><Database size={12} className="text-amber-500 animate-pulse" /> <strong className="text-amber-500">{t('Synchronisiere…', 'Syncing…')}</strong></div>
+              </div>
+            </div>
+          </DocCard>
+        </div>
+      )}
+
+      {/* SECTION 4: MODULES */}
+      {activeSection === 'modules' && (
+        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+          <div>
+            <h2 className="text-2xl font-bold mb-2">{t('App Module', 'App Modules')}</h2>
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{t('Jedes Modul ist eine eigene React-Komponente.', 'Each module is its own React component.')}</p>
+          </div>
+          <Collapsible id="mod-dashboard" title={t('Dashboard (Lager)', 'Dashboard')} icon={<BarChart3 size={20} />}><div className="space-y-2 text-xs"><p>{t('4 KPI-Karten, Quick-Actions, Activity Feed (letzte 10 Einträge).', '4 KPI cards, quick actions, activity feed (last 10 entries).')}</p><p><TechBadge label="Dashboard.tsx" /> <TechBadge label="InsightsRow.tsx" /></p></div></Collapsible>
+          <Collapsible id="mod-inventory" title={t('Artikelverwaltung', 'Inventory')} icon={<Box size={20} />}><div className="space-y-2 text-xs"><p>{t('~800 Artikel. Grid/List. Volltextsuche. Inline +/−. CSV-Export. Lagerort ComboboxSelect.', '~800 items. Grid/list. Full-text search. Inline +/−. CSV export. Location ComboboxSelect.')}</p><p><TechBadge label="InventoryView.tsx" /> <TechBadge label="ItemModal.tsx" /></p></div></Collapsible>
+          <Collapsible id="mod-orders" title={t('Bestellverwaltung', 'Orders')} icon={<FileText size={20} />}><div className="space-y-2 text-xs"><p>{t('Filter-Tabs, Status-Badges, Archivierung, Stornierung mit Kaskade. Smart Import. Lager + Projekt.', 'Filter tabs, status badges, archiving, cancellation with cascade. Smart import. Warehouse + project.')}</p><p><TechBadge label="OrderManagement.tsx" /> <TechBadge label="CreateOrderWizard.tsx" /></p></div></Collapsible>
+          <Collapsible id="mod-receipt" title={t('Wareneingang', 'Goods Receipt')} icon={<ClipboardList size={20} />}><div className="space-y-2 text-xs"><p>{t('3-Badge-System. Lieferverlauf. Retouren mit Bestandskorrektur + Tickets + Auto-Kommentare.', '3-badge system. Delivery history. Returns with stock correction + tickets + auto-comments.')}</p><p><TechBadge label="ReceiptManagement.tsx" /> <TechBadge label="GoodsReceiptFlow.tsx" /></p></div></Collapsible>
+          <Collapsible id="mod-suppliers" title={t('Lieferantenbewertung', 'Supplier Scoring')} icon={<Users size={20} />}><div className="text-xs"><p>{t('Automatische Bewertung 0-100 basierend auf Lieferhistorie.', 'Automatic scoring 0-100 based on delivery history.')}</p><p><TechBadge label="SupplierView.tsx" /></p></div></Collapsible>
+          <Collapsible id="mod-stocklog" title={t('Lagerprotokoll', 'Stock Logs')} icon={<History size={20} />}><div className="space-y-2 text-xs"><p>{t('5 Filter-Tabs: Alle, Manuell, PO-Normal, PO-Projekt, Inventur. Audit-Einträge mit SCHNELL/INVENTUR und ABSCHREIBUNG Badges.', '5 filter tabs: All, Manual, PO-Normal, PO-Project, Audit. Audit entries with SCHNELL/INVENTUR and ABSCHREIBUNG badges.')}</p><p><TechBadge label="StockLogView.tsx" /></p></div></Collapsible>
+          <Collapsible id="mod-tickets" title={t('Ticket-System', 'Tickets')} icon={<Ticket size={20} />}><div className="text-xs"><p>{t('Auto/manuell bei Abweichungen. Open → Closed. Konfigurierbar über Globale Einstellungen.', 'Auto/manual on deviations. Open → Closed. Configurable via Global Settings.')}</p><p><TechBadge label="TicketSystem.tsx" /></p></div></Collapsible>
+        </div>
+      )}
+
+      {/* SECTION 5: ORDERS DETAIL */}
+      {activeSection === 'orders' && (
+        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+          <div><h2 className="text-2xl font-bold mb-2">{t('Bestellungen — Detail', 'Orders — Detail')}</h2></div>
+          <DocCard title={t('Bestelltypen', 'Order Types')} icon={<FileText size={20} />}><div className="space-y-2 text-xs"><div className="flex items-start gap-2"><Box size={14} className="text-slate-500 shrink-0 mt-0.5" /><span><strong>Lager:</strong> {t('Bestand wird addiert.', 'Stock added.')}</span></div><div className="flex items-start gap-2"><Briefcase size={14} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Projekt:</strong> {t('Bestand wird NICHT addiert.', 'Stock NOT added.')}</span></div></div></DocCard>
+          <DocCard title={t('Kaskadierende Aktionen', 'Cascading Actions')} icon={<GitBranch size={20} />}><div className="space-y-2 text-xs"><p><strong>{t('Archivierung', 'Archive')}:</strong> {t('isArchived + Receipts archiviert + Tickets geschlossen.', 'isArchived + receipts archived + tickets closed.')}</p><p><strong>{t('Stornierung', 'Cancel')}:</strong> {t('Status Storniert + Master/Headers Storniert + Tickets geschlossen.', 'Status Cancelled + master/headers cancelled + tickets closed.')}</p></div></DocCard>
+          <DocCard title="Smart Import" icon={<Sparkles size={20} />}><div className="text-xs"><p>{t('Text-Import mit automatischer Artikelerkennung. Fuzzy-Match auf ~800 Artikel.', 'Text import with automatic item recognition. Fuzzy match on ~800 items.')}</p></div></DocCard>
+        </div>
+      )}
+
+      {/* SECTION 6: RECEIPT DETAIL */}
+      {activeSection === 'receipt' && (
+        <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+          <div><h2 className="text-2xl font-bold mb-2">{t('Wareneingang — Detail', 'Goods Receipt — Detail')}</h2></div>
+          <DocCard title={t('Prüfungs-Flow', 'Inspection Flow')} icon={<ClipboardList size={20} />}><div className="text-xs"><p>{t('Vollbild-Wizard: Lieferschein → Mengen prüfen → Abweichungen dokumentieren → Buchen.', 'Full-screen wizard: delivery note → check quantities → document deviations → book.')}</p></div></DocCard>
+          <DocCard title={t('Retouren', 'Returns')} icon={<Truck size={20} />}><div className="text-xs"><p>{t('Grund + Versandart + Tracking. Auto: Bestandskorrektur, PO-Reset, Ticket, Kommentar, Cross-Post.', 'Reason + carrier + tracking. Auto: stock correction, PO reset, ticket, comment, cross-post.')}</p></div></DocCard>
+          <DocCard title={t('API Persistierung', 'API Persistence')} icon={<Database size={20} />}><div className="text-xs font-mono text-[10px]"><p>setPurchaseOrders → ordersApi.upsert()</p><p>setReceiptMasters → receiptsApi.upsert()</p><p>setInventory → stockApi.upsert()</p><p>{t('Alles inline in setState — keine stale Closures.', 'All inline in setState — no stale closures.')}</p></div></DocCard>
+        </div>
+      )}
+
+      {/* SECTION 7: DATA MODEL */}
       {activeSection === 'datamodel' && (
         <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">{t('Daten-Modell', 'Data Model')}</h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {t('Alle Kern-Entitäten, ihre TypeScript-Interfaces und Cosmos DB Beziehungen.', 'All core entities, their TypeScript interfaces and Cosmos DB relationships.')}
-            </p>
-          </div>
-
-          <Collapsible id="dm-po" title="PurchaseOrder" icon={<FileText size={20} />}>
-            <div className="space-y-1 text-xs font-mono">
-              <div>id: <span className="opacity-60">string</span> — {t('Bestell-Nr. (z.B. "BEST-992")', 'Order No. (e.g. "BEST-992")')}</div>
-              <div>supplier: <span className="opacity-60">string</span></div>
-              <div>status: <span className="opacity-60">'Offen' | 'Teilweise geliefert' | 'Abgeschlossen' | 'Storniert' | 'Projekt' | 'Lager'</span></div>
-              <div>items: <span className="opacity-60">PurchaseOrderItem[]</span> — {t('Jeder mit quantityExpected + quantityReceived', 'Each with quantityExpected + quantityReceived')}</div>
-              <div>isArchived / isForceClosed: <span className="opacity-60">boolean</span></div>
-              <div>linkedReceiptId: <span className="opacity-60">string?</span> — FK → ReceiptMaster</div>
-              <div>createdAt / lastUpdated: <span className="opacity-60">number</span></div>
-            </div>
-            <div className="mt-2 text-xs opacity-70">{t('Cosmos Container: orders (Partition: /id)', 'Cosmos container: orders (partition: /id)')}</div>
-          </Collapsible>
-
-          <Collapsible id="dm-rm" title="ReceiptMaster" icon={<ClipboardList size={20} />}>
-            <div className="space-y-1 text-xs font-mono">
-              <div>id: <span className="opacity-60">string</span></div>
-              <div>poId: <span className="opacity-60">string</span> — FK → PurchaseOrder</div>
-              <div>status: <span className="opacity-60">ReceiptMasterStatus</span></div>
-              <div>deliveries: <span className="opacity-60">DeliveryLog[]</span> — {t('Array aller Lieferungen/Retouren', 'Array of all deliveries/returns')}</div>
-              <div>docType: <span className="opacity-60">"master"</span></div>
-            </div>
-            <div className="mt-2 text-xs opacity-70">{t('Cosmos Container: receipts (Partition: /poId, docType: "master")', 'Cosmos container: receipts (partition: /poId, docType: "master")')}</div>
-          </Collapsible>
-
-          <Collapsible id="dm-item" title="StockItem" icon={<Box size={20} />}>
-            <div className="space-y-1 text-xs font-mono">
-              <div>id / sku: <span className="opacity-60">string</span> — {t('Artikelnummer', 'Item number')}</div>
-              <div>name: <span className="opacity-60">string</span></div>
-              <div>system: <span className="opacity-60">string</span> — {t('Warengruppe (z.B. "USV", "Brandmeldetechnik")', 'Product group')}</div>
-              <div>stockLevel / minStock: <span className="opacity-60">number</span></div>
-              <div>warehouseLocation: <span className="opacity-60">string?</span></div>
-              <div>isAkku / capacityAh: <span className="opacity-60">boolean / number</span></div>
-            </div>
-            <div className="mt-2 text-xs opacity-70">{t('Cosmos Container: stock (Partition: /id)', 'Cosmos container: stock (partition: /id)')}</div>
-          </Collapsible>
-
-          <Collapsible id="dm-ticket" title="Ticket" icon={<Ticket size={20} />}>
-            <div className="space-y-1 text-xs font-mono">
-              <div>id: <span className="opacity-60">string</span></div>
-              <div>receiptId: <span className="opacity-60">string</span> — FK → ReceiptHeader.batchId</div>
-              <div>subject / description: <span className="opacity-60">string</span></div>
-              <div>priority: <span className="opacity-60">'Low' | 'Medium' | 'High' | 'Critical'</span></div>
-              <div>status: <span className="opacity-60">'Open' | 'In Progress' | 'Resolved' | 'Closed'</span></div>
-              <div>type: <span className="opacity-60">'damage' | 'shortage' | 'excess' | 'wrong' | 'rejected' | 'other'</span></div>
-              <div>messages: <span className="opacity-60">TicketMessage[]</span></div>
-              <div>poId: <span className="opacity-60">string</span> — {t('Partition Key für Cosmos', 'Partition key for Cosmos')}</div>
-            </div>
-            <div className="mt-2 text-xs opacity-70">{t('Cosmos Container: tickets (Partition: /poId)', 'Cosmos container: tickets (partition: /poId)')}</div>
-          </Collapsible>
-
-          <Collapsible id="dm-header" title="ReceiptHeader / ReceiptItem / ReceiptComment" icon={<Database size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Alle drei Typen leben im selben Cosmos Container (receipts), unterschieden durch das docType Feld:', 'All three types live in the same Cosmos container (receipts), distinguished by the docType field:')}</p>
-              <div className="font-mono space-y-1">
-                <div>ReceiptHeader → docType: <span className="opacity-60">"header"</span></div>
-                <div>ReceiptItem → docType: <span className="opacity-60">"item"</span></div>
-                <div>ReceiptComment → docType: <span className="opacity-60">"comment"</span></div>
-              </div>
-              <p>{t('Alle partitioniert nach /poId für effiziente Abfragen pro Bestellung.', 'All partitioned by /poId for efficient per-order queries.')}</p>
-            </div>
-          </Collapsible>
-
-          <Collapsible id="dm-stocklog" title="StockLog" icon={<History size={20} />}>
-            <div className="space-y-1 text-xs font-mono">
-              <div>id: <span className="opacity-60">string</span></div>
-              <div>timestamp: <span className="opacity-60">Date</span></div>
-              <div>userId / userName: <span className="opacity-60">string</span></div>
-              <div>itemId / itemName: <span className="opacity-60">string</span></div>
-              <div>action: <span className="opacity-60">'add' | 'remove' | 'write-off'</span></div>
-              <div>quantity: <span className="opacity-60">number</span></div>
-              <div>source: <span className="opacity-60">string?</span> — {t('"Wareneingang PO-xxx", "Manuell (Bestand)", "Rücksendung", "Inventur: [Name]"', '"Goods receipt PO-xxx", "Manual (stock)", "Return", "Audit: [Name]"')}</div>
-              <div>context: <span className="opacity-60">'normal' | 'project' | 'manual' | 'po-normal' | 'po-project' | 'audit-quick' | 'audit-normal'</span></div>
-              <div>auditSessionId?: <span className="opacity-60">string</span> — {t('FK zu AuditSession (bei Inventur)', 'FK to AuditSession (for audits)')}</div>
-              <div>auditSessionName?: <span className="opacity-60">string</span></div>
-              <div>countedByName?: <span className="opacity-60">string</span> — {t('Wer hat gezählt', 'Who counted')}</div>
-              <div>approvedByName?: <span className="opacity-60">string</span> — {t('Wer hat genehmigt', 'Who approved')}</div>
-            </div>
-            <div className="mt-2 text-xs opacity-70">{t('Gespeichert in: localStorage (max. 500 Einträge, serialisiert als JSON)', 'Stored in: localStorage (max 500 entries, serialized as JSON)')}</div>
-          </Collapsible>
+          <div><h2 className="text-2xl font-bold mb-2">{t('Daten-Modell', 'Data Model')}</h2></div>
+          <Collapsible id="dm-po" title="PurchaseOrder" icon={<FileText size={20} />}><div className="text-xs font-mono"><div>id, supplier, status, items: PurchaseOrderItem[], isArchived, linkedReceiptId</div><div className="mt-1 opacity-70">{t('Container: purchase-orders (/id)', 'Container: purchase-orders (/id)')}</div></div></Collapsible>
+          <Collapsible id="dm-rm" title="ReceiptMaster" icon={<ClipboardList size={20} />}><div className="text-xs font-mono"><div>id, poId, status, deliveries: DeliveryLog[], docType: "master"</div><div className="mt-1 opacity-70">{t('Container: receipts (/poId)', 'Container: receipts (/poId)')}</div></div></Collapsible>
+          <Collapsible id="dm-item" title="StockItem" icon={<Box size={20} />}><div className="text-xs font-mono"><div>id, sku, name, system, stockLevel, minStock, warehouseLocation</div><div className="mt-1 opacity-70">{t('Container: stock (/id)', 'Container: stock (/id)')}</div></div></Collapsible>
+          <Collapsible id="dm-stocklog" title="StockLog" icon={<History size={20} />}><div className="text-xs font-mono space-y-0.5"><div>id, timestamp, userId, userName, itemId, itemName</div><div>action: 'add' | 'remove' | 'write-off', quantity, warehouse</div><div>context: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project' | 'audit-quick' | 'audit-normal'</div><div>auditSessionId?, auditSessionName?, countedByName?, approvedByName?</div><div className="mt-1 opacity-70">{t('localStorage (max 500)', 'localStorage (max 500)')}</div></div></Collapsible>
+          <Collapsible id="dm-ticket" title="Ticket" icon={<Ticket size={20} />}><div className="text-xs font-mono"><div>id, receiptId, subject, priority, status, type, messages[], poId</div><div className="mt-1 opacity-70">{t('Container: tickets (/poId)', 'Container: tickets (/poId)')}</div></div></Collapsible>
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 8: BUSINESS LOGIC
-          ═══════════════════════════════════════════════════════ */}
+      {/* SECTION 8: LOGIC */}
       {activeSection === 'logic' && (
         <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">{t('Geschäftslogik & Formeln', 'Business Logic & Formulas')}</h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {t('Die mathematischen Regeln hinter Bestandsbewegungen, Statusberechnung und Korrekturen.', 'The mathematical rules behind stock movements, status calculation and corrections.')}
-            </p>
-          </div>
-
-          <DocCard title={t('Bestandsberechnung', 'Stock Calculation')} icon={<Calculator size={20} />}>
-            <div className="space-y-2 text-xs">
-              <div className="font-mono">Lager: newStock = currentStock + quantityAccepted</div>
-              <div className="font-mono">Projekt: newStock = currentStock {t('(unverändert)', '(unchanged)')}</div>
-              <div className="font-mono">Rücksendung: newStock = currentStock - returnQuantity</div>
-              <div className="font-mono">{t('Manuell', 'Manual')}: newStock = userInput (min: 0)</div>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Lieferstatus-Berechnung (ReceiptMaster)', 'Delivery Status Calculation (ReceiptMaster)')} icon={<GitBranch size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Wird in getDeliveryDateBadge() berechnet basierend auf:', 'Calculated in getDeliveryDateBadge() based on:')}</p>
-              <div className="space-y-1 ml-2">
-                <div>{t('• Kein Lieferdatum gesetzt', 'No delivery date set')} → "Wartet auf Lieferung"</div>
-                <div>{t('• Lieferdatum = heute', 'Delivery date = today')} → "Lieferung heute"</div>
-                <div>{t('• Lieferdatum = morgen', 'Delivery date = tomorrow')} → "Lieferung morgen"</div>
-                <div>{t('• Lieferdatum in Vergangenheit + nicht geliefert', 'Delivery date in past + not delivered')} → "Verspätet"</div>
-                <div>{t('• Alle Artikel vollständig geliefert', 'All items fully delivered')} → "Vollständig"</div>
-                <div>{t('• Teilweise geliefert', 'Partially delivered')} → "Teillieferung"</div>
-              </div>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Write-Through Muster', 'Write-Through Pattern')} icon={<Database size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Jeder Handler in App.tsx folgt dem gleichen Muster:', 'Every handler in App.tsx follows the same pattern:')}</p>
-              <div className={`rounded-lg p-3 font-mono text-[10px] ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
-                <div>1. setState(prev =&gt; {'{'}</div>
-                <div className="ml-4">{t('// Berechne neuen State', '// Calculate new state')}</div>
-                <div className="ml-4">{t('// API write-through (inline, kein setTimeout)', '// API write-through (inline, no setTimeout)')}</div>
-                <div className="ml-4">api.upsert(newValue).catch(console.warn);</div>
-                <div className="ml-4">return updatedState;</div>
-                <div>{'}'})</div>
-              </div>
-              <p>{t('Warum inline? setTimeout-Callbacks fangen stale React State Closures ein. Durch Inline-Calls in setState haben wir immer den frischen berechneten Wert.', 'Why inline? setTimeout callbacks capture stale React state closures. Inline calls in setState always have the fresh computed value.')}</p>
-              <p>{t('Bei Netzwerkfehler: apiFetch() fängt TypeError ("fetch") → enqueueWrite() → Queue in IndexedDB → flushQueue() bei Verbindung.', 'On network error: apiFetch() catches TypeError ("fetch") → enqueueWrite() → queue in IndexedDB → flushQueue() on connection.')}</p>
-            </div>
-          </DocCard>
+          <div><h2 className="text-2xl font-bold mb-2">{t('Geschäftslogik', 'Business Logic')}</h2></div>
+          <DocCard title={t('Bestandsberechnung', 'Stock Calculation')} icon={<Calculator size={20} />}><div className="text-xs font-mono"><div>Lager: newStock = current + quantityAccepted</div><div>Projekt: newStock = current (unchanged)</div><div>Return: newStock = current - returnQty</div><div>Audit: newStock = countedQty (direct set)</div></div></DocCard>
+          <DocCard title={t('Write-Through Muster', 'Write-Through Pattern')} icon={<Database size={20} />}><div className="text-xs"><div className={`rounded-lg p-3 font-mono text-[10px] ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}><div>setState(prev =&gt; {'{'}</div><div className="ml-4">// compute + api.upsert(value) inline</div><div className="ml-4">return updatedState;</div><div>{'}'})</div></div><p className="mt-2">{t('Inline in setState = kein stale closure. Bei Netzwerkfehler → Offline-Queue.', 'Inline in setState = no stale closure. Network error → offline queue.')}</p></div></DocCard>
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 9: STATUS SYSTEM
-          ═══════════════════════════════════════════════════════ */}
+      {/* SECTION 9: STATUSES */}
       {activeSection === 'statuses' && (
         <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">{t('3-Badge Status System', '3-Badge Status System')}</h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {t('Einheitliches Status-System über alle Ansichten. Implementiert in ReceiptStatusBadges.tsx (Single Source of Truth).', 'Unified status system across all views. Implemented in ReceiptStatusBadges.tsx (single source of truth).')}
-            </p>
-          </div>
-
-          <DocCard title={t('Badge 1: Identität (Quelle)', 'Badge 1: Identity (Source)')} icon={<Briefcase size={20} />}>
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center gap-2"><span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>PROJEKT</span> {t('Projektbestellung — Bestand wird nicht zum Lager addiert', 'Project order — stock not added to warehouse')}</div>
-              <div className="flex items-center gap-2"><span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}>LAGER</span> {t('Standard-Lagerbestellung', 'Standard warehouse order')}</div>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Badge 2: Prozess-Status', 'Badge 2: Process Status')} icon={<GitBranch size={20} />}>
-            <div className="space-y-1.5 text-xs">
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500" /> <strong>Gebucht</strong> — {t('Wareneingang erfasst, noch nicht geprüft', 'Receipt recorded, not yet inspected')}</div>
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" /> <strong>Wartet auf Lieferung</strong> — {t('Bestellt, Lieferung ausstehend', 'Ordered, delivery pending')}</div>
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" /> <strong>Lieferung heute / morgen</strong></div>
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500" /> <strong>Verspätet</strong> — {t('Lieferdatum überschritten', 'Delivery date exceeded')}</div>
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-cyan-500" /> <strong>Teillieferung</strong> — {t('Teilweise geliefert, Rest ausstehend', 'Partially delivered, rest pending')}</div>
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-600" /> <strong>Vollständig</strong> — {t('Alle Artikel geliefert und geprüft', 'All items delivered and inspected')}</div>
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-purple-500" /> <strong>Abgeschlossen</strong> — {t('Manuell geschlossen', 'Manually closed')}</div>
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-orange-500" /> <strong>Schaden / Falsch / Übermenge</strong> — {t('Qualitätsprobleme', 'Quality issues')}</div>
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-600" /> <strong>Abgelehnt / Storniert</strong></div>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Badge 3: Tickets', 'Badge 3: Tickets')} icon={<Ticket size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Optional. Wird nur angezeigt wenn offene Tickets für die Bestellung existieren. Zeigt Anzahl und höchste Priorität.', 'Optional. Only shown when open tickets exist for the order. Shows count and highest priority.')}</p>
-              <p>{t('Konfiguration: Welche Abweichungstypen automatisch Tickets erstellen (damage, shortage, excess, wrong, rejected) — steuerbar über Globale Einstellungen.', 'Configuration: Which deviation types auto-create tickets (damage, shortage, excess, wrong, rejected) — controllable via Global Settings.')}</p>
-            </div>
-          </DocCard>
-
-          <InfoBox>
-            {t(
-              'Status-Badges werden als standardisierte "Pills" mit fester Mindestbreite (130px) dargestellt, vertikal gestapelt. CSS-Klasse: .status-pill-stack. Die Spaltenreihenfolge (Status zuerst oder zweite Spalte) ist über Globale Einstellungen konfigurierbar.',
-              'Status badges are rendered as standardized "pills" with fixed minimum width (130px), stacked vertically. CSS class: .status-pill-stack. Column order (status first or second) is configurable via Global Settings.'
-            )}
-          </InfoBox>
+          <div><h2 className="text-2xl font-bold mb-2">{t('3-Badge Status System', '3-Badge Status System')}</h2></div>
+          <DocCard title={t('Badge 1: Identität', 'Badge 1: Identity')} icon={<Briefcase size={20} />}><div className="text-xs"><span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>PROJEKT</span> / <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}>LAGER</span></div></DocCard>
+          <DocCard title={t('Badge 2: Prozess-Status', 'Badge 2: Process')} icon={<GitBranch size={20} />}><div className="space-y-1 text-xs"><div>Gebucht → Wartet → Lieferung heute/morgen → Verspätet → Teillieferung → Vollständig → Abgeschlossen</div><div>{t('Qualität:', 'Quality:')} Schaden / Falsch / Übermenge / Abgelehnt / Storniert</div></div></DocCard>
+          <DocCard title={t('Badge 3: Tickets', 'Badge 3: Tickets')} icon={<Ticket size={20} />}><div className="text-xs">{t('Anzahl offener Tickets + höchste Priorität. Konfigurierbar via Globale Einstellungen.', 'Count of open tickets + highest priority. Configurable via Global Settings.')}</div></DocCard>
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 10: SETTINGS
-          ═══════════════════════════════════════════════════════ */}
+      {/* SECTION 10: SETTINGS */}
       {activeSection === 'settings' && (
         <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">{t('Einstellungen — Architektur', 'Settings — Architecture')}</h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-              {t('Zwei getrennte Einstellungsebenen: Benutzer-Präferenzen und Globale System-Einstellungen. Alle Settings werden in localStorage persistiert und überleben Browser-Refreshes.', 'Two separate settings layers: user preferences and global system settings. All settings are persisted in localStorage and survive browser refreshes.')}
-            </p>
-          </div>
-
-          <DocCard title={t('Benutzer-Einstellungen (SettingsPage)', 'User Settings (SettingsPage)')} icon={<Settings size={20} />}>
-            <div className="space-y-2 text-xs">
-              <p>{t('Persönliche Präferenzen, die nur die Darstellung betreffen:', 'Personal preferences that only affect display:')}</p>
-              <div className="flex items-start gap-2"><Eye size={12} className="shrink-0 mt-0.5 text-[#0077B5]" /><span><strong>{t('Erscheinungsbild', 'Appearance')}:</strong> Light / Soft (Frosted Aura) / Dark — {t('3-Wege-Toggle im Header (Icon = Ziel-Modus). Persistiert in localStorage.', '3-way toggle in header (icon = target mode). Persisted in localStorage.')}</span></div>
-              <div className="flex items-start gap-2"><Box size={12} className="shrink-0 mt-0.5 text-[#0077B5]" /><span><strong>{t('Artikel-Ansicht', 'Item View')}:</strong> Grid / List</span></div>
-              <div className="flex items-start gap-2"><Database size={12} className="shrink-0 mt-0.5 text-[#0077B5]" /><span><strong>{t('Daten-Management', 'Data Management')}:</strong> {t('JSON-Import / Zurücksetzen auf Mock-Daten', 'JSON import / Reset to mock data')}</span></div>
-            </div>
-          </DocCard>
-
-          <DocCard title={t('Globale Einstellungen (GlobalSettingsPage)', 'Global Settings (GlobalSettingsPage)')} icon={<Shield size={20} />}>
-            <div className="space-y-3 text-xs">
-              <p>{t('System-weite Einstellungen, die alle Benutzer betreffen. Nur sichtbar für Admins oder Benutzer mit "global-settings" Berechtigung (über Team-Verwaltung konfigurierbar).', 'System-wide settings affecting all users. Only visible to admins or users with "global-settings" permission (configurable via Team Management).')}</p>
-              <div className="space-y-2">
-                <div><strong>{t('Tabellen & Anzeige', 'Tables & Display')}:</strong> {t('Status-Spalte zuerst in Tabellen (an/aus)', 'Status column first in tables (on/off)')}</div>
-                <div><strong>{t('Einkauf & Bestellungen', 'Purchasing & Orders')}:</strong> {t('Smart Import (an/aus), Lieferdatum Pflichtfeld (an/aus)', 'Smart Import (on/off), delivery date required field (on/off)')}</div>
-                <div><strong>{t('Ticket-Automation', 'Ticket Automation')}:</strong> {t('Pro Abweichungstyp konfigurierbar: Fehlmenge, Übermenge, Schaden, Falschlieferung, Ablehnung', 'Configurable per deviation type: shortage, excess, damage, wrong delivery, rejection')}</div>
-                <div><strong>{t('Timeline Auto-Post', 'Timeline Auto-Post')}:</strong> {t('Gleiche Konfiguration wie Ticket-Automation, steuert automatische Kommentare in Historie & Notizen', 'Same configuration as ticket automation, controls automatic comments in History & Notes')}</div>
-                <div><strong>{t('Lagerorte', 'Warehouse Locations')}:</strong> {t('Kategorien-basierte Verwaltung (Objekte, Service, etc.). Wird als ComboboxSelect in Artikeln verwendet.', 'Category-based management (Objekte, Service, etc.). Used as ComboboxSelect in items.')}</div>
-                <div><strong>{t('Audit Trail', 'Audit Trail')}:</strong> {t('Protokoll aller Systemaktionen (max. 500 Einträge). Zeigt Benutzer, Zeitstempel, Event-Typ und Details.', 'Log of all system actions (max 500 entries). Shows user, timestamp, event type and details.')}</div>
-              </div>
-            </div>
-          </DocCard>
-
-          <InfoBox>
-            {t(
-              'Authentifizierung ist live via Microsoft Entra ID (Azure SWA built-in OAuth). Benutzerprofile werden in Cosmos DB gespeichert mit rollenbasierter Zugriffskontrolle (admin/team) und Feature-Toggles pro Benutzer. Geplant: Settings → Cosmos DB "user-prefs" Container.',
-              'Authentication is live via Microsoft Entra ID (Azure SWA built-in OAuth). User profiles are stored in Cosmos DB with role-based access control (admin/team) and per-user feature toggles. Planned: Settings → Cosmos DB "user-prefs" container.'
-            )}
-          </InfoBox>
+          <div><h2 className="text-2xl font-bold mb-2">{t('Einstellungen', 'Settings')}</h2></div>
+          <DocCard title={t('Benutzer-Einstellungen', 'User Settings')} icon={<Settings size={20} />}><div className="text-xs"><p>{t('Theme (Light/Soft/Dark), Artikel-Ansicht (Grid/List), Daten-Import/Reset.', 'Theme (Light/Soft/Dark), item view (Grid/List), data import/reset.')}</p></div></DocCard>
+          <DocCard title={t('Globale Einstellungen', 'Global Settings')} icon={<Shield size={20} />}><div className="space-y-2 text-xs"><div>{t('Status-Spalte Reihenfolge, Smart Import, Lieferdatum Pflicht, Ticket-Automation, Timeline Auto-Post, Lagerorte, Audit Trail.', 'Status column order, Smart Import, delivery date required, ticket automation, timeline auto-post, warehouse locations, audit trail.')}</div><div>{t('Nur für Admins oder Benutzer mit "global-settings" Berechtigung.', 'Only for admins or users with "global-settings" permission.')}</div></div></DocCard>
+          <InfoBox>{t('Authentifizierung via Microsoft Entra ID. Benutzerprofile in Cosmos DB mit rollenbasierter Zugriffskontrolle (admin/team) und Feature-Toggles.', 'Authentication via Microsoft Entra ID. User profiles in Cosmos DB with role-based access control (admin/team) and feature toggles.')}</InfoBox>
         </div>
       )}
 
       {/* Footer */}
       <div className={`mt-12 pt-6 border-t text-center ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-        <p className="text-xs text-slate-500">
-          DOST Lager v0.4.0 — {t('Letzte Aktualisierung', 'Last updated')}: {t('März', 'March')} 2026
-        </p>
-        <p className="text-[10px] text-slate-500 mt-1">
-          {t('Entwickelt von DOST INFOSYS', 'Developed by DOST INFOSYS')}
-        </p>
+        <p className="text-xs text-slate-500">DOST Lager v0.4.0 — {t('Letzte Aktualisierung', 'Last updated')}: {t('März', 'March')} 2026</p>
+        <p className="text-[10px] text-slate-500 mt-1">{t('Entwickelt von DOST INFOSYS', 'Developed by DOST INFOSYS')}</p>
       </div>
     </div>
   );
