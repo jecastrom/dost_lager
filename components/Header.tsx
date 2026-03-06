@@ -122,7 +122,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className={`sticky top-0 z-40 backdrop-blur-xl border-b transition-all duration-500 ${isDark ? 'bg-slate-900/80 border-slate-800' : isSoft ? 'bg-[#E8EDF0]/80 border-[#D4DDE2] shadow-sm shadow-[#5C7E8F]/5' : 'bg-white/50 border-[#CACCCE]/60 shadow-sm shadow-slate-200/20'
       }`}>
-      <div className="max-w-[1400px] mx-auto px-4 pr-3 md:px-6 py-4">
+      <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4">
         <div className="flex items-center justify-between gap-4">
 
           {/* Left: Mobile Logo (clean, no hamburger) */}
@@ -140,7 +140,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Right Controls */}
-          <div className="flex items-center justify-end gap-2 shrink-0 ml-auto">
+          <div className="flex items-center justify-end gap-1 sm:gap-2 shrink-0 ml-auto">
 
             {/* Sync Status Indicator */}
             {dataSource && (
