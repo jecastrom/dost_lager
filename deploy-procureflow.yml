@@ -276,10 +276,7 @@ jobs:
             az staticwebapp create \
               --name $SWA_NAME \
               --resource-group $RESOURCE_GROUP \
-              --source "https://github.com/${{ github.repository }}" \
-              --branch master \
-              --app-location "/" \
-              --output-location "dist" \
+              --location $LOCATION \
               --sku Free \
               --output none
             echo "✓ Static Web App created"
