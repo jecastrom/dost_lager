@@ -64,6 +64,27 @@ export function getDb(): Promise<IDBDatabase> {
 }
 
 // ============================================================================
+// CLEAR ALL: Wipe entire IndexedDB (logout cleanup)
+// ============================================================================
+
+export async function clearAllCaches(): Promise<void> {
+    try {
+        const db = await getDb();
+        const storeNames: CacheCollection[] = ['stock', 'orders', 'receipts', 'tickets', 'audits'];
+        const tx = db.transaction([...storeNames, '_meta', '_writeQueue'], 'readwrite');
+        for (const name of [...storeNames, '_meta', '_writeQueue']) {
+            tx.objectStore(name).clear();
+        }
+        return new Promise((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (err) {
+        console.warn('[OfflineDB] Failed to clear all caches:', err);
+    }
+}
+
+// ============================================================================
 // WRITE: Cache a full collection (replaces all docs in that store)
 // ============================================================================
 

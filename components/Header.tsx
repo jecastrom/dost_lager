@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Sun, Moon, Sunrise, MoreVertical, Package, Wifi, WifiOff, Cloud, CloudOff, RefreshCw, Database, Bell, CheckCircle2, XCircle, Info, AlertTriangle } from 'lucide-react';
-import { Theme, AppNotification, ActiveModule } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Sun, Moon, Sunrise, MoreVertical, Package, Wifi, WifiOff, Cloud, CloudOff, RefreshCw, Database, Bell, CheckCircle2, XCircle, Info, AlertTriangle, LogOut } from 'lucide-react';
+import { Theme, AppNotification, ActiveModule, AuthUser } from '../types';
 import { DataSource } from '../api';
 
 interface HeaderProps {
@@ -16,6 +16,8 @@ interface HeaderProps {
   onMarkNotificationRead?: (id: string) => void;
   onMarkAllRead?: () => void;
   onNavigate?: (module: ActiveModule) => void;
+  currentUser?: AuthUser | null;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -31,11 +33,41 @@ export const Header: React.FC<HeaderProps> = ({
   onMarkNotificationRead,
   onMarkAllRead,
   onNavigate,
+  currentUser = null,
+  onLogout,
 }) => {
   const isDark = theme === 'dark';
   const isSoft = theme === 'soft';
   const [showSyncDetail, setShowSyncDetail] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Try to load profile photo from backend proxy (Phase 2 endpoint)
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+    const loadPhoto = async () => {
+      try {
+        const res = await fetch('/api/user-photo');
+        if (res.ok) {
+          const blob = await res.blob();
+          if (!cancelled && blob.size > 0) {
+            setPhotoUrl(URL.createObjectURL(blob));
+          }
+        }
+      } catch { /* Silently fall back to initials */ }
+    };
+    loadPhoto();
+    return () => { cancelled = true; };
+  }, [currentUser?.userId]);
+
+  // Build initials from display name
+  const userInitials = currentUser?.displayName
+    ? currentUser.displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : '?';
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
@@ -285,11 +317,86 @@ export const Header: React.FC<HeaderProps> = ({
               <MoreVertical size={20} />
             </button>
 
-            {/* Profile */}
-            <div className={`hidden md:block w-10 h-10 rounded-full border-2 overflow-hidden ml-2 ring-2 transition-all ${isDark ? 'border-slate-700 ring-blue-500/20' : isSoft ? 'border-[#F0F3F6] ring-[#D4DDE2] shadow-md shadow-[#5C7E8F]/10' : 'border-white ring-[#CACCCE] shadow-md shadow-slate-200/40'
-              }`}>
-              <img src="https://picsum.photos/seed/user/100" alt="Profile" className="w-full h-full object-cover" />
-            </div>
+            {/* User Avatar */}
+            {currentUser && (
+              <div className="relative">
+                <button
+                  onClick={() => { setShowUserMenu(prev => !prev); setShowSyncDetail(false); setShowNotifications(false); }}
+                  className={`w-10 h-10 rounded-full border-2 overflow-hidden ml-1 ring-2 transition-all cursor-pointer active:scale-95 ${isDark ? 'border-slate-700 ring-blue-500/20 hover:ring-blue-500/40' : isSoft ? 'border-[#F0F3F6] ring-[#D4DDE2] shadow-md shadow-[#5C7E8F]/10 hover:ring-[#0077B5]/30' : 'border-white ring-[#CACCCE] shadow-md shadow-slate-200/40 hover:ring-[#0077B5]/30'
+                    }`}
+                  title={currentUser.displayName}
+                  style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
+                >
+                  {photoUrl ? (
+                    <img src={photoUrl} alt={currentUser.displayName} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className={`w-full h-full flex items-center justify-center text-xs font-black ${isDark ? 'bg-gradient-to-br from-blue-600 to-blue-800 text-white' : 'bg-gradient-to-br from-[#0077B5] to-[#00A0DC] text-white'}`}>
+                      {userInitials}
+                    </div>
+                  )}
+                </button>
+
+                {/* User Dropdown Menu */}
+                {showUserMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => { setShowUserMenu(false); setShowLogoutConfirm(false); }} />
+                    <div className={`absolute right-0 top-full mt-2 z-50 w-64 rounded-xl border shadow-xl overflow-hidden transition-all animate-in fade-in slide-in-from-top-2 duration-200 ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'}`}>
+
+                      {/* User Info */}
+                      <div className={`px-4 py-3.5 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black shrink-0 overflow-hidden ${isDark ? 'bg-gradient-to-br from-blue-600 to-blue-800 text-white' : 'bg-gradient-to-br from-[#0077B5] to-[#00A0DC] text-white'}`}>
+                            {photoUrl ? <img src={photoUrl} alt="" className="w-full h-full object-cover" /> : userInitials}
+                          </div>
+                          <div className="min-w-0">
+                            <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{currentUser.displayName}</p>
+                            <p className={`text-[11px] truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{currentUser.userDetails}</p>
+                            <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${currentUser.role === 'admin'
+                              ? isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600'
+                              : isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'
+                              }`}>{currentUser.role}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Logout Button or Confirm */}
+                      <div className="p-2">
+                        {!showLogoutConfirm ? (
+                          <button
+                            onClick={() => setShowLogoutConfirm(true)}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${isDark ? 'text-red-400 hover:bg-red-500/10' : 'text-red-500 hover:bg-red-50'}`}
+                          >
+                            <LogOut size={16} />
+                            Abmelden
+                          </button>
+                        ) : (
+                          <div className="space-y-2 px-1 py-1">
+                            <p className={`text-xs text-center font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                              Möchten Sie sich wirklich abmelden?
+                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setShowLogoutConfirm(false)}
+                                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                              >
+                                Abbrechen
+                              </button>
+                              <button
+                                onClick={() => { setIsLoggingOut(true); onLogout?.(); }}
+                                disabled={isLoggingOut}
+                                className="flex-1 py-2 rounded-lg text-xs font-bold bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-60"
+                              >
+                                {isLoggingOut ? 'Abmelden…' : 'Ja, abmelden'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

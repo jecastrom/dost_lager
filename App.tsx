@@ -30,6 +30,7 @@ import { TeamManagement } from './components/TeamManagement';
 import { AuditModule } from './components/AuditModule';
 import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi, DataSource, auditsApi } from './api';
 import { flushQueue, onQueueChange, getQueueCount } from './offlineQueue';
+import { clearAllCaches } from './offlineDb';
 
 // Error Boundary Component
 interface ErrorBoundaryProps {
@@ -538,6 +539,31 @@ export default function App() {
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
   const [goodsReceiptMode, setGoodsReceiptMode] = useState<'standard' | 'return' | 'problem'>('standard');
   const [orderToEdit, setOrderToEdit] = useState<PurchaseOrder | null>(null);
+
+  // ── Logout Handler ──
+  const handleLogout = async () => {
+    try {
+      // 1. Clear all localStorage keys used by the app
+      const keysToRemove = [
+        'theme', 'stockLogs', 'auditTrail', 'lagerortCategories',
+        'archivedReceiptGroups', 'notifications', 'globalBlindMode',
+        'ticketConfig', 'timelineConfig',
+      ];
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+
+      // 2. Clear IndexedDB caches + write queue
+      await clearAllCaches().catch(() => {});
+
+      // 3. Clear audit drafts (separate IndexedDB operation)
+      try { (await import('./offlineDb')).clearAuditDraft?.(); } catch {}
+
+      // 4. Redirect to Azure SWA logout — replace() prevents back-button access
+      window.location.replace('/.auth/logout?post_logout_redirect_uri=/');
+    } catch (err) {
+      console.warn('[Logout] Cleanup failed, redirecting anyway:', err);
+      window.location.replace('/.auth/logout?post_logout_redirect_uri=/');
+    }
+  };
 
   // Toggle Theme
   const toggleTheme = () => setTheme(prev => {
@@ -2265,6 +2291,8 @@ export default function App() {
             onMarkNotificationRead={markNotificationRead}
             onMarkAllRead={markAllNotificationsRead}
             onNavigate={handleNavigation}
+            currentUser={currentUser}
+            onLogout={handleLogout}
           />
 
           <div className={`flex-1 ${activeModule === 'create-order' || activeModule === 'goods-receipt' ? 'overflow-hidden' : 'overflow-y-auto p-4 pb-24 md:p-6 lg:p-8 lg:pb-8 scroll-smooth'}`}>
