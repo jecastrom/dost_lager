@@ -113,7 +113,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className={`sticky top-0 z-40 backdrop-blur-xl border-b transition-all duration-500 ${isDark ? 'bg-slate-900/80 border-slate-800' : isSoft ? 'bg-[#E8EDF0]/80 border-[#D4DDE2] shadow-sm shadow-[#5C7E8F]/5' : 'bg-white/50 border-[#CACCCE]/60 shadow-sm shadow-slate-200/20'
       }`}>
-      <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4">
+      <div className="max-w-[1400px] mx-auto px-4 pr-3 md:px-6 py-4">
         <div className="flex items-center justify-between gap-4">
 
           {/* Left: Mobile Logo (clean, no hamburger) */}
@@ -137,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
             {dataSource && (
               <div className="relative">
                 <button
-                  onClick={() => setShowSyncDetail(prev => !prev)}
+                  onClick={() => { setShowSyncDetail(prev => !prev); setShowNotifications(false); setShowUserMenu(false); setShowLogoutConfirm(false); }}
                   className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all text-[11px] font-bold ${!isOnline
                     ? isDark ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : isSoft ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
                     : dataSource === 'api'
@@ -179,8 +179,8 @@ export const Header: React.FC<HeaderProps> = ({
                 {/* Dropdown detail panel */}
                 {showSyncDetail && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowSyncDetail(false)} />
-                    <div className={`absolute right-0 top-full mt-2 z-50 w-64 rounded-xl border shadow-xl p-3 ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setShowSyncDetail(false)} />
+                    <div className={`fixed left-3 sm:left-auto sm:right-3 top-[68px] z-[9999] w-[min(260px,calc(100vw-24px))] rounded-xl border shadow-xl p-3 ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'
                       }`}>
                       {/* Connection status */}
                       <div className="flex items-center gap-2.5 mb-2.5">
@@ -237,8 +237,8 @@ export const Header: React.FC<HeaderProps> = ({
               {/* Notification dropdown */}
               {showNotifications && (
                 <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                  <div className={`absolute right-0 top-full mt-2 z-50 w-80 max-h-96 rounded-xl border shadow-xl overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'
+                  <div className="fixed inset-0 z-[9998]" onClick={() => setShowNotifications(false)} />
+                  <div className={`fixed right-3 top-[68px] z-[9999] w-[min(320px,calc(100vw-24px))] max-h-96 rounded-xl border shadow-xl overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'
                     }`}>
                     {/* Header */}
                     <div className={`px-4 py-3 border-b flex items-center justify-between ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
