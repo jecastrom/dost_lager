@@ -268,13 +268,32 @@ jobs:
           echo "url=$SWA_URL" >> $GITHUB_OUTPUT
           echo "✓ SWA URL: https://$SWA_URL"
 
-          # Set COSMOS_CONNECTION as SWA app setting
+          # Set app settings for Azure Functions
           az staticwebapp appsettings set \
             -n $SWA_NAME \
             --resource-group $RESOURCE_GROUP \
             --setting-names "COSMOS_CONNECTION=${{ steps.cosmos.outputs.connection }}" \
             --output none
           echo "✓ COSMOS_CONNECTION set as SWA app setting"
+
+          # Set Graph API credentials for user-photo endpoint
+          TENANT_ID=$(az account show --query tenantId -o tsv)
+          ENTRA_CLIENT_ID=$(az keyvault secret show --vault-name $KEY_VAULT_NAME --name "EntraClientId" --query value -o tsv 2>/dev/null || echo "")
+          ENTRA_SECRET=$(az keyvault secret show --vault-name $KEY_VAULT_NAME --name "EntraClientSecret" --query value -o tsv 2>/dev/null || echo "")
+
+          if [ -n "$ENTRA_CLIENT_ID" ] && [ -n "$ENTRA_SECRET" ]; then
+            az staticwebapp appsettings set \
+              -n $SWA_NAME \
+              --resource-group $RESOURCE_GROUP \
+              --setting-names \
+                "AZURE_TENANT_ID=$TENANT_ID" \
+                "AZURE_CLIENT_ID=$ENTRA_CLIENT_ID" \
+                "AZURE_CLIENT_SECRET=$ENTRA_SECRET" \
+              --output none
+            echo "✓ Graph API credentials set as SWA app settings"
+          else
+            echo "⚠ Entra credentials not found in Key Vault — user-photo will use initials fallback"
+          fi
 
           echo "::endgroup::"
 
@@ -325,6 +344,20 @@ jobs:
               --value "$CLIENT_SECRET" \
               --output none
             echo "✓ Entra credentials stored in Key Vault"
+
+            # Add User.Read.All application permission for profile photo proxy
+            # Microsoft Graph appId: 00000003-0000-0000-c000-000000000000
+            # User.Read.All permission ID: df021288-bdef-4463-88db-98f22de89214
+            az ad app permission add \
+              --id "$APP_ID" \
+              --api 00000003-0000-0000-c000-000000000000 \
+              --api-permissions df021288-bdef-4463-88db-98f22de89214=Role \
+              2>/dev/null || true
+            echo "✓ User.Read.All permission added"
+
+            # Grant admin consent (requires Global Admin or Privileged Role Admin)
+            az ad app permission admin-consent --id "$APP_ID" 2>/dev/null || \
+              echo "⚠ Admin consent not granted automatically — grant manually in Azure Portal"
 
             echo "app_id=$APP_ID" >> $GITHUB_OUTPUT
           fi
