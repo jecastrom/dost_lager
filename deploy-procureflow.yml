@@ -253,8 +253,9 @@ jobs:
             --output none 2>/dev/null || true
           echo "✓ SP has Key Vault access"
 
-          # Wait for RBAC propagation
-          sleep 15
+          # Wait for RBAC propagation (new subscriptions need longer)
+          echo "⏳ Waiting 60s for RBAC propagation..."
+          sleep 60
 
           # Store Cosmos DB connection string
           az keyvault secret set \
