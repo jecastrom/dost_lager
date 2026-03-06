@@ -79,7 +79,7 @@ env:
   SWA_NAME: swa-procureflow
   COSMOS_ACCOUNT: cosmos-procureflow-personal
   COSMOS_DB: procureflow-db
-  KEY_VAULT_NAME: kv-procureflow
+  KEY_VAULT_NAME: kv-procureflow-personal
   ENTRA_APP_NAME: ProcureFlow
 
 jobs:
