@@ -127,7 +127,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Left: Mobile Logo (clean, no hamburger) */}
           <div className="flex items-center gap-4">
-            {/* Mobile Logo - Hidden on Desktop as Sidebar handles branding */}
+            {/* Mobile Logo - Hidden on Desktop as Sidebar handles branding. */}
             <div className="flex items-center gap-3 lg:hidden">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#0077B5] to-[#00A0DC] flex items-center justify-center shadow-md shadow-blue-500/20">
                 <Package className="text-white" size={18} />
