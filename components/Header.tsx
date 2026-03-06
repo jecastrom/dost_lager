@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Sun, Moon, Sunrise, MoreVertical, Package, Wifi, WifiOff, Cloud, CloudOff, RefreshCw, Database, Bell, CheckCircle2, XCircle, Info, AlertTriangle, LogOut } from 'lucide-react';
 import { Theme, AppNotification, ActiveModule, AuthUser } from '../types';
 import { DataSource } from '../api';
@@ -82,6 +83,14 @@ export const Header: React.FC<HeaderProps> = ({
   const userInitials = currentUser?.displayName
     ? currentUser.displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : '?';
+
+  // Helper: close every dropdown in one call
+  const closeAllDropdowns = () => {
+    setShowSyncDetail(false);
+    setShowNotifications(false);
+    setShowUserMenu(false);
+    setShowLogoutConfirm(false);
+  };
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
@@ -177,9 +186,9 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
 
                 {/* Dropdown detail panel */}
-                {showSyncDetail && (
+                {showSyncDetail && createPortal(
                   <>
-                    <div className="fixed inset-0 z-[9998]" onClick={() => setShowSyncDetail(false)} />
+                    <div className="fixed inset-0 z-[9998]" onClick={closeAllDropdowns} />
                     <div className={`fixed left-3 sm:left-auto sm:right-3 top-[68px] z-[9999] w-[min(260px,calc(100vw-24px))] rounded-xl border shadow-xl p-3 ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'
                       }`}>
                       {/* Connection status */}
@@ -210,7 +219,8 @@ export const Header: React.FC<HeaderProps> = ({
                         {dataSource === 'mock' && 'Keine Verbindung und kein Cache vorhanden. Es werden Beispieldaten angezeigt.'}
                       </p>
                     </div>
-                  </>
+                  </>,
+                  document.body
                 )}
               </div>
             )}
@@ -235,10 +245,10 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
 
               {/* Notification dropdown */}
-              {showNotifications && (
+              {showNotifications && createPortal(
                 <>
-                  <div className="fixed inset-0 z-[9998]" onClick={() => setShowNotifications(false)} />
-                  <div className={`fixed right-3 top-[68px] z-[9999] w-[min(320px,calc(100vw-24px))] max-h-96 rounded-xl border shadow-xl overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'
+                  <div className="fixed inset-0 z-[9998]" onClick={closeAllDropdowns} />
+                  <div className={`fixed right-3 top-[68px] z-[9999] w-[min(260px,calc(100vw-24px))] max-h-80 rounded-xl border shadow-xl overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'
                     }`}>
                     {/* Header */}
                     <div className={`px-4 py-3 border-b flex items-center justify-between ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
@@ -306,7 +316,8 @@ export const Header: React.FC<HeaderProps> = ({
                       )}
                     </div>
                   </div>
-                </>
+                </>,
+                document.body
               )}
             </div>
 
@@ -336,7 +347,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="relative">
                 <button
                   onClick={() => { setShowUserMenu(prev => !prev); setShowSyncDetail(false); setShowNotifications(false); }}
-                  className={`w-10 h-10 rounded-full border-2 overflow-hidden ml-1 ring-2 transition-all cursor-pointer active:scale-95 ${isDark ? 'border-slate-700 ring-blue-500/20 hover:ring-blue-500/40' : isSoft ? 'border-[#F0F3F6] ring-[#D4DDE2] shadow-md shadow-[#5C7E8F]/10 hover:ring-[#0077B5]/30' : 'border-white ring-[#CACCCE] shadow-md shadow-slate-200/40 hover:ring-[#0077B5]/30'
+                  className={`w-9 h-9 rounded-full border-2 overflow-hidden ring-1 transition-all cursor-pointer active:scale-95 shrink-0 ${isDark ? 'border-slate-700 ring-blue-500/20 hover:ring-blue-500/40' : isSoft ? 'border-[#F0F3F6] ring-[#D4DDE2] shadow-sm hover:ring-[#0077B5]/30' : 'border-white ring-[#CACCCE] shadow-sm hover:ring-[#0077B5]/30'
                     }`}
                   title={currentUser.displayName}
                   style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
@@ -351,10 +362,10 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
 
                 {/* User Dropdown Menu */}
-                {showUserMenu && (
+                {showUserMenu && createPortal(
                   <>
-                    <div className="fixed inset-0 z-[9998]" onClick={() => { setShowUserMenu(false); setShowLogoutConfirm(false); }} />
-                    <div className={`fixed right-3 top-[68px] z-[9999] w-[min(280px,calc(100vw-24px))] rounded-xl border shadow-xl overflow-hidden transition-all animate-in fade-in slide-in-from-top-2 duration-200 ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'}`}>
+                    <div className="fixed inset-0 z-[9998]" onClick={closeAllDropdowns} />
+                    <div className={`fixed right-3 top-[68px] z-[9999] w-[min(260px,calc(100vw-24px))] rounded-xl border shadow-xl overflow-hidden transition-all animate-in fade-in slide-in-from-top-2 duration-200 ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'}`}>
 
                       {/* User Info */}
                       <div className={`px-4 py-3.5 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
@@ -407,7 +418,8 @@ export const Header: React.FC<HeaderProps> = ({
                         )}
                       </div>
                     </div>
-                  </>
+                  </>,
+                  document.body
                 )}
               </div>
             )}
