@@ -77,7 +77,7 @@ env:
   RESOURCE_GROUP: rg-procureflow-prod
   LOCATION: westeurope
   SWA_NAME: swa-procureflow
-  COSMOS_ACCOUNT: cosmos-procureflow
+  COSMOS_ACCOUNT: cosmos-procureflow-personal
   COSMOS_DB: procureflow-db
   KEY_VAULT_NAME: kv-procureflow
   ENTRA_APP_NAME: ProcureFlow
