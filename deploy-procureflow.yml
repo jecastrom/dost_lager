@@ -238,24 +238,21 @@ jobs:
               --name $KEY_VAULT_NAME \
               --resource-group $RESOURCE_GROUP \
               --location $LOCATION \
+              --enable-rbac-authorization false \
               --tags project=procureflow \
               --output none
             echo "✓ Key Vault created"
           fi
 
-          # Grant current SP access
-          SP_OID=$(az ad sp show --id ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }} --query id -o tsv)
-          az role assignment create \
-            --role "Key Vault Secrets Officer" \
-            --assignee-object-id "$SP_OID" \
-            --assignee-principal-type ServicePrincipal \
-            --scope "/subscriptions/${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}/resourcegroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT_NAME" \
-            --output none 2>/dev/null || true
-          echo "✓ SP has Key Vault access"
-
-          # Wait for RBAC propagation (new subscriptions need longer)
-          echo "⏳ Waiting 60s for RBAC propagation..."
-          sleep 60
+          # Grant SP access via access policy (instant, no RBAC propagation needed)
+          SP_APP_ID=${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          az keyvault set-policy \
+            --name $KEY_VAULT_NAME \
+            --resource-group $RESOURCE_GROUP \
+            --spn "$SP_APP_ID" \
+            --secret-permissions get set list \
+            --output none
+          echo "✓ SP has Key Vault access via access policy"
 
           # Store Cosmos DB connection string
           az keyvault secret set \
