@@ -105,6 +105,33 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       # ── Step 1: Resource Group ──
+      - name: "🔧 Register Azure Resource Providers"
+        run: |
+          echo "::group::Resource Providers"
+          for provider in Microsoft.DocumentDB Microsoft.KeyVault Microsoft.Web Microsoft.Storage; do
+            STATE=$(az provider show --namespace $provider --query registrationState -o tsv 2>/dev/null || echo "NotRegistered")
+            if [ "$STATE" != "Registered" ]; then
+              az provider register --namespace $provider --output none
+              echo "⏳ Registering $provider..."
+            else
+              echo "✓ $provider already registered"
+            fi
+          done
+
+          # Wait for all to complete
+          for provider in Microsoft.DocumentDB Microsoft.KeyVault Microsoft.Web Microsoft.Storage; do
+            echo -n "Waiting for $provider..."
+            for i in $(seq 1 30); do
+              STATE=$(az provider show --namespace $provider --query registrationState -o tsv)
+              if [ "$STATE" = "Registered" ]; then
+                echo " ✓"
+                break
+              fi
+              sleep 10
+            done
+          done
+          echo "::endgroup::"
+
       - name: "📦 Create Resource Group"
         run: |
           echo "::group::Resource Group"
