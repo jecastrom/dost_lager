@@ -45,6 +45,20 @@ export const Header: React.FC<HeaderProps> = ({
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  // Close all dropdowns on Escape key
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowUserMenu(false);
+        setShowLogoutConfirm(false);
+        setShowSyncDetail(false);
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, []);
+
   // Try to load profile photo from backend proxy (Phase 2 endpoint)
   useEffect(() => {
     if (!currentUser) return;
@@ -339,8 +353,8 @@ export const Header: React.FC<HeaderProps> = ({
                 {/* User Dropdown Menu */}
                 {showUserMenu && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={() => { setShowUserMenu(false); setShowLogoutConfirm(false); }} />
-                    <div className={`absolute right-0 top-full mt-2 z-50 w-64 rounded-xl border shadow-xl overflow-hidden transition-all animate-in fade-in slide-in-from-top-2 duration-200 ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'}`}>
+                    <div className="fixed inset-0 z-[9998]" onClick={() => { setShowUserMenu(false); setShowLogoutConfirm(false); }} />
+                    <div className={`fixed right-3 top-[68px] z-[9999] w-[min(280px,calc(100vw-24px))] rounded-xl border shadow-xl overflow-hidden transition-all animate-in fade-in slide-in-from-top-2 duration-200 ${isDark ? 'bg-slate-900 border-slate-700' : isSoft ? 'bg-[#F0F3F6] border-[#D4DDE2]' : 'bg-white border-slate-200'}`}>
 
                       {/* User Info */}
                       <div className={`px-4 py-3.5 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
