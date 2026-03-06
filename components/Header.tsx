@@ -125,7 +125,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4">
         <div className="flex items-center justify-between gap-4">
 
-          {/* Left: Mobile Logo (clean, no hamburger) */}
+          {/* Left: Mobile Logo (clean, no hamburger.) */}
           <div className="flex items-center gap-4">
             {/* Mobile Logo - Hidden on Desktop as Sidebar handles branding */}
             <div className="flex items-center gap-3 lg:hidden">
