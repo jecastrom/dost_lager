@@ -196,6 +196,8 @@ jobs:
             ["user-profiles"]="/id"
             ["audits"]="/id"
             ["app-settings"]="/settingId"
+            ["stock-logs"]="/id"
+            ["audit-trail"]="/id"
           )
 
           for container in "${!CONTAINERS[@]}"; do
