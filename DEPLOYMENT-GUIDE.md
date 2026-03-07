@@ -1,272 +1,360 @@
 # ProcureFlow (DOST Lager) — Deployment Guide
 
-**Version:** 3.1  
+**Version:** 4.0 (Battle-Tested Edition)  
 **Last Updated:** March 2026  
 **Audience:** System Owner / IT Administrator  
-**Time Required:** ~20 minutes (one-time setup)
+**Time Required:** ~30 minutes (one-time setup)
 
 ---
 
 ## What This Guide Does
 
-This guide walks you through deploying ProcureFlow from scratch on Microsoft Azure.  
-After completing these steps, the app will be live and auto-deploy on every code update.
+This guide walks you through deploying ProcureFlow from scratch on Microsoft Azure. It was written and tested through an actual deployment — every gotcha and manual step documented here was encountered in real life.
 
-**What gets created automatically:**
+**What gets created:**
 
 | Resource | Purpose | Monthly Cost |
 |----------|---------|-------------|
-| Azure Static Web App | Hosts the web application | €0 (Free tier) |
+| Azure Static Web App | Hosts web app + API functions | €0 (Free tier) |
 | Azure Cosmos DB | Cloud database | €0 (Free tier) |
 | Azure Key Vault | Stores secrets securely | ~€0.03 |
 | Entra ID App Registration | Microsoft login for users | €0 (included with M365) |
-| GitHub Actions Pipeline | Builds and deploys code | €0 (Free for public/private repos) |
+| GitHub Actions Pipeline | Builds and deploys code | €0 |
 
 **Estimated total: €0–2/month**
 
 ---
 
-## Prerequisites
+## Before You Begin — Important Notes
 
-Before you begin, make sure you have:
+### Globally Unique Names
 
-- [ ] An **Azure subscription** (Pay-As-You-Go or Free Trial)  
-      → [Create one here](https://azure.microsoft.com/en-us/free/) if needed
-- [ ] **Azure CLI** installed on your computer  
-      → [Download here](https://aka.ms/installazurecli)
-- [ ] **GitHub account** with access to the `jecastrom/dost_lager` repository
-- [ ] The **admin email address** — this is the email address tied to your Azure / Microsoft 365 subscription (e.g., `j.castro@dost-infosys.de`)
+Several Azure resources require **globally unique names** (unique across ALL Azure customers worldwide). The YAML workflow file contains these as environment variables. **You MUST change them** before your first deployment:
+
+| Variable in YAML | Default Value | What It Is | Must Be Unique? |
+|-----------------|---------------|-----------|----------------|
+| `COSMOS_ACCOUNT` | `cosmos-procureflow` | Cosmos DB account name | **YES — globally** |
+| `KEY_VAULT_NAME` | `kv-procureflow` | Key Vault name | **YES — globally** |
+| `SWA_NAME` | `swa-procureflow` | Static Web App name | **YES — globally** |
+| `RESOURCE_GROUP` | `rg-procureflow-prod` | Resource group name | No (per-subscription) |
+| `ENTRA_APP_NAME` | `ProcureFlow` | App registration name | No (per-tenant) |
+
+**Recommendation:** Append your company name or a short identifier, e.g.:
+- `cosmos-procureflow-acme`
+- `kv-procureflow-acme`
+- `swa-procureflow-acme`
+
+### M365 Requirement for Profile Photos
+
+The avatar photo feature (`/api/user-photo`) requires a **Microsoft 365 Business** tenant. Free Outlook.com / consumer Microsoft accounts do not support the Graph API photo endpoint. If you're on a consumer account, avatars will display initials instead — this is a Microsoft platform limitation, not a bug.
+
+### What's Automated vs. Manual
+
+| Step | Automated (YAML) | Manual (You) |
+|------|:-:|:-:|
+| Resource Group, Cosmos DB, Key Vault, SWA | ✅ | |
+| Resource provider registration | ✅ | |
+| Cosmos DB containers | ✅ | |
+| SWA app settings (COSMOS_CONNECTION) | ✅ | |
+| Entra ID App Registration | ❌ | ✅ |
+| Graph API permissions + admin consent | ❌ | ✅ |
+| Key Vault secrets (Entra credentials) | ❌ | ✅ |
+| SWA app settings (Graph credentials) | ❌ | ✅ |
+| SWA deploy token → GitHub | ❌ | ✅ |
+| GitHub secrets setup | ❌ | ✅ |
+
+> **Why is Entra ID manual?** The GitHub Service Principal has `Contributor` role for Azure resources, but Entra ID (Azure AD) app management requires **directory-level permissions** that `Contributor` doesn't grant. Only a Global Admin or Application Administrator can create app registrations from the CLI.
 
 ---
 
-## Step 1 — Login to Azure CLI
+## Prerequisites
 
-Open **PowerShell** (Windows) or **Terminal** (Mac/Linux).
+- [ ] An **Azure subscription** (Pay-As-You-Go or Free Trial) — [Create one here](https://azure.microsoft.com/en-us/free/)
+- [ ] **Azure CLI** installed — [Download here](https://aka.ms/installazurecli)
+- [ ] **GitHub account** with access to the repository
+- [ ] You are a **Global Administrator** on your Entra ID tenant (you are automatically if it's your own Azure account)
 
-**First, check if you're already logged in:**
+---
 
-```powershell
-az account show --query "{name:name, id:id}" -o table
+## Phase 1 — Configure the YAML (5 min)
+
+### Step 1.1 — Customize Resource Names
+
+Open the workflow file (`.github/workflows/azure-static-web-apps-mango-beach-0bdbc9710.yml` or `deploy-procureflow.yml`) and edit the `env:` block at the top:
+
+```yaml
+env:
+  RESOURCE_GROUP: rg-procureflow-prod          # Can keep as-is
+  LOCATION: westeurope                          # Change if needed
+  SWA_NAME: swa-procureflow-YOURCOMPANY         # ⚠️ MUST be globally unique
+  COSMOS_ACCOUNT: cosmos-procureflow-YOURCOMPANY # ⚠️ MUST be globally unique
+  COSMOS_DB: procureflow-db                     # Can keep as-is
+  KEY_VAULT_NAME: kv-procureflow-YOURCOMPANY    # ⚠️ MUST be globally unique
+  ENTRA_APP_NAME: ProcureFlow                   # Can keep as-is
 ```
 
-**If you see your subscription name and ID → you're already logged in. Skip to the verification step below.**
+### Step 1.2 — Update the Deploy Token Secret Name
 
-**If you get an error ("Please run 'az login'") → run this:**
+In the same YAML, find the `build_and_deploy` job and note the secret name used for `azure_static_web_apps_api_token`. You'll create this secret in GitHub after the SWA is provisioned. If you want a clean name, change it now (e.g., `AZURE_STATIC_WEB_APPS_API_TOKEN_MY_APP`). Remember the name — you'll need it in Phase 3.
+
+Also update the `close_pull_request` job to use the **same** secret name.
+
+Commit and push.
+
+---
+
+## Phase 2 — Azure CLI Setup (10 min)
+
+### Step 2.1 — Login to Azure
+
+Open **PowerShell** (Windows) or **Terminal** (Mac/Linux):
 
 ```powershell
 az login
 ```
 
-> A browser window will open automatically. Select your Azure account and sign in.  
-> If the browser doesn't open, or you're on a machine without a browser, use:  
-> `az login --use-device-code`  
-> (This shows a code and URL — open the URL in any browser and enter the code.)
-
-**Verify you're on the correct subscription:**
+A browser opens — sign in with your Azure account. Then verify:
 
 ```powershell
 az account show --query "{name:name, id:id}" -o table
 ```
 
-You should see your subscription name and ID. If it's wrong, switch with:
+If you have multiple subscriptions, switch to the correct one:
 
 ```powershell
-az account set --subscription "YOUR_SUBSCRIPTION_NAME"
+# List all subscriptions
+az account list --output table
+
+# Switch to the one you want
+az account set --subscription "Your Subscription Name"
 ```
 
----
-
-## Step 2 — Create a Service Principal for GitHub
-
-This creates a secure identity that allows GitHub Actions to manage your Azure resources.
-
-**Copy and paste this command exactly:**
+### Step 2.2 — Create a Service Principal for GitHub
 
 ```powershell
+$SUB_ID = az account show --query id -o tsv
+
 az ad sp create-for-rbac `
   --name "github-procureflow" `
   --role Contributor `
-  --scopes /subscriptions/$(az account show --query id -o tsv) `
+  --scopes "/subscriptions/$SUB_ID" `
   --sdk-auth
 ```
 
-**⚠️ IMPORTANT:** This will print a JSON block like this:
+This prints a JSON block. **Copy the ENTIRE output** — you need it for GitHub secrets.
 
-```json
-{
-  "clientId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "clientSecret": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "subscriptionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "tenantId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  ...
-}
-```
-
-**Copy the ENTIRE JSON output.** You will need it in the next step.  
-⚠️ Do NOT share this with anyone. It grants access to your Azure subscription.
+⚠️ Do NOT share this JSON. It grants access to your Azure subscription.
 
 ---
 
-## Step 3 — Add Secrets to GitHub
+## Phase 3 — GitHub Secrets (5 min)
 
-Go to: **https://github.com/jecastrom/dost_lager/settings/secrets/actions**
+### Step 3.1 — Repository Secrets
 
-Click **"New repository secret"** and add this secret:
+Go to: **GitHub repo → Settings → Secrets and variables → Actions → New repository secret**
 
 | Secret Name | Value |
 |-------------|-------|
-| `AZURE_CREDENTIALS` | The **entire JSON output** from Step 2 |
+| `AZURE_CREDENTIALS` | The **entire JSON** from Step 2.2 |
 
-> **Note:** The `AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_BEACH_0BDBC9710` secret should already exist from the initial SWA setup. If it doesn't, you'll get it in Step 5.
+> The SWA deploy token secret will be added after Phase 4.
+
+### Step 3.2 — Environment Secrets
+
+Go to: **GitHub repo → Settings → Environments → New environment**
+
+Create an environment called **`Production`**, then add these secrets:
+
+| Secret Name | Value |
+|-------------|-------|
+| `ADMIN_EMAIL` | Your Azure/M365 email address |
+| `ADMIN_FIRST_NAME` | Your first name |
+| `ADMIN_LAST_NAME` | Your last name |
 
 ---
 
-## Step 4 — Add the Workflow File
+## Phase 4 — Provision Infrastructure (10 min)
 
-The deployment pipeline is a single file. Place it in your repository at:
+### Step 4.1 — Run the YAML (Partial)
 
-```
-.github/workflows/deploy-procureflow.yml
-```
+Go to: **GitHub repo → Actions → "ProcureFlow — Deploy & Provision" → Run workflow**
 
-> This file replaces the old `azure-static-web-apps-mango-beach-0bdbc9710.yml` workflow.  
-> You can delete the old file after adding the new one.
+- **What to do:** `provision-infra`
+- Leave admin fields empty
 
-**How to add it:**
+Click **"Run workflow"** and wait. This creates: Resource Group, Cosmos DB, Key Vault, and SWA.
 
-1. Copy the `deploy-procureflow.yml` file provided with this guide
-2. In your local repository, place it at `.github/workflows/deploy-procureflow.yml`
-3. If the old workflow file exists, delete `.github/workflows/azure-static-web-apps-mango-beach-0bdbc9710.yml`
-4. Commit and push:
+> **Expected:** The Entra ID step will likely **fail** — this is normal. The Service Principal doesn't have directory permissions. Everything else should be green. Continue to Step 4.2.
+
+### Step 4.2 — Get the SWA Deploy Token
+
+After the SWA is created (even if the overall job failed on the Entra step), run:
 
 ```powershell
-git add .github/workflows/
-git commit -m "feat: unified deployment pipeline v3"
-git push
+az staticwebapp secrets list `
+  --name YOUR-SWA-NAME `
+  --resource-group rg-procureflow-prod `
+  --query "properties.apiKey" -o tsv
 ```
 
----
+Copy the output and add it as a **Repository Secret** in GitHub with the name you chose in Step 1.2.
 
-## Step 5 — Run Infrastructure Provisioning
-
-1. Go to: **https://github.com/jecastrom/dost_lager/actions**
-2. In the left sidebar, click **"ProcureFlow — Deploy & Provision"**
-3. Click the **"Run workflow"** button (top right)
-4. In the dropdown:
-   - **What to do:** Select **`provision-infra`**
-   - Leave other fields empty
-5. Click **"Run workflow"**
-
-**⏳ This takes 5–10 minutes.** It will:
-
-- Create the Azure Resource Group
-- Create Cosmos DB with all 8 database containers
-- Create the Key Vault and store the database connection string
-- Create the Static Web App
-- Register the Entra ID app (Microsoft login)
-- Configure everything to work together
-
-**Watch the progress** in the Actions tab. When the green checkmark appears, infrastructure is ready.
-
-> **If the SWA deploy token wasn't set before:** After this step, get the token:
-> ```powershell
-> az staticwebapp secrets list --name swa-procureflow --resource-group rg-procureflow-prod --query "properties.apiKey" -o tsv
-> ```
-> Add the output as GitHub secret `AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_BEACH_0BDBC9710`.
-
----
-
-## Step 6 — Deploy the Application
-
-Push any change to the `master` branch (or just re-run the workflow with **"deploy-only"**):
+### Step 4.3 — Get Your SWA URL
 
 ```powershell
-git push
+az staticwebapp show `
+  --name YOUR-SWA-NAME `
+  --resource-group rg-procureflow-prod `
+  --query "defaultHostname" -o tsv
 ```
 
-GitHub Actions will automatically build and deploy the app. Wait for the green checkmark in the Actions tab.
-
-**Your app is now live at:**  
-👉 **https://mango-beach-0bdbc9710.1.azurestaticapps.net**
+Note this URL — you need it for the next step (e.g., `brave-wave-06ee56d03.4.azurestaticapps.net`).
 
 ---
 
-## Step 7 — Seed Your Admin Account
+## Phase 5 — Entra ID App Registration (Manual — 5 min)
 
-Register yourself as the first admin user. Open PowerShell and run:
+This is the step that **must be done manually** by a Global Admin. Run all commands in the **same PowerShell session** so the variables persist.
+
+### Step 5.1 — Create the App Registration
 
 ```powershell
-# ═══════════════════════════════════════════════════════════
-# FILL IN YOUR DETAILS BELOW
-# ═══════════════════════════════════════════════════════════
-# Use the email address of your Azure / Microsoft 365 account
-# (the same email you use for Outlook, Teams, etc.)
-# ═══════════════════════════════════════════════════════════
+# Replace with YOUR SWA URL from Step 4.3
+$SWA_URL = "YOUR-SWA-HOSTNAME.azurestaticapps.net"
 
-$email     = "YOUR_AZURE_EMAIL@company.com"
-$firstName = "YOUR_FIRST_NAME"
-$lastName  = "YOUR_LAST_NAME"
+$APP_JSON = az ad app create `
+  --display-name "ProcureFlow" `
+  --web-redirect-uris "https://$SWA_URL/.auth/login/aad/callback" `
+  --sign-in-audience AzureADMyOrg `
+  --output json
 
-# ═══════════════════════════════════════════════════════════
-# DO NOT EDIT BELOW THIS LINE
-# ═══════════════════════════════════════════════════════════
-
-$placeholderId = "seed-" + ($email -replace '[@.]', '-').ToLower()
-
-$body = @{
-    id            = $placeholderId
-    email         = $email
-    firstName     = $firstName
-    lastName      = $lastName
-    role          = "admin"
-    featureAccess = @(
-        "stock", "audit", "receipts", "orders",
-        "suppliers", "settings", "global-settings"
-    )
-    isActive      = $true
-    createdAt     = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-    createdBy     = "deployment-guide-seed"
-    docType       = "user-profile"
-} | ConvertTo-Json
-
-$swaUrl = "https://mango-beach-0bdbc9710.1.azurestaticapps.net"
-
-Invoke-RestMethod -Uri "$swaUrl/api/user-profiles" -Method POST -Body $body -ContentType "application/json"
+$APP_ID = ($APP_JSON | ConvertFrom-Json).appId
+$OBJ_ID = ($APP_JSON | ConvertFrom-Json).id
+echo "App ID: $APP_ID"
 ```
 
-If successful, you'll see a JSON response with your profile data.
+### Step 5.2 — Create a Client Secret
 
-> **How it works:** This creates your admin profile using your email address as the identifier.
-> When you sign in with Microsoft in the next step, the app automatically recognizes your
-> email and links your account. No extra steps needed.
+```powershell
+$SECRET_JSON = az ad app credential reset `
+  --id $OBJ_ID `
+  --display-name "ProcureFlow-Secret" `
+  --years 2 `
+  --output json
+
+$CLIENT_SECRET = ($SECRET_JSON | ConvertFrom-Json).password
+echo "Secret created (do not share)"
+```
+
+### Step 5.3 — Store Credentials in Key Vault
+
+First, grant yourself access to the Key Vault:
+
+```powershell
+$MY_OID = az ad signed-in-user show --query id -o tsv
+
+az keyvault set-policy `
+  --name YOUR-KEY-VAULT-NAME `
+  --resource-group rg-procureflow-prod `
+  --object-id $MY_OID `
+  --secret-permissions get set list `
+  --output none
+```
+
+Then store the secrets:
+
+```powershell
+az keyvault secret set `
+  --vault-name YOUR-KEY-VAULT-NAME `
+  --name "EntraClientId" `
+  --value "$APP_ID" `
+  --output none
+
+# Use file method to avoid special character issues
+$CLIENT_SECRET | Out-File -Encoding ascii -NoNewline secret.tmp
+az keyvault secret set `
+  --vault-name YOUR-KEY-VAULT-NAME `
+  --name "EntraClientSecret" `
+  --file secret.tmp `
+  --output none
+Remove-Item secret.tmp
+
+echo "Secrets stored in Key Vault"
+```
+
+### Step 5.4 — Add Graph API Permission (for profile photos)
+
+```powershell
+az ad app permission add `
+  --id $APP_ID `
+  --api 00000003-0000-0000-c000-000000000000 `
+  --api-permissions df021288-bdef-4463-88db-98f22de89214=Role
+
+az ad app permission admin-consent --id $APP_ID
+echo "Admin consent granted"
+```
+
+> **Note:** This requires Global Admin. If the consent command fails, go to Azure Portal → Entra ID → App registrations → ProcureFlow → API permissions → click "Grant admin consent".
+
+### Step 5.5 — Set SWA App Settings
+
+```powershell
+$TENANT_ID = az account show --query tenantId -o tsv
+
+az staticwebapp appsettings set `
+  -n YOUR-SWA-NAME `
+  --resource-group rg-procureflow-prod `
+  --setting-names `
+    "AZURE_TENANT_ID=$TENANT_ID" `
+    "AZURE_CLIENT_ID=$APP_ID" `
+    "AZURE_CLIENT_SECRET=$CLIENT_SECRET"
+```
+
+### Step 5.6 — Update GitHub Environment Secrets
+
+Go to GitHub → **Settings → Environments → Production** and update/add:
+
+| Secret Name | Value |
+|-------------|-------|
+| `AZURE_AD_TENANT_ID` | The value of `$TENANT_ID` (run `echo $TENANT_ID`) |
+| `AZURE_CLIENT_ID` | The value of `$APP_ID` (run `echo $APP_ID`) |
+| `AZURE_CLIENT_SECRET` | The value of `$CLIENT_SECRET` (run `echo $CLIENT_SECRET`) |
 
 ---
 
-## Step 8 — Sign In and Verify
+## Phase 6 — Deploy & Seed (5 min)
 
-1. Open **https://mango-beach-0bdbc9710.1.azurestaticapps.net**
-2. Click **"Mit Microsoft anmelden"** (Sign in with Microsoft)
-3. Sign in with the same email you entered in Step 7
-4. The app automatically recognizes your email and grants you admin access
-5. You should see the ProcureFlow dashboard
+### Step 6.1 — Deploy the Application
 
-**✅ Congratulations — ProcureFlow is deployed and you're the admin!**
+Go to GitHub Actions → Run workflow → **`deploy-only`**
 
-> **What just happened?** When you signed in, the app matched your Microsoft email to the
-> admin profile you created in Step 7 and automatically linked your account. This same
-> seamless process happens for every new team member you add — they just sign in and go.
+Wait for the green checkmark. Your app is now live at:
+👉 `https://YOUR-SWA-HOSTNAME.azurestaticapps.net`
+
+### Step 6.2 — Seed Your Admin Account
+
+Run workflow again → **`seed-admin-only`**
+
+Fill in your admin email, first name, and last name (or leave empty to use the environment secrets).
+
+### Step 6.3 — Sign In and Verify
+
+1. Open your app URL
+2. Click **"Mit Microsoft anmelden"**
+3. Sign in with the email you used for seeding
+4. You should see the ProcureFlow dashboard
+
+**✅ Deployment complete!**
 
 ---
 
-## What Happens Next
-
-From now on, the app auto-deploys. Here's how:
+## Post-Deployment: What Happens Next
 
 | Action | Result |
 |--------|--------|
-| Push code to `master` branch | App automatically rebuilds and deploys (~2 min) |
-| Open a Pull Request | Preview build runs automatically |
-| Merge a Pull Request | App auto-deploys the merged changes |
+| Push code to `master` | App automatically rebuilds and deploys (~2 min) |
+| Open a Pull Request | Preview build runs |
+| Merge a Pull Request | Auto-deploys merged changes |
 
 **No manual deployment steps needed ever again.**
 
@@ -274,40 +362,54 @@ From now on, the app auto-deploys. Here's how:
 
 ## Adding Team Members
 
-As the admin, you can add team members from within the app:
+As admin, go to **Globale Einstellungen → Team-Verwaltung → Neuer Benutzer**. Enter their Microsoft 365 email, name, and role. They just visit the app URL and sign in — automatic.
 
-1. Go to **Globale Einstellungen** (Global Settings)
-2. Click **Team-Verwaltung** (Team Management)
-3. Click **Neuer Benutzer** (New User)
-4. Enter their name, **Microsoft 365 email address**, and role
-5. Select which modules they can access
+---
 
-That's it. Tell the new team member to visit the app URL and sign in with their Microsoft account.  
-The system will automatically recognize their email and grant them access — no extra steps needed.
+## Profile Photo Feature
+
+The avatar shows the user's Microsoft 365 profile photo. Requirements:
+
+- Users must be in an **M365 Business** (or higher) tenant — consumer Outlook.com accounts don't support this
+- `User.Read.All` application permission must have admin consent (done in Phase 5.4)
+- The three `AZURE_*` env vars must be set on the SWA (done in Phase 5.5)
+- Users must have a photo set at https://myaccount.microsoft.com
+
+If any condition isn't met, the avatar silently falls back to initials (e.g., "JC"). No errors, no broken UI.
 
 ---
 
 ## Troubleshooting
 
 ### "Zugang ausstehend" (Access Pending) after login
-Your user profile hasn't been created yet, or the email address doesn't match.  
-Make sure the admin added your exact Microsoft 365 email address in Team Management.
+User profile hasn't been created. Run `seed-admin-only` for the admin, or add the user via Team Management.
 
-### API endpoints return 404
-Check the GitHub Actions build — the API may have failed to compile.  
-Go to Actions tab → latest build → look for red ✗ marks.
+### Entra ID step fails in YAML
+Expected — the Service Principal lacks directory permissions. Complete Phase 5 manually.
 
-### "Konto deaktiviert" (Account Deactivated)
-An admin has deactivated your account. Contact your system administrator.
+### Key Vault "Forbidden" errors
+Grant yourself access: `az keyvault set-policy --name YOUR-KV --object-id $(az ad signed-in-user show --query id -o tsv) --secret-permissions get set list`
+
+### "DNS record already taken" for Cosmos/Key Vault
+The name is globally taken. Change `COSMOS_ACCOUNT` or `KEY_VAULT_NAME` in the YAML to something unique.
+
+### "MissingSubscriptionRegistration" errors
+New subscription needs resource providers registered. The YAML does this automatically now, but if it fails, run manually:
+```powershell
+az provider register --namespace Microsoft.DocumentDB
+az provider register --namespace Microsoft.KeyVault
+az provider register --namespace Microsoft.Web
+```
+
+### Avatar shows initials instead of photo
+Check: (1) M365 Business tenant? (2) User has photo set? (3) `AZURE_TENANT_ID`/`CLIENT_ID`/`CLIENT_SECRET` set on SWA? (4) Admin consent granted for `User.Read.All`?
 
 ### Build fails in GitHub Actions
-Check that `AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_BEACH_0BDBC9710` is set correctly in GitHub Secrets.
+Check the deploy token secret matches the name in the YAML `azure_static_web_apps_api_token` field.
 
 ---
 
 ## Tearing Down (Delete Everything)
-
-If you ever need to remove all Azure resources:
 
 ```powershell
 # ⚠️ THIS DELETES EVERYTHING — all data will be lost!
@@ -320,13 +422,11 @@ az ad sp delete --id $(az ad sp list --display-name "github-procureflow" --query
 
 ## Quick Reference
 
-| Resource | URL / Name |
-|----------|-----------|
-| **App** | https://mango-beach-0bdbc9710.1.azurestaticapps.net |
+| Resource | Value |
+|----------|-------|
+| **App URL** | `https://YOUR-SWA-HOSTNAME.azurestaticapps.net` |
 | **GitHub Repo** | https://github.com/jecastrom/dost_lager |
 | **GitHub Actions** | https://github.com/jecastrom/dost_lager/actions |
 | **Azure Portal** | https://portal.azure.com |
-| **Resource Group** | rg-procureflow-prod |
-| **Cosmos DB** | cosmos-procureflow |
-| **Key Vault** | kv-procureflow |
+| **Resource Group** | `rg-procureflow-prod` |
 | **Region** | West Europe |
