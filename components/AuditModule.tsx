@@ -256,7 +256,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
     // ═══════════════════════════════════════════════════════
     if (view === 'landing') {
         return (
-            <div className="space-y-6">
+            <div className="max-w-lg mx-auto space-y-6">
                 <AuditAnimations />
                 {/* Header */}
                 <div className="flex items-center justify-between">
