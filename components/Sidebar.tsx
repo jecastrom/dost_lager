@@ -34,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     'stock-logs': 'stock',
     'suppliers': 'suppliers',
     'audit': 'audit',
+    'settings': null,
   };
 
   const isAdmin = currentUser?.role === 'admin';
@@ -42,11 +43,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const allNavItems = [
     { id: 'dashboard', label: 'Lager', icon: <LayoutDashboard size={20} /> },
     { id: 'inventory', label: 'Artikel', icon: <Box size={20} /> },
+    { id: 'audit', label: 'Inventur', icon: <ClipboardCheck size={20} /> },
     { id: 'order-management', label: 'Bestellungen', icon: <FileText size={20} /> },
     { id: 'receipt-management', label: 'Wareneingang', icon: <ClipboardList size={20} /> },
-    { id: 'stock-logs', label: 'Lagerprotokoll', icon: <History size={20} /> },
     { id: 'suppliers', label: 'Lieferanten', icon: <Users size={20} /> },
-    { id: 'audit', label: 'Inventur', icon: <ClipboardCheck size={20} /> },
+    { id: 'stock-logs', label: 'Lagerprotokoll', icon: <History size={20} /> },
+    { id: 'settings', label: 'Einstellungen', icon: <Settings size={20} /> },
   ];
 
   // Admins see everything; team members filtered by featureAccess
@@ -56,6 +58,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       const requiredFeature = MODULE_FEATURE_MAP[item.id];
       return requiredFeature === null || access.includes(requiredFeature);
     });
+
+  // Mobile drawer keeps its own bottom Settings section — exclude from its nav loop
+  const mobileNavItems = navItems.filter(item => item.id !== 'settings');
 
   const bg = isDark ? 'bg-[#1e293b]' : isSoft ? 'bg-[#E2E7EB]' : 'bg-white';
   const border = isDark ? 'border-slate-800' : isSoft ? 'border-[#D4DDE2]' : 'border-slate-200';
@@ -157,21 +162,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </nav>
 
-        {/* Bottom: Settings */}
-        <div className={`border-t px-2 py-3 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-          <button
-            onClick={() => onNavigate('settings')}
-            className={`sidebar-btn w-full flex items-center gap-3 rounded-xl overflow-hidden
-              ${activeModule === 'settings' ? settingsActive : settingsInactive}`}
-            title="Einstellungen"
-          >
-            <Settings size={20} className="shrink-0" />
-            <span className="sidebar-label text-sm whitespace-nowrap overflow-hidden">
-              Einstellungen
-            </span>
-          </button>
-        </div>
-      </aside>
+        </aside>
 
       {/* ═══ MOBILE SIDEBAR (<lg) — slide-in drawer, unchanged ═══ */}
       {sidebarOpen && (
@@ -200,7 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* Nav */}
           <nav className="flex-1 px-3 py-6 space-y-2">
-            {navItems.map(item => (
+            {mobileNavItems.map(item => (
               <button
                 key={item.id}
                 onClick={() => {
