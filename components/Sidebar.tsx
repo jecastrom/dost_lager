@@ -70,7 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <style>{`
         .sidebar-desktop {
           width: 68px;
-          transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.15s, box-shadow 0.3s ease 0.15s;
+          transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.25s, box-shadow 0.3s ease 0.25s;
           box-shadow: none;
         }
         .sidebar-desktop::before {
@@ -80,6 +80,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           top: 0;
           bottom: 0;
           width: 8px;
+          z-index: 1;
+        }
+        .sidebar-desktop::after {
+          content: '';
+          position: absolute;
+          right: -12px;
+          top: 0;
+          bottom: 0;
+          width: 12px;
           z-index: 1;
         }
         .sidebar-desktop:hover {
