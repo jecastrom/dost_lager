@@ -125,6 +125,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                         )}
                     </button>
 
+                    {/* Different Account */}
+                    <button
+                        onClick={() => {
+                            const azureAdLogout = `https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=${encodeURIComponent(window.location.origin)}`;
+                            window.location.href = `/.auth/logout?post_logout_redirect_uri=${encodeURIComponent(azureAdLogout)}`;
+                        }}
+                        disabled={isOffline}
+                        className="w-full mt-3 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl
+                          bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.12]
+                          disabled:opacity-30 disabled:cursor-not-allowed
+                          text-slate-400 hover:text-slate-300 text-xs font-medium
+                          transition-all duration-200"
+                    >
+                        <LogIn size={14} />
+                        <span>Mit anderem Konto anmelden</span>
+                    </button>
+
                     {/* Divider */}
                     <div className="flex items-center gap-3 my-6">
                         <div className="flex-1 h-px bg-white/[0.06]" />

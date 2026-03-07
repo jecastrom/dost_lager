@@ -557,11 +557,13 @@ export default function App() {
       // 3. Clear audit drafts (separate IndexedDB operation)
       try { (await import('./offlineDb')).clearAuditDraft?.(); } catch {}
 
-      // 4. Redirect to Azure SWA logout — replace() prevents back-button access
-      window.location.replace('/.auth/logout?post_logout_redirect_uri=/');
+      // 4. Clear SWA cookie first, then redirect to Azure AD logout to end MS session
+      const azureAdLogout = `https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=${encodeURIComponent(window.location.origin)}`;
+      window.location.replace(`/.auth/logout?post_logout_redirect_uri=${encodeURIComponent(azureAdLogout)}`);
     } catch (err) {
       console.warn('[Logout] Cleanup failed, redirecting anyway:', err);
-      window.location.replace('/.auth/logout?post_logout_redirect_uri=/');
+      const azureAdLogout = `https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=${encodeURIComponent(window.location.origin)}`;
+      window.location.replace(`/.auth/logout?post_logout_redirect_uri=${encodeURIComponent(azureAdLogout)}`);
     }
   };
 
