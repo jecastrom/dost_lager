@@ -31,6 +31,12 @@ import { AuditModule } from './components/AuditModule';
 import { loadAllData, stockApi, ordersApi, receiptsApi, ticketsApi, DataSource, auditsApi } from './api';
 import { flushQueue, onQueueChange, getQueueCount } from './offlineQueue';
 import { clearAllCaches } from './offlineDb';
+import {
+  loadAllAppSettings, syncAppSetting,
+  loadUserPrefs, syncUserPrefs,
+  loadStockLogs, appendStockLog,
+  loadAuditTrail, appendAuditEntry,
+} from './cosmosSync';
 
 // Error Boundary Component
 interface ErrorBoundaryProps {
@@ -780,6 +786,82 @@ export default function App() {
       document.documentElement.classList.add('soft');
     }
   }, [theme]);
+
+  // ═══ COSMOS SYNC: Load all persisted state after auth ═══
+  const [cosmosLoaded, setCosmosLoaded] = useState(false);
+  useEffect(() => {
+    if (!currentUser || cosmosLoaded) return;
+    const userId = currentUser.userDetails || currentUser.userId || '';
+    if (!userId) return;
+
+    (async () => {
+      try {
+        // 1. Org-wide settings
+        const settings = await loadAllAppSettings();
+        if (settings['lagerort-categories']) {
+          setLagerortCategories(settings['lagerort-categories'] as LagerortCategory[]);
+          localStorage.setItem('lagerortCategories', JSON.stringify(settings['lagerort-categories']));
+        }
+        if (settings['ticket-config']) {
+          setTicketConfig(settings['ticket-config'] as TicketConfig);
+          localStorage.setItem('ticketConfig', JSON.stringify(settings['ticket-config']));
+        }
+        if (settings['timeline-config']) {
+          setTimelineConfig(settings['timeline-config'] as TimelineConfig);
+          localStorage.setItem('timelineConfig', JSON.stringify(settings['timeline-config']));
+        }
+        if (settings['global-blind-mode'] !== undefined) {
+          setGlobalBlindMode(settings['global-blind-mode'] as boolean);
+          localStorage.setItem('globalBlindMode', JSON.stringify(settings['global-blind-mode']));
+        }
+        if (settings['status-column-first'] !== undefined) {
+          setStatusColumnFirst(settings['status-column-first'] as boolean);
+          localStorage.setItem('statusColumnFirst', String(settings['status-column-first']));
+        }
+
+        // 2. User preferences
+        const prefs = await loadUserPrefs(userId);
+        if (prefs && prefs.updatedAt > 0) {
+          if (prefs.themePreference) {
+            setThemePreference(prefs.themePreference as 'auto' | Theme);
+            localStorage.setItem('theme-preference', prefs.themePreference);
+            if (prefs.themePreference === 'auto') {
+              setTheme(resolveAutoTheme());
+            } else {
+              setTheme(prefs.themePreference as Theme);
+            }
+          }
+          if (prefs.inventoryViewMode) {
+            setInventoryViewMode(prefs.inventoryViewMode as 'grid' | 'list');
+            localStorage.setItem('inventoryViewMode', prefs.inventoryViewMode);
+          }
+          if (prefs.notifications && Array.isArray(prefs.notifications) && prefs.notifications.length > 0) {
+            setNotifications(prefs.notifications as AppNotification[]);
+            localStorage.setItem('notifications', JSON.stringify(prefs.notifications));
+          }
+        }
+
+        // 3. Stock logs
+        const logs = await loadStockLogs(500);
+        if (logs && logs.length > 0) {
+          const parsed = logs.map((log: any) => ({ ...log, timestamp: new Date(log.timestamp) }));
+          setStockLogs(parsed);
+          localStorage.setItem('stockLogs', JSON.stringify(logs));
+        }
+
+        // 4. Audit trail
+        const trail = await loadAuditTrail(500);
+        if (trail && trail.length > 0) {
+          setAuditTrail(trail as AuditEntry[]);
+          localStorage.setItem('auditTrail', JSON.stringify(trail));
+        }
+
+      } catch (err) {
+        console.warn('[CosmosSync] Load failed, using localStorage fallback:', err);
+      }
+      setCosmosLoaded(true);
+    })();
+  }, [currentUser, cosmosLoaded]);
 
   // Listen for OS color-scheme changes when in auto mode
   useEffect(() => {
