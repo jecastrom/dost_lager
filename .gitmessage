@@ -1,0 +1,11 @@
+# <type>: <description> (#issue)
+#
+# Types: feat, fix, docs, style, refactor, perf, chore, ci
+# Examples:
+#   feat: add user avatar with logout flow (#25)
+#   fix: dropdown not dismissing on body tap (#K14)
+#   docs: update deployment guide v4
+#
+# Body (optional): explain WHAT changed and WHY
+#
+# Footer (optional): Closes #XX (auto-closes GitHub issue)
