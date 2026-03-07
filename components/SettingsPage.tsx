@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Theme, StockItem, RawGermanItem, ActiveModule, AuthUser } from '../types';
-import { Book, ChevronRight, Moon, Sun, Monitor, Shield, Info, Upload, Trash2, Database, AlertCircle, CheckCircle2, Users, List, LayoutGrid, Eye } from 'lucide-react';
+import { Book, ChevronRight, Moon, Sun, Monitor, Shield, Info, Upload, Trash2, Database, AlertCircle, CheckCircle2, Users, List, LayoutGrid, Eye, Smartphone } from 'lucide-react';
 
 export interface TicketConfig {
   missing: boolean;   // Offen
@@ -20,7 +20,8 @@ export interface TimelineConfig {
 
 interface SettingsPageProps {
   theme: Theme;
-  onSetTheme: (theme: Theme) => void;
+  themePreference?: 'auto' | Theme;
+  onSetTheme: (theme: 'auto' | Theme) => void;
   onNavigate: (module: ActiveModule) => void;
   onUploadData: (data: StockItem[]) => void;
   onClearData: () => void;
@@ -32,6 +33,7 @@ interface SettingsPageProps {
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
   theme,
+  themePreference = 'auto',
   onSetTheme,
   onNavigate,
   onUploadData,
@@ -127,16 +129,72 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     </button>
   );
 
-  // Theme Preview Button Component
-  const ThemeOption = ({ mode, label, currentTheme, onClick, styleClass }: { mode: Theme, label: string, currentTheme: Theme, onClick: (t: Theme) => void, styleClass: string }) => (
-    <button
-      onClick={() => onClick(mode)}
-      className={`h-9 px-4 rounded-lg text-xs font-bold border transition-all duration-200 flex items-center justify-center ${styleClass} ${currentTheme === mode
-        ? 'ring-2 ring-[#0077B5] ring-offset-1 dark:ring-offset-slate-900 scale-105 shadow-md'
-        : 'opacity-70 hover:opacity-100 hover:scale-105'
-        }`}
-    >
-      {label}
+  // Visual theme preview card — mimics a miniature app screenshot
+  const ThemeCard = ({ mode, label, isActive, onClick, colors }: {
+    mode: 'auto' | Theme; label: string; isActive: boolean;
+    onClick: (m: 'auto' | Theme) => void;
+    colors: { bg: string; sidebar: string; header: string; line1: string; line2: string; accent: string; cardBorder: string };
+  }) => (
+    <button onClick={() => onClick(mode)}
+      className={`group flex flex-col items-center gap-2 transition-all duration-200 ${isActive ? 'scale-[1.02]' : 'opacity-70 hover:opacity-100 hover:scale-[1.01]'}`}>
+      <div className={`relative w-[100px] h-[72px] rounded-xl overflow-hidden border-2 transition-all duration-200 shadow-sm
+        ${isActive ? 'border-[#0077B5] ring-2 ring-[#0077B5]/30 shadow-lg shadow-[#0077B5]/10' : `${colors.cardBorder} hover:border-slate-400`}`}
+        style={{ background: colors.bg }}>
+        {/* Mini sidebar */}
+        <div className="absolute left-0 top-0 bottom-0 w-[18px]" style={{ background: colors.sidebar }}>
+          <div className="mt-3 mx-auto w-2 h-2 rounded-sm" style={{ background: colors.header, opacity: 0.6 }} />
+          <div className="mt-1.5 mx-auto w-2 h-1 rounded-sm" style={{ background: colors.header, opacity: 0.3 }} />
+          <div className="mt-1 mx-auto w-2 h-1 rounded-sm" style={{ background: colors.header, opacity: 0.3 }} />
+        </div>
+        {/* Mini header bar */}
+        <div className="absolute left-[18px] top-0 right-0 h-[14px] flex items-center px-1.5" style={{ background: colors.sidebar }}>
+          <div className="flex gap-0.5">
+            <div className="w-3 h-1.5 rounded-sm" style={{ background: colors.line1, opacity: 0.5 }} />
+            <div className="w-5 h-1.5 rounded-sm" style={{ background: colors.line1, opacity: 0.3 }} />
+          </div>
+        </div>
+        {/* Mini content area */}
+        <div className="absolute left-[24px] top-[20px] right-[6px] space-y-[5px]">
+          <div className="h-[6px] rounded-sm w-[85%]" style={{ background: colors.line1 }} />
+          <div className="h-[6px] rounded-sm w-[65%]" style={{ background: colors.line2 }} />
+          <div className="flex items-center gap-1">
+            <div className="h-[6px] rounded-sm w-[50%]" style={{ background: colors.line2 }} />
+            <div className="w-[6px] h-[6px] rounded-full" style={{ background: colors.accent }} />
+          </div>
+        </div>
+      </div>
+      <span className={`text-xs font-semibold transition-colors ${isActive ? 'text-[#0077B5]' : isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</span>
+    </button>
+  );
+
+  // Auto card shows a split light/dark preview
+  const AutoCard = ({ isActive, onClick }: { isActive: boolean; onClick: () => void }) => (
+    <button onClick={onClick}
+      className={`group flex flex-col items-center gap-2 transition-all duration-200 ${isActive ? 'scale-[1.02]' : 'opacity-70 hover:opacity-100 hover:scale-[1.01]'}`}>
+      <div className={`relative w-[100px] h-[72px] rounded-xl overflow-hidden border-2 transition-all duration-200 shadow-sm
+        ${isActive ? 'border-[#0077B5] ring-2 ring-[#0077B5]/30 shadow-lg shadow-[#0077B5]/10' : isDark ? 'border-slate-700 hover:border-slate-500' : 'border-slate-200 hover:border-slate-400'}`}>
+        {/* Left half — light */}
+        <div className="absolute left-0 top-0 bottom-0 w-1/2 bg-white">
+          <div className="absolute left-0 top-0 bottom-0 w-[9px] bg-slate-100">
+            <div className="mt-3 mx-auto w-1.5 h-1.5 rounded-sm bg-slate-300" />
+          </div>
+          <div className="absolute left-[12px] top-[18px] right-[3px] space-y-[4px]">
+            <div className="h-[5px] rounded-sm w-[80%] bg-slate-200" />
+            <div className="h-[5px] rounded-sm w-[60%] bg-slate-100" />
+          </div>
+        </div>
+        {/* Right half — dark */}
+        <div className="absolute right-0 top-0 bottom-0 w-1/2 bg-[#0f172a]">
+          <div className="absolute right-0 top-0 bottom-0 w-[9px] bg-slate-800" />
+          <div className="absolute left-[3px] top-[18px] right-[12px] space-y-[4px]">
+            <div className="h-[5px] rounded-sm w-[80%] bg-slate-700" />
+            <div className="h-[5px] rounded-sm w-[60%] bg-slate-800" />
+          </div>
+        </div>
+        {/* Center divider */}
+        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-400/30" />
+      </div>
+      <span className={`text-xs font-semibold transition-colors ${isActive ? 'text-[#0077B5]' : isDark ? 'text-slate-400' : 'text-slate-500'}`}>Auto</span>
     </button>
   );
 
@@ -153,36 +211,32 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           Ansicht & Allgemein
         </div>
 
-        <SettingRow
-          icon={theme === 'dark' ? <Moon size={20} /> : theme === 'soft' ? <Eye size={20} /> : <Sun size={20} />}
-          label="Erscheinungsbild"
-          description="Wählen Sie Ihr bevorzugtes Farbschema."
-          action={
-            <div className="flex items-center gap-3">
-              <ThemeOption
-                mode="light"
-                label="Light"
-                currentTheme={theme}
-                onClick={onSetTheme}
-                styleClass="bg-white border-slate-200 text-slate-700"
-              />
-              <ThemeOption
-                mode="soft"
-                label="Soft"
-                currentTheme={theme}
-                onClick={onSetTheme}
-                styleClass="bg-[#E8EDF0] border-[#D4DDE2] text-[#2C3E47]"
-              />
-              <ThemeOption
-                mode="dark"
-                label="Dark"
-                currentTheme={theme}
-                onClick={onSetTheme}
-                styleClass="bg-[#0b1120] border-slate-700 text-white"
-              />
-            </div>
-          }
-        />
+        {/* Erscheinungsbild — Visual Theme Picker */}
+        <div className={`p-6 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+          <div className="flex items-center gap-3 mb-1">
+            {themePreference === 'auto' ? <Smartphone size={18} className="text-[#0077B5]" />
+              : theme === 'dark' ? <Moon size={18} className="text-[#0077B5]" />
+              : theme === 'soft' ? <Eye size={18} className="text-[#0077B5]" />
+              : <Sun size={18} className="text-[#0077B5]" />}
+            <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Erscheinungsbild</span>
+          </div>
+          <p className={`text-xs mb-5 ml-[30px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Farbmodus wählen</p>
+
+          {/* 3 theme cards */}
+          <div className="flex items-center justify-center gap-5 mb-4">
+            <ThemeCard mode="light" label="Light" isActive={themePreference === 'light'} onClick={onSetTheme}
+              colors={{ bg: '#ffffff', sidebar: '#f1f5f9', header: '#94a3b8', line1: '#e2e8f0', line2: '#f1f5f9', accent: '#ef4444', cardBorder: 'border-slate-200' }} />
+            <ThemeCard mode="soft" label="Soft" isActive={themePreference === 'soft'} onClick={onSetTheme}
+              colors={{ bg: '#E8EDF0', sidebar: '#D4DDE2', header: '#5C7E8F', line1: '#c8d3da', line2: '#d8e0e5', accent: '#ef4444', cardBorder: isDark ? 'border-slate-700' : 'border-slate-200' }} />
+            <ThemeCard mode="dark" label="Dark" isActive={themePreference === 'dark'} onClick={onSetTheme}
+              colors={{ bg: '#0f172a', sidebar: '#1e293b', header: '#475569', line1: '#334155', line2: '#1e293b', accent: '#ef4444', cardBorder: isDark ? 'border-slate-700' : 'border-slate-200' }} />
+          </div>
+
+          {/* Auto card centered below */}
+          <div className="flex justify-center">
+            <AutoCard isActive={themePreference === 'auto'} onClick={() => onSetTheme('auto')} />
+          </div>
+        </div>
 
         <SettingRow
           icon={<Monitor size={20} />}

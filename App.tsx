@@ -104,12 +104,31 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
 
 export default function App() {
   // State
+  // Resolve OS preference → 'light' or 'dark'
+  const resolveAutoTheme = (): Theme =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+
+  const [themePreference, setThemePreference] = useState<'auto' | Theme>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('theme-preference');
+      if (saved === 'auto' || saved === 'dark' || saved === 'light' || saved === 'soft') return saved as 'auto' | Theme;
+      // Migrate from legacy 'theme' key
+      const legacy = localStorage.getItem('theme') as Theme | null;
+      if (legacy === 'dark' || legacy === 'light' || legacy === 'soft') {
+        localStorage.setItem('theme-preference', legacy);
+        localStorage.removeItem('theme');
+        return legacy;
+      }
+    }
+    return 'auto';
+  });
+
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('theme') as Theme | null;
-      if (saved === 'dark' || saved === 'light' || saved === 'soft') return saved;
+      const pref = localStorage.getItem('theme-preference');
+      if (pref === 'dark' || pref === 'light' || pref === 'soft') return pref;
     }
-    return 'light';
+    return resolveAutoTheme();
   });
   // --- Authentication State ---
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -545,7 +564,7 @@ export default function App() {
     try {
       // 1. Clear all localStorage keys used by the app
       const keysToRemove = [
-        'theme', 'stockLogs', 'auditTrail', 'lagerortCategories',
+        'stockLogs', 'auditTrail', 'lagerortCategories',
         'archivedReceiptGroups', 'notifications', 'globalBlindMode',
         'ticketConfig', 'timelineConfig',
       ];
@@ -565,10 +584,11 @@ export default function App() {
     }
   };
 
-  // Toggle Theme
+  // Toggle Theme (header 3-way cycle — always sets explicit override)
   const toggleTheme = () => setTheme(prev => {
-    const next = prev === 'light' ? 'soft' : prev === 'soft' ? 'dark' : 'light';
-    localStorage.setItem('theme', next);
+    const next: Theme = prev === 'light' ? 'soft' : prev === 'soft' ? 'dark' : 'light';
+    setThemePreference(next);
+    localStorage.setItem('theme-preference', next);
     return next;
   });
 
@@ -760,6 +780,15 @@ export default function App() {
       document.documentElement.classList.add('soft');
     }
   }, [theme]);
+
+  // Listen for OS color-scheme changes when in auto mode
+  useEffect(() => {
+    if (themePreference !== 'auto') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => setTheme(e.matches ? 'dark' : 'light');
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [themePreference]);
 
   // Real-time online/offline detection — updates indicator immediately
   useEffect(() => {
@@ -2430,7 +2459,12 @@ export default function App() {
               {activeModule === 'settings' && (
                 <SettingsPage
                   theme={theme}
-                  onSetTheme={(t) => { setTheme(t); localStorage.setItem('theme', t); }}
+                  themePreference={themePreference}
+                  onSetTheme={(pref) => {
+                    setThemePreference(pref);
+                    localStorage.setItem('theme-preference', pref);
+                    if (pref === 'auto') { setTheme(resolveAutoTheme()); } else { setTheme(pref); }
+                  }}
                   onNavigate={handleNavigation}
                   onUploadData={(newItems) => setInventory(newItems)}
                   onClearData={() => setInventory(MOCK_ITEMS)}
