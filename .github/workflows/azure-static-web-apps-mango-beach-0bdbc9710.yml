@@ -195,6 +195,7 @@ jobs:
             ["notifications"]="/userId"
             ["user-profiles"]="/id"
             ["audits"]="/id"
+            ["app-settings"]="/settingId"
           )
 
           for container in "${!CONTAINERS[@]}"; do
