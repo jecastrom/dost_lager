@@ -128,8 +128,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     {/* Different Account */}
                     <button
                         onClick={() => {
-                            const azureAdLogout = `https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=${encodeURIComponent(window.location.origin)}`;
-                            window.location.href = `/.auth/logout?post_logout_redirect_uri=${encodeURIComponent(azureAdLogout)}`;
+                            // Skip SWA logout (already on login page) — go straight to Azure AD logout
+                            // then chain into a fresh SWA login, which will show the account picker
+                            const swaLogin = `${window.location.origin}/.auth/login/aad?post_login_redirect_uri=/`;
+                            window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=${encodeURIComponent(swaLogin)}`;
                         }}
                         disabled={isOffline}
                         className="w-full mt-3 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl
