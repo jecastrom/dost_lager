@@ -185,13 +185,7 @@ export const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({
             <ChevronRight size={20} className="transition-transform group-hover:translate-x-1 text-[#0077B5]" />
           </div>
         </button>
-        <div className={`mt-4 rounded-xl px-4 py-2.5 flex items-center gap-3 text-xs ${isDark
-          ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
-          : 'bg-amber-50 border border-amber-200 text-amber-800'
-          }`}>
-          <Lock size={14} className="shrink-0" />
-          <span>In Zukunft nur für Administratoren sichtbar. Änderungen wirken sich sofort auf alle Benutzer aus.</span>
-        </div>
+        
       </div>
 
       {/* ═══════════════════════════════════════════════════════
