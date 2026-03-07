@@ -332,7 +332,7 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
         <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
           <div>
             <h2 className="text-2xl font-bold mb-2">{t('Systemarchitektur', 'System Architecture')}</h2>
-            <p className={`text-sm md:text-base ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{t('DOST Lager ist eine Progressive Web App (PWA) für den gesamten Procure-to-Pay-Prozess — von der Bestellanlage über den Wareneingang bis zur Reklamation und Lieferantenbewertung. Die App läuft auf Azure Static Web Apps mit einem Azure Functions v4 API-Backend und Azure Cosmos DB als Datenbank.', 'DOST Lager is a Progressive Web App (PWA) for the entire Procure-to-Pay process — from order creation through goods receipt to complaints management and supplier scoring. The app runs on Azure Static Web Apps with an Azure Functions v4 API backend and Azure Cosmos DB as the database.')}</p>
+            <p className={`text-sm md:text-base ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{t('DOST Lager ist eine Progressive Web App (PWA) für den operativen Beschaffungsprozess (Procure-to-Stock) — von der Bestellanlage über den Wareneingang und die Qualitätsprüfung bis zur Einlagerung und Bestandsverwaltung. Die App deckt ausschließlich den operativen Warenprozess ab und enthält keine finanziellen Funktionen (keine Rechnungen, keine Zahlungen, kein Budgetmanagement). Maßgeschneidert für DOST-INFOSYS GmbH.', 'DOST Lager is a Progressive Web App (PWA) for the operational procurement cycle (Procure-to-Stock) — from placing purchase orders through goods receipt and quality inspection to warehousing and stock management. The app covers only the operational goods process and contains no financial functions (no invoicing, no payments, no budget management). Custom-built for DOST-INFOSYS GmbH.')}</p>
           </div>
           <DocCard title="Tech Stack" icon={<Zap size={20} />}>
             <div className="space-y-3">
@@ -347,6 +347,33 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
               <div className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>data.ts:</strong> {t('Mock-Datenbank (Fallback). ~800 Artikel.', 'Mock database (fallback). ~800 items.')}</span></div>
             </div>
           </DocCard>
+          <DocCard title={t('Was die App macht — und was nicht', 'What the App Does — and What It Does Not')} icon={<Info size={20} />}>
+            <div className="space-y-4 text-xs">
+              <div className={`rounded-xl border p-4 ${isDark ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-emerald-50/50 border-emerald-200'}`}>
+                <div className={`flex items-center gap-2 mb-3 font-bold text-sm ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}><CheckCircle2 size={16} /> {t('Das macht die App', 'What the app does')}</div>
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2"><CheckCircle2 size={12} className={`shrink-0 mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`} /><span>{t('Bestellungen anlegen, bearbeiten, stornieren und archivieren', 'Create, edit, cancel, and archive purchase orders')}</span></div>
+                  <div className="flex items-start gap-2"><CheckCircle2 size={12} className={`shrink-0 mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`} /><span>{t('Wareneingänge erfassen und Qualität/Menge prüfen', 'Record goods receipts and inspect quality/quantity')}</span></div>
+                  <div className="flex items-start gap-2"><CheckCircle2 size={12} className={`shrink-0 mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`} /><span>{t('Retouren und Reklamationen mit Ticket-System verwalten', 'Manage returns and complaints with ticket system')}</span></div>
+                  <div className="flex items-start gap-2"><CheckCircle2 size={12} className={`shrink-0 mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`} /><span>{t('Lagerbestände verwalten und Inventuren durchführen', 'Manage warehouse stock and conduct inventory audits')}</span></div>
+                  <div className="flex items-start gap-2"><CheckCircle2 size={12} className={`shrink-0 mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`} /><span>{t('Lieferanten automatisch bewerten (0–100 Score)', 'Automatically score suppliers (0–100)')}</span></div>
+                  <div className="flex items-start gap-2"><CheckCircle2 size={12} className={`shrink-0 mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`} /><span>{t('Offline arbeiten — unterirdische Lager, Transporter ohne Empfang', 'Work offline — underground warehouses, vans without signal')}</span></div>
+                </div>
+              </div>
+              <div className={`rounded-xl border p-4 ${isDark ? 'bg-red-500/5 border-red-500/20' : 'bg-red-50/50 border-red-200'}`}>
+                <div className={`flex items-center gap-2 mb-3 font-bold text-sm ${isDark ? 'text-red-400' : 'text-red-600'}`}><XCircle size={16} /> {t('Das macht die App NICHT', 'What the app does NOT do')}</div>
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2"><XCircle size={12} className={`shrink-0 mt-0.5 ${isDark ? 'text-red-400' : 'text-red-500'}`} /><span>{t('Keine Rechnungsstellung oder Rechnungsprüfung', 'No invoicing or invoice verification')}</span></div>
+                  <div className="flex items-start gap-2"><XCircle size={12} className={`shrink-0 mt-0.5 ${isDark ? 'text-red-400' : 'text-red-500'}`} /><span>{t('Keine Zahlungsabwicklung oder Bankanbindung', 'No payment processing or bank integration')}</span></div>
+                  <div className="flex items-start gap-2"><XCircle size={12} className={`shrink-0 mt-0.5 ${isDark ? 'text-red-400' : 'text-red-500'}`} /><span>{t('Keine Budgetplanung oder Kostenstellen', 'No budget planning or cost centers')}</span></div>
+                  <div className="flex items-start gap-2"><XCircle size={12} className={`shrink-0 mt-0.5 ${isDark ? 'text-red-400' : 'text-red-500'}`} /><span>{t('Keine Buchhaltung, kein Steuermodul, kein ERP-Ersatz', 'No accounting, no tax module, no ERP replacement')}</span></div>
+                  <div className="flex items-start gap-2"><XCircle size={12} className={`shrink-0 mt-0.5 ${isDark ? 'text-red-400' : 'text-red-500'}`} /><span>{t('Keine Preise oder finanzielle Bewertungen', 'No pricing or financial valuations')}</span></div>
+                </div>
+              </div>
+              <InfoBox>{t('ProcureFlow deckt den operativen Weg vom Bestellvorgang bis zum Regal ab. Der finanzielle Prozess (Rechnung → Zahlung → Buchhaltung) wird weiterhin über die bestehenden Systeme abgewickelt.', 'ProcureFlow covers the operational path from purchase order to shelf. The financial process (invoice → payment → accounting) continues through existing systems.')}</InfoBox>
+            </div>
+          </DocCard>
+
           <DocCard title={t('Design Philosophie', 'Design Philosophy')} icon={<Star size={20} />}>
             <div className="space-y-3 text-xs">
               <div><strong>Mobile First:</strong> {t('Touch-Targets ≥ 44px. Bottom Nav mobil, CSS hover-expand Sidebar Desktop.', 'Touch targets ≥ 44px. Bottom nav mobile, CSS hover-expand sidebar desktop.')}</div>
@@ -398,6 +425,7 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
               <div>GET/POST /api/delivery-logs, /api/suppliers, /api/audits</div>
               <div>GET/POST/PUT/DELETE /api/user-profiles</div>
               <div>POST /api/receipts/bulk — {t('Massen-Upsert', 'Bulk upsert')}</div>
+              <div>GET /api/user-photo — {t('Profilbild-Proxy (Microsoft Graph)', 'Profile photo proxy (Microsoft Graph)')}</div>
               <div>GET /api/health — {t('Diagnose', 'Diagnostic')}</div>
             </div>
           </DocCard>
@@ -519,7 +547,7 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
 
       {/* Footer */}
       <div className={`mt-12 pt-6 border-t text-center ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-        <p className="text-xs text-slate-500">DOST Lager v0.4.0 — {t('Letzte Aktualisierung', 'Last updated')}: {t('März', 'March')} 2026</p>
+        <p className="text-xs text-slate-500">DOST Lager v0.4.1 — {t('Letzte Aktualisierung', 'Last updated')}: {t('März', 'March')} 2026</p>
         <p className="text-[10px] text-slate-500 mt-1">{t('Entwickelt von DOST INFOSYS', 'Developed by DOST INFOSYS')}</p>
       </div>
     </div>

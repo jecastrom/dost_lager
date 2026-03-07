@@ -1,13 +1,17 @@
 # ProcureFlow (DOST Lager) — Project Status
-## Version: v0.4.0 | March 2026
+## Version: v0.4.1 | March 2026
 
 ---
 
 ## WHAT IT IS
 
-German-language warehouse management PWA covering the full Procure-to-Pay lifecycle: purchase orders, goods receipt & inspection, supplier evaluation, stock management, inventory auditing, and audit logging. Offline-first for underground warehouses and vans without signal.
+German-language warehouse management PWA covering the **operational procurement cycle (Procure-to-Stock)** — everything from placing a purchase order to putting items on the shelf. This includes: purchase order management, goods receipt & inspection, quality control, supplier evaluation, stock management, inventory auditing, and audit logging.
 
-**Live:** https://mango-beach-0bdbc9710.1.azurestaticapps.net
+**What it is NOT:** ProcureFlow does not handle any financial processes — no invoicing, no payments, no budgets, no accounting. It was custom-built for the operational needs of DOST-INFOSYS GmbH, specifically for technicians and warehouse staff who need to track what was ordered, what arrived, what condition it's in, and where it's stored.
+
+Offline-first for underground warehouses.
+
+**Live (Test):** https://brave-wave-06ee56d03.4.azurestaticapps.net
 **Repo:** github.com/jecastrom/dost_lager (private, master branch)
 
 ---
@@ -67,6 +71,7 @@ German-language warehouse management PWA covering the full Procure-to-Pay lifecy
 | /api/suppliers | GET, POST, PUT, DELETE | suppliers |
 | /api/audits | GET, POST, PUT, DELETE | audits |
 | /api/user-profiles | GET, POST, PUT, DELETE | user-profiles |
+| /api/user-photo | GET | (proxies Microsoft Graph profile photo) |
 | /api/health | GET | (diagnostic) |
 
 ---
@@ -86,6 +91,7 @@ German-language warehouse management PWA covering the full Procure-to-Pay lifecy
 - **Offline:** IndexedDB cache, write queue, Service Worker, 4-layer sync guard, iOS Safari support
 - **Themes:** Light, Soft (Frosted Aura), Dark
 - **Team Management:** User CRUD, feature toggles, activate/deactivate
+- **User Avatar:** Profile photo from Microsoft Graph (M365 tenants) with initials fallback, logout flow with full cache clearing
 
 ---
 
@@ -164,7 +170,7 @@ German-language warehouse management PWA covering the full Procure-to-Pay lifecy
 dost_lager/
 ├── .github/workflows/
 │   └── azure-static-web-apps-mango-beach-0bdbc9710.yml
-├── api/src/functions/     (health, stock, orders, receipts, tickets, delivery-logs, suppliers, audits, user-profiles)
+├── api/src/functions/     (health, stock, orders, receipts, tickets, delivery-logs, suppliers, audits, user-profiles, user-photo)
 │        /scripts/         (seed-inventory.ts)
 │        /utils/           (cosmos.ts)
 ├── components/            (30+ components — see CHANGELOG.md for details)
@@ -200,5 +206,5 @@ dost_lager/
 ---
 
 *For complete history of resolved issues and migration steps, see [CHANGELOG.md](./CHANGELOG.md)*
-*For deployment instructions, see [DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md.md)*
+*For deployment instructions, see [DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)*
 *For session handoff context, see [HANDOFF-PROMPT.md](./HANDOFF-PROMPT.md)*
