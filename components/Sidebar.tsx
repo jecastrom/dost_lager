@@ -70,12 +70,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <style>{`
         .sidebar-desktop {
           width: 68px;
-          transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+          transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.15s, box-shadow 0.3s ease 0.15s;
           box-shadow: none;
+        }
+        .sidebar-desktop::before {
+          content: '';
+          position: absolute;
+          left: -8px;
+          top: 0;
+          bottom: 0;
+          width: 8px;
+          z-index: 1;
         }
         .sidebar-desktop:hover {
           width: 256px;
           box-shadow: 4px 0 24px rgba(0,0,0,0.08);
+          transition-delay: 0s;
         }
         .sidebar-desktop .sidebar-label {
           opacity: 0;
