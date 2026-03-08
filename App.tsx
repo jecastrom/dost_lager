@@ -370,8 +370,10 @@ export default function App() {
       isRead: false,
     };
     setNotifications(prev => {
-      const next = [notif, ...prev].slice(0, 50); // Cap at 50
+      const next = [notif, ...prev].slice(0, 50);
       localStorage.setItem('notifications', JSON.stringify(next));
+      const userId = currentUser?.userDetails || currentUser?.userId || '';
+      if (userId) syncUserPrefs(userId, { notifications: next });
       return next;
     });
   };
@@ -380,6 +382,8 @@ export default function App() {
     setNotifications(prev => {
       const next = prev.map(n => n.id === id ? { ...n, isRead: true } : n);
       localStorage.setItem('notifications', JSON.stringify(next));
+      const userId = currentUser?.userDetails || currentUser?.userId || '';
+      if (userId) syncUserPrefs(userId, { notifications: next });
       return next;
     });
   };
@@ -388,6 +392,8 @@ export default function App() {
     setNotifications(prev => {
       const next = prev.map(n => ({ ...n, isRead: true }));
       localStorage.setItem('notifications', JSON.stringify(next));
+      const userId = currentUser?.userDetails || currentUser?.userId || '';
+      if (userId) syncUserPrefs(userId, { notifications: next });
       return next;
     });
   };
@@ -404,6 +410,7 @@ export default function App() {
   const handleSetGlobalBlindMode = (val: boolean) => {
     setGlobalBlindMode(val);
     localStorage.setItem('globalBlindMode', JSON.stringify(val));
+    syncAppSetting('global-blind-mode', val);
   };
 
   // Ticket Automation Config State
@@ -494,6 +501,7 @@ export default function App() {
   const handleSetLagerortCategories = (cats: LagerortCategory[]) => {
     setLagerortCategories(cats);
     localStorage.setItem('lagerortCategories', JSON.stringify(cats));
+    syncAppSetting('lagerort-categories', cats);
   };
 
   // Data State
@@ -557,6 +565,7 @@ export default function App() {
       localStorage.setItem('auditTrail', JSON.stringify(next));
       return next;
     });
+    appendAuditEntry(entry);
   };
 
   // Transient State
@@ -595,6 +604,8 @@ export default function App() {
     const next: Theme = prev === 'light' ? 'soft' : prev === 'soft' ? 'dark' : 'light';
     setThemePreference(next);
     localStorage.setItem('theme-preference', next);
+    const userId = currentUser?.userDetails || currentUser?.userId || '';
+    if (userId) syncUserPrefs(userId, { themePreference: next });
     return next;
   });
 
@@ -892,6 +903,8 @@ export default function App() {
   const handleSetInventoryViewMode = (mode: 'grid' | 'list') => {
     setInventoryViewMode(mode);
     localStorage.setItem('inventoryViewMode', mode);
+    const userId = currentUser?.userDetails || currentUser?.userId || '';
+    if (userId) syncUserPrefs(userId, { inventoryViewMode: mode });
   };
 
   // Configuration Handler
@@ -908,17 +921,20 @@ export default function App() {
   const handleSetStatusColumnFirst = (val: boolean) => {
     setStatusColumnFirst(val);
     localStorage.setItem('statusColumnFirst', String(val));
+    syncAppSetting('status-column-first', val);
   };
 
   // Ticket Config Handler
   const handleSetTicketConfig = (newConfig: TicketConfig) => {
     setTicketConfig(newConfig);
     localStorage.setItem('ticketConfig', JSON.stringify(newConfig));
+    syncAppSetting('ticket-config', newConfig);
   };
 
   const handleSetTimelineConfig = (config: TimelineConfig) => {
     setTimelineConfig(config);
     localStorage.setItem('timelineConfig', JSON.stringify(config));
+    syncAppSetting('timeline-config', config);
   };
 
   // Module → featureAccess key mapping (null = always accessible)
@@ -1050,6 +1066,7 @@ export default function App() {
           localStorage.setItem('stockLogs', JSON.stringify(next));
           return next;
         });
+        for (const log of newLogs) { appendStockLog(log); }
       }
     }
     // Rejected or pending-review: no stock changes
@@ -1102,10 +1119,11 @@ export default function App() {
     };
 
     setStockLogs(prev => {
-      const next = [newLog, ...prev].slice(0, 500); // Cap at 500 entries
+      const next = [newLog, ...prev].slice(0, 500);
       localStorage.setItem('stockLogs', JSON.stringify(next));
       return next;
     });
+    appendStockLog(newLog);
   };
 
   const handleStockUpdate = (id: string, newLevel: number) => {
@@ -2546,6 +2564,8 @@ export default function App() {
                     setThemePreference(pref);
                     localStorage.setItem('theme-preference', pref);
                     if (pref === 'auto') { setTheme(resolveAutoTheme()); } else { setTheme(pref); }
+                    const userId = currentUser?.userDetails || currentUser?.userId || '';
+                    if (userId) syncUserPrefs(userId, { themePreference: pref });
                   }}
                   onNavigate={handleNavigation}
                   onUploadData={(newItems) => setInventory(newItems)}
