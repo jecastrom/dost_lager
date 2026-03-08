@@ -789,7 +789,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
             {selectedOrder && createPortal(
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setSelectedOrder(null)} />
-                    <div className={`relative w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 ${isDark ? 'bg-slate-900 border border-slate-700' : 'bg-white'}`}>
+                    <div className={`relative w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 ${isDark ? 'bg-slate-900 border border-slate-700 text-slate-100' : 'bg-white text-slate-900'}`}>
                         <div className={`p-6 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
                             <div className="flex justify-between items-start mb-6">
                                 <h3 className={`font-bold text-2xl ${isDark ? 'text-white' : 'text-slate-900'}`}>Bestell Nummer : {selectedOrder.id}</h3>
@@ -1119,7 +1119,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({
                                             />
                                             {/* Menu */}
                                             <div
-                                                className={`fixed z-[9999] w-64 rounded-xl shadow-2xl border p-2 animate-in fade-in zoom-in-95 duration-150 origin-bottom-right ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
+                                                className={`fixed z-[9999] w-64 rounded-xl shadow-2xl border p-2 animate-in fade-in zoom-in-95 duration-150 origin-bottom-right ${isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-900'
                                                     }`}
                                                 style={{
                                                     bottom: window.innerHeight - (menuPos.top ?? 0),

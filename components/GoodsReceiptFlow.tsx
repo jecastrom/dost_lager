@@ -849,12 +849,12 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
       {/* SUCCESS OVERLAY */}
       {submissionStatus === 'success' && createPortal(
         <div className="fixed inset-0 z-[100000] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-2xl text-center max-w-sm w-full animate-in zoom-in-95 duration-300">
+          <div className={`p-8 rounded-2xl shadow-2xl text-center max-w-sm w-full animate-in zoom-in-95 duration-300 ${isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
             <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-in zoom-in duration-500">
               <Check size={32} className="text-white" strokeWidth={3} />
             </div>
             <h3 className="text-2xl font-bold mb-2">Erfolgreich gebucht!</h3>
-            <p className="text-slate-600 dark:text-slate-400 mb-6">Wareneingang wurde erfasst.</p>
+            <p className={`mb-6 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Wareneingang wurde erfasst.</p>
             <button onClick={() => { setSubmissionStatus('idle'); handleFinalize(); onClose(); }} className="w-full px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-500 transition-colors">
               Schließen
             </button>
@@ -866,8 +866,8 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
       {returnPopup && createPortal(
         <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setReturnPopup(null)} />
-          <div className={`relative w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4 ${isDark ? 'bg-slate-900 border border-slate-700' : 'bg-white'}`}>
-            <div className="flex items-center gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
+          <div className={`relative w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4 ${isDark ? 'bg-slate-900 border border-slate-700 text-white' : 'bg-white text-slate-900'}`}>
+            <div className={`flex items-center gap-3 pb-3 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
               <RotateCcw size={24} className="text-orange-500" />
               <h3 className="text-lg font-bold">Rücksendung erfassen</h3>
             </div>
@@ -888,7 +888,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
               <input value={returnPopup.tracking} onChange={e => setReturnPopup(p => p ? { ...p, tracking: e.target.value } : null)} placeholder="Optional" className={inputClass} />
             </div>
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setReturnPopup(null)} className="flex-1 px-4 py-3 rounded-xl font-bold bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">Abbrechen</button>
+              <button onClick={() => setReturnPopup(null)} className={`flex-1 px-4 py-3 rounded-xl font-bold ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'}`}>Abbrechen</button>
               <button onClick={handleReturnSubmit} className="flex-1 px-4 py-3 rounded-xl font-bold bg-orange-600 text-white hover:bg-orange-500">Bestätigen</button>
             </div>
           </div>
@@ -1068,7 +1068,7 @@ export const GoodsReceiptFlow: React.FC<GoodsReceiptFlowProps> = ({
                       <select
                         value={refuseReason}
                         onChange={e => setRefuseReason(e.target.value)}
-                        className={`w-full px-4 py-3 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300'}`}
+                        className={`w-full px-4 py-3 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
                       >
                         <option value="">— Bitte wählen —</option>
                         <option value="Kein Lieferschein">Kein Lieferschein</option>
