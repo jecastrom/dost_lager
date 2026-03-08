@@ -59,8 +59,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return requiredFeature === null || access.includes(requiredFeature);
     });
 
-  // Mobile drawer keeps its own bottom Settings section — exclude from its nav loop
-  const mobileNavItems = navItems.filter(item => item.id !== 'settings');
+  // Mobile drawer now includes Settings inline — same order as desktop
+  const mobileNavItems = navItems;
 
   const bg = isDark ? 'bg-[#1e293b]' : isSoft ? 'bg-[#E2E7EB]' : 'bg-white';
   const border = isDark ? 'border-slate-800' : isSoft ? 'border-[#D4DDE2]' : 'border-slate-200';
@@ -210,20 +210,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ))}
           </nav>
 
-          {/* Bottom: Settings */}
-          <div className={`p-4 border-t space-y-2 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-            <button
-              onClick={() => {
-                onNavigate('settings');
-                setSidebarOpen(false);
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors ${activeModule === 'settings' ? settingsActive : settingsInactive
-                }`}
-            >
-              <Settings size={20} />
-              <span>Einstellungen</span>
-            </button>
-          </div>
+          
         </div>
       </aside>
     </>
