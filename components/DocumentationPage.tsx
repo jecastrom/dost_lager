@@ -259,7 +259,7 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
                 <div className="flex items-start gap-2"><CheckCircle2 size={12} className="shrink-0 mt-0.5 text-emerald-500" /><span><strong>{t('Genehmigt', 'Approved')}:</strong> {t('"Inventur genehmigt von [Manager]."', '"Audit approved by [Manager]."')}</span></div>
                 <div className="flex items-start gap-2"><XCircle size={12} className="shrink-0 mt-0.5 text-red-500" /><span><strong>{t('Abgelehnt', 'Rejected')}:</strong> {t('"Inventur abgelehnt." + Kommentar', '"Audit rejected." + comment')}</span></div>
               </div>
-              <InfoBox variant="warn">{t('Benachrichtigungen sind derzeit pro Gerät (localStorage, max. 50). Geräteübergreifende Push-Benachrichtigungen sind geplant.', 'Notifications are currently per-device (localStorage, max 50). Cross-device push notifications planned.')}</InfoBox>
+              <InfoBox>{t('Benachrichtigungen werden über Cosmos DB (user-prefs) geräteübergreifend synchronisiert (max. 50). localStorage dient als Offline-Fallback.', 'Notifications are synced across devices via Cosmos DB (user-prefs), max 50. localStorage serves as offline fallback.')}</InfoBox>
             </div>
           </DocCard>
 
@@ -291,7 +291,7 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
                   <div>markWrite() <span className="opacity-40">// K14: 15s cooldown</span></div>
                   <div>items.forEach → StockLog (add | write-off)</div>
                   <div>setInventory → stockApi.upsert() <span className="opacity-40">// inline write-through</span></div>
-                  <div>setStockLogs → localStorage (max 500)</div>
+                  <div>setStockLogs → localStorage + appendStockLog() → Cosmos</div>
                   <div className="opacity-60">// 3. {t('Benachrichtigung', 'Notification')}</div>
                   <div>addNotification(type, title, message)</div>
                 </div>
@@ -378,7 +378,8 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
             <div className="space-y-3 text-xs">
               <div><strong>Mobile First:</strong> {t('Touch-Targets ≥ 44px. Bottom Nav mobil, CSS hover-expand Sidebar Desktop.', 'Touch targets ≥ 44px. Bottom nav mobile, CSS hover-expand sidebar desktop.')}</div>
               <div><strong>Optimistic UI:</strong> {t('Sofortige State-Updates. API im Hintergrund. Offline-Queue bei Netzwerkfehler.', 'Instant state updates. API in background. Offline queue on network failure.')}</div>
-              <div><strong>3 Themes:</strong> Light, Soft (Frosted Aura), Dark</div>
+              <div><strong>4 Themes:</strong> Light, Soft (Frosted Aura), Dark, Auto ({t('folgt OS-Einstellung', 'follows OS preference')})</div>
+              <div><strong>Cosmos Sync:</strong> {t('Einstellungen, Logs und Benachrichtigungen in Cosmos DB persistiert. localStorage als Offline-Fallback. Laden beim Start, Write-Through bei Änderungen.', 'Settings, logs, and notifications persisted in Cosmos DB. localStorage as offline fallback. Load on mount, write-through on changes.')}</div>
               <div><strong>Ledger Principle:</strong> {t('Nie löschen, nur archivieren. Audit Trail für jede Änderung.', 'Never delete, only archive. Audit trail for every change.')}</div>
               <div><strong>PWA:</strong> {t('Installierbar. Service Worker. Offline-fähig.', 'Installable. Service Worker. Offline-capable.')}</div>
             </div>
@@ -410,8 +411,10 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
                 { name: 'delivery-logs', pk: '/receiptId', desc: t('Lieferprotokolle', 'Delivery logs') },
                 { name: 'suppliers', pk: '/id', desc: t('Lieferanten', 'Suppliers') },
                 { name: 'audits', pk: '/id', desc: t('Inventur-Sitzungen', 'Audit sessions') },
-                { name: 'user-profiles', pk: '/id', desc: t('Benutzerprofile', 'User profiles') },
-                { name: 'notifications', pk: '/userId', desc: t('Geplant', 'Planned') },
+                { name: 'user-profiles', pk: '/id', desc: t('Benutzerprofile + Benutzereinstellungen', 'User profiles + user preferences') },
+                { name: 'app-settings', pk: '/settingId', desc: t('Org-weite Einstellungen (Lagerorte, Ticket-Config, etc.)', 'Org-wide settings (locations, ticket config, etc.)') },
+                { name: 'stock-logs', pk: '/id', desc: t('Lagerbewegungen (append-only)', 'Stock movements (append-only)') },
+                { name: 'audit-trail', pk: '/id', desc: t('Systemprotokoll (append-only)', 'System action log (append-only)') },
               ].map(c => (
                 <div key={c.name} className={`rounded-lg p-2 ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
                   <strong>{c.name}</strong> <span className="opacity-60">partition: {c.pk}</span> — <span className="opacity-60 font-sans text-[10px]">{c.desc}</span>
@@ -424,6 +427,10 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
               <div>GET/POST /api/stock, /api/orders, /api/receipts, /api/tickets</div>
               <div>GET/POST /api/delivery-logs, /api/suppliers, /api/audits</div>
               <div>GET/POST/PUT/DELETE /api/user-profiles</div>
+              <div>GET/PUT /api/app-settings?key=... — {t('Org-weite Einstellungen', 'Org-wide settings')}</div>
+              <div>GET/PUT /api/user-prefs?userId=... — {t('Benutzereinstellungen (Theme, Ansicht, Benachrichtigungen)', 'User preferences (theme, view, notifications)')}</div>
+              <div>GET/POST /api/stock-logs?limit=&offset= — {t('Lagerbewegungen', 'Stock movements')}</div>
+              <div>GET/POST /api/audit-trail?limit=&offset= — {t('Systemprotokoll', 'System action log')}</div>
               <div>POST /api/receipts/bulk — {t('Massen-Upsert', 'Bulk upsert')}</div>
               <div>GET /api/user-photo — {t('Profilbild-Proxy (Microsoft Graph)', 'Profile photo proxy (Microsoft Graph)')}</div>
               <div>GET /api/health — {t('Diagnose', 'Diagnostic')}</div>
@@ -511,7 +518,7 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
           <Collapsible id="dm-po" title="PurchaseOrder" icon={<FileText size={20} />}><div className="text-xs font-mono"><div>id, supplier, status, items: PurchaseOrderItem[], isArchived, linkedReceiptId</div><div className="mt-1 opacity-70">{t('Container: purchase-orders (/id)', 'Container: purchase-orders (/id)')}</div></div></Collapsible>
           <Collapsible id="dm-rm" title="ReceiptMaster" icon={<ClipboardList size={20} />}><div className="text-xs font-mono"><div>id, poId, status, deliveries: DeliveryLog[], docType: "master"</div><div className="mt-1 opacity-70">{t('Container: receipts (/poId)', 'Container: receipts (/poId)')}</div></div></Collapsible>
           <Collapsible id="dm-item" title="StockItem" icon={<Box size={20} />}><div className="text-xs font-mono"><div>id, sku, name, system, stockLevel, minStock, warehouseLocation</div><div className="mt-1 opacity-70">{t('Container: stock (/id)', 'Container: stock (/id)')}</div></div></Collapsible>
-          <Collapsible id="dm-stocklog" title="StockLog" icon={<History size={20} />}><div className="text-xs font-mono space-y-0.5"><div>id, timestamp, userId, userName, itemId, itemName</div><div>action: 'add' | 'remove' | 'write-off', quantity, warehouse</div><div>context: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project' | 'audit-quick' | 'audit-normal'</div><div>auditSessionId?, auditSessionName?, countedByName?, approvedByName?</div><div className="mt-1 opacity-70">{t('localStorage (max 500)', 'localStorage (max 500)')}</div></div></Collapsible>
+          <Collapsible id="dm-stocklog" title="StockLog" icon={<History size={20} />}><div className="text-xs font-mono space-y-0.5"><div>id, timestamp, userId, userName, itemId, itemName</div><div>action: 'add' | 'remove' | 'write-off', quantity, warehouse</div><div>context: 'normal' | 'project' | 'manual' | 'po-normal' | 'po-project' | 'audit-quick' | 'audit-normal'</div><div>auditSessionId?, auditSessionName?, countedByName?, approvedByName?</div><div className="mt-1 opacity-70">{t('Container: stock-logs (/id) + localStorage Fallback', 'Container: stock-logs (/id) + localStorage fallback')}</div></div></Collapsible>
           <Collapsible id="dm-ticket" title="Ticket" icon={<Ticket size={20} />}><div className="text-xs font-mono"><div>id, receiptId, subject, priority, status, type, messages[], poId</div><div className="mt-1 opacity-70">{t('Container: tickets (/poId)', 'Container: tickets (/poId)')}</div></div></Collapsible>
         </div>
       )}
@@ -539,7 +546,7 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
       {activeSection === 'settings' && (
         <div className="space-y-4 md:space-y-6 animate-in slide-in-from-bottom-4 duration-300">
           <div><h2 className="text-2xl font-bold mb-2">{t('Einstellungen', 'Settings')}</h2></div>
-          <DocCard title={t('Benutzer-Einstellungen', 'User Settings')} icon={<Settings size={20} />}><div className="text-xs"><p>{t('Theme (Light/Soft/Dark), Artikel-Ansicht (Grid/List), Daten-Import/Reset.', 'Theme (Light/Soft/Dark), item view (Grid/List), data import/reset.')}</p></div></DocCard>
+          <DocCard title={t('Benutzer-Einstellungen', 'User Settings')} icon={<Settings size={20} />}><div className="text-xs"><p>{t('Theme (Light/Soft/Dark/Auto), Artikel-Ansicht (Grid/List), Daten-Import/Reset. Synchronisiert über Cosmos DB (user-prefs Container), überlebt Browser-Löschung und ist auf anderen Geräten verfügbar.', 'Theme (Light/Soft/Dark/Auto), item view (Grid/List), data import/reset. Synced via Cosmos DB (user-prefs container), survives browser clear and available on other devices.')}</p></div></DocCard>
           <DocCard title={t('Globale Einstellungen', 'Global Settings')} icon={<Shield size={20} />}><div className="space-y-2 text-xs"><div>{t('Status-Spalte Reihenfolge, Smart Import, Lieferdatum Pflicht, Ticket-Automation, Timeline Auto-Post, Inventur (Blind Mode Permanent), Lagerorte, Audit Trail.', 'Status column order, Smart Import, delivery date required, ticket automation, timeline auto-post, audit settings (Blind Mode Permanent), warehouse locations, audit trail.')}</div><div>{t('Nur für Admins oder Benutzer mit "global-settings" Berechtigung.', 'Only for admins or users with "global-settings" permission.')}</div><div>{t('Inventur-Sektion: "Blind Mode Permanent" — überschreibt die Einzelwahl pro Zählung. Erwartete Bestände in allen Inventuren ausblenden.', 'Audit section: "Blind Mode Permanent" — overrides per-audit choice. Hide expected stock in all audits.')}</div></div></DocCard>
           <InfoBox>{t('Authentifizierung via Microsoft Entra ID. Benutzerprofile in Cosmos DB mit rollenbasierter Zugriffskontrolle (admin/team) und Feature-Toggles.', 'Authentication via Microsoft Entra ID. User profiles in Cosmos DB with role-based access control (admin/team) and feature toggles.')}</InfoBox>
         </div>
@@ -547,7 +554,7 @@ export const DocumentationPage: React.FC<DocumentationPageProps> = ({ theme, onB
 
       {/* Footer */}
       <div className={`mt-12 pt-6 border-t text-center ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-        <p className="text-xs text-slate-500">DOST Lager v0.4.1 — {t('Letzte Aktualisierung', 'Last updated')}: {t('März', 'March')} 2026</p>
+        <p className="text-xs text-slate-500">DOST Lager v0.5.0 — {t('Letzte Aktualisierung', 'Last updated')}: {t('März', 'March')} 2026</p>
         <p className="text-[10px] text-slate-500 mt-1">{t('Entwickelt von DOST INFOSYS', 'Developed by DOST INFOSYS')}</p>
       </div>
     </div>
