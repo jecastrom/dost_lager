@@ -1,222 +1,148 @@
-# ProcureFlow (DOST Lager) — Project Status
-## Version: v0.5.0 | March 2026
+# ProcureFlow (DOST Lager)
+## v0.5.0 | March 2026
+
+German-language warehouse management PWA for the **operational procurement cycle (Procure-to-Stock)** — purchase orders, goods receipt & inspection, quality control, supplier evaluation, stock management, inventory auditing, and system logging.
+
+**Not included:** No invoicing, payments, budgets, or accounting. Operational goods process only.
+
+Custom-built for DOST-INFOSYS GmbH. Offline-first for underground warehouses.
 
 ---
 
-## WHAT IT IS
+## Links
 
-German-language warehouse management PWA covering the **operational procurement cycle (Procure-to-Stock)** — everything from placing a purchase order to putting items on the shelf. This includes: purchase order management, goods receipt & inspection, quality control, supplier evaluation, stock management, inventory auditing, and audit logging.
-
-**What it is NOT:** ProcureFlow does not handle any financial processes — no invoicing, no payments, no budgets, no accounting. It was custom-built for the operational needs of DOST-INFOSYS GmbH, specifically for technicians and warehouse staff who need to track what was ordered, what arrived, what condition it's in, and where it's stored.
-
-Offline-first for underground warehouses.
-
-**Live (Test):** https://brave-wave-06ee56d03.4.azurestaticapps.net
-**Repo:** github.com/jecastrom/dost_lager (private, master branch)
+| | |
+|---|---|
+| **Live (Test)** | https://brave-wave-06ee56d03.4.azurestaticapps.net |
+| **Repo** | github.com/jecastrom/dost_lager (private, master branch) |
+| **Issues & Roadmap** | [GitHub Issues](https://github.com/jecastrom/dost_lager/issues) |
+| **Deployment** | [DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md) |
+| **Session Context** | [HANDOFF-PROMPT.md](./HANDOFF-PROMPT.md) |
+| **In-App Docs** | Settings → Dokumentation (bilingual DE/EN) |
 
 ---
 
-## TECH STACK
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS |
 | Backend | Azure Functions v4 (Node.js 20) |
-| Database | Azure Cosmos DB (NoSQL, free tier) |
+| Database | Azure Cosmos DB (NoSQL, free tier) — 12 containers |
 | Hosting | Azure Static Web Apps (free tier) |
 | Auth | Microsoft Entra ID (SWA built-in OAuth) |
 | Offline | IndexedDB, Service Worker, Offline Write Queue |
+| Sync | cosmosSync.ts — write-through to Cosmos, localStorage fallback |
 | CI/CD | GitHub Actions (auto-deploy on push to master) |
 
 ---
 
-## AZURE RESOURCES
+## Features
 
-| Resource | Name | Tier |
-|---|---|---|
-| Static Web App | swa-procureflow | Free |
-| Cosmos DB | cosmos-procureflow (procureflow-db) | Free |
-| Key Vault | kv-procureflow | ~€0.03/mo |
-| Entra ID App | ProcureFlow (741fb362-c5ed-45f3-a138-ae2219ea246d) | Included |
-| Resource Group | rg-procureflow-prod (West Europe) | — |
-| Subscription | Pay_Go_Dost_Project (20fb7306-...) | — |
+- **Auth** — Microsoft Entra ID OAuth, role-based (admin/team), feature toggles, "sign in with different account"
+- **Dashboard** — KPI cards, activity feed, insights
+- **Orders** — Create/edit/archive/cancel with cascade, Smart Import, Lager + Projekt modes
+- **Goods Receipt** — Full inspection wizard, 3-badge status system, returns with auto-tickets
+- **Inventory** — ~800 items, grid/list, inline +/−, CSV export
+- **Audit** — Shopping-cart inventory counting, Quick/Normal modes, blind mode, approval flow, offline draft auto-save
+- **Stock Log** — 5 filter tabs, audit badges, persisted to Cosmos DB
+- **Suppliers** — Auto-scoring 0–100 based on delivery history
+- **Tickets** — Auto/manual on deviations, configurable per type
+- **Notifications** — Bell icon with badge, synced across devices via Cosmos
+- **Themes** — Light, Soft, Dark, Auto (OS preference), persists across logout
+- **Offline** — IndexedDB cache, write queue, Service Worker, 4-layer sync guard, iOS Safari support
+- **Team Management** — User CRUD, feature toggles, activate/deactivate
+- **User Avatar** — Microsoft Graph photo with initials fallback
 
 ---
 
-## COSMOS DB CONTAINERS (12)
+## Cosmos DB Containers (12)
 
-| Container | Partition Key | Content |
+| Container | PK | Purpose |
 |---|---|---|
 | stock | /id | Inventory items (~795) |
 | purchase-orders | /id | Purchase orders |
-| receipts | /poId | Multi-type: master, header, item, comment (docType field) |
+| receipts | /poId | Multi-type: master, header, item, comment |
 | tickets | /poId | Case management |
 | delivery-logs | /receiptId | Delivery logs |
 | suppliers | /id | Supplier data |
-| audits | /id | Audit sessions (inventory counts) |
-| user-profiles | /id | User profiles (auth + roles) + user preferences (prefs:{userId}) |
-| app-settings | /settingId | Org-wide settings (partition always "global") |
-| stock-logs | /id | Stock movements — append-only event log |
-| audit-trail | /id | System action log — append-only event log |
-| notifications | /userId | Legacy — not actively used (notifications now in user-prefs) |
+| audits | /id | Audit sessions |
+| user-profiles | /id | User profiles + preferences (prefs:{userId}) |
+| app-settings | /settingId | Org-wide settings (always "global") |
+| stock-logs | /id | Stock movements (append-only) |
+| audit-trail | /id | System action log (append-only) |
+| notifications | /userId | Legacy — unused (migrated to user-prefs) |
 
 ---
 
-## API ENDPOINTS
+## API Endpoints (14)
 
-| Endpoint | Methods | Container |
-|---|---|---|
-| /api/stock | GET, POST, PUT, DELETE | stock |
-| /api/orders | GET, POST, PUT, DELETE | purchase-orders |
-| /api/receipts | GET, POST, POST /bulk | receipts |
-| /api/tickets | GET, POST, PUT | tickets |
-| /api/delivery-logs | GET, POST | delivery-logs |
-| /api/suppliers | GET, POST, PUT, DELETE | suppliers |
-| /api/audits | GET, POST, PUT, DELETE | audits |
-| /api/user-profiles | GET, POST, PUT, DELETE | user-profiles |
-| /api/app-settings | GET, PUT (?key=) | app-settings |
-| /api/user-prefs | GET, PUT (?userId=) | user-profiles |
-| /api/stock-logs | GET (?limit=&offset=), POST | stock-logs |
-| /api/audit-trail | GET (?limit=&offset=), POST | audit-trail |
-| /api/user-photo | GET | (proxies Microsoft Graph profile photo) |
-| /api/health | GET | (diagnostic) |
-
----
-
-## CURRENT FEATURES
-
-- **Auth:** Microsoft Entra ID OAuth, role-based (admin/team), feature toggles, email auto-linking
-- **Dashboard:** 4 KPI cards, activity feed, insights row
-- **Orders:** Create/edit/archive/cancel with cascade, Smart Import, Lager + Projekt modes
-- **Goods Receipt:** Full inspection wizard, 3-badge status system, returns with auto-tickets
-- **Inventory:** ~800 items, grid/list view, inline +/−, CSV export, ComboboxSelect locations
-- **Audit Module:** Shopping-cart style inventory counting with 3-step start wizard (location → name → mode), Quick/Normal modes, global + per-audit blind mode, sticky context header with progress, manager approval flow, confetti on perfect match, swipe gestures, haptic feedback, offline auto-save draft (IndexedDB), full Lagerprotokoll integration
-- **Stock Log:** 5 filter tabs (Alle/Manuell/PO-Normal/PO-Projekt/Inventur), audit badges
-- **Suppliers:** Automatic scoring 0-100 based on delivery history
-- **Tickets:** Auto/manual on deviations, configurable per type
-- **Notifications:** Bell icon with badge, audit event notifications, synced across devices via Cosmos DB (user-prefs)
-- **Offline:** IndexedDB cache, write queue, Service Worker, 4-layer sync guard, iOS Safari support
-- **Themes:** Light, Soft (Frosted Aura), Dark, Auto (follows OS preference). Visual macOS-style theme picker in Settings. User choice persists across logout and browser clear via Cosmos DB.
-- **Team Management:** User CRUD, feature toggles, activate/deactivate
-- **User Avatar:** Profile photo from Microsoft Graph (M365 tenants) with initials fallback, logout flow with full cache clearing, "Mit anderem Konto anmelden" (sign in with different account) on login page
+| Endpoint | Methods |
+|---|---|
+| /api/stock | GET, POST, PUT, DELETE |
+| /api/orders | GET, POST, PUT, DELETE |
+| /api/receipts | GET, POST, POST /bulk |
+| /api/tickets | GET, POST, PUT |
+| /api/delivery-logs | GET, POST |
+| /api/suppliers | GET, POST, PUT, DELETE |
+| /api/audits | GET, POST, PUT, DELETE |
+| /api/user-profiles | GET, POST, PUT, DELETE |
+| /api/app-settings | GET, PUT (?key=) |
+| /api/user-prefs | GET, PUT (?userId=) |
+| /api/stock-logs | GET (?limit, offset), POST |
+| /api/audit-trail | GET (?limit, offset), POST |
+| /api/user-photo | GET (Microsoft Graph proxy) |
+| /api/health | GET (diagnostic) |
 
 ---
 
-## ⚠️ KNOWN ISSUES & TECHNICAL DEBT
-
-### 🟡 MEDIUM — Should fix for reliability
-
-| Code | Issue | Fix |
-|---|---|---|
-| K6 | Duplicate SKU IDs in seed data (182 dupes, ~613 unique) | UUID-based IDs |
-| K8 | Receipts container holds 4 doc types (expensive queries at scale) | Split containers |
-| K9 | Only /api/health strips Cosmos metadata server-side | Add stripMeta() to all endpoints |
-| ~~K10~~ | ~~lagerortCategories, audit trail, stockLogs in localStorage only~~ | ✅ RESOLVED — Cosmos sync layer (v0.5.0) |
-| K13 | delivery-logs and suppliers not loaded on mount | Add to loadAllData() |
-| K15 | syncFromApi won't sync empty collections | Change length check to undefined check |
-| K16 | archivedReceiptGroups synced via localStorage focus event | Lift to React state + API |
-| K19 | SettingsPage import creates non-unique IDs | Use UUID |
-| K21 | handleArchiveOrder/handleCancelOrder read stale closures | Move API calls inside setState |
-| K22 | No input sanitization on API endpoints | Add zod validation |
-
-### 🟢 LOW — Cleanup / nice to have
-
-| Code | Issue | Fix |
-|---|---|---|
-| K11 | GoodsReceiptFlow has 15+ props | Context or useReducer |
-| K12 | stock.ts partition key docs may say /sku (actual is /id) | Verify live container |
-
-### 🔒 SECURITY
-
-- Rotate Cosmos DB key (exposed in terminal during debugging)
-- Rotate Azure client secret (exposed in terminal during debugging)
-
----
-
-## 🔮 ROADMAP
-
-### PHASE B: Product & UX Overhaul
-
-| ID | Feature | Priority |
-|---|---|---|
-| B1 | Item editing redesign (unlock SKU, inline editing, bulk adjust) | 🟡 MEDIUM |
-| B2 | Product filter enhancement (debounce, chips, URL persistence) | 🟡 MEDIUM |
-| B3 | Item creation from URL (scrape product page) | 🟢 LOW |
-
-### PHASE C: Module Enhancements
-
-| ID | Feature | Priority |
-|---|---|---|
-| C1 | Suppliers info tab (website, emails) | 🟡 MEDIUM |
-| C2 | Excel import tool (replace JSON upload) | 🟡 MEDIUM |
-| C3 | Fast one-click inspection ("Schnellbuchung") | 🟡 MEDIUM |
-
-### PHASE D2: Audit UX Refactor
-
-| ID | Feature | Status |
-|---|---|---|
-| D2.1 | 3-step start wizard (Wo zählen → Name → Art) | ✅ DONE |
-| D2.2 | Global Blind Mode (GlobalSettingsPage toggle) | ✅ DONE |
-| D2.3 | Sticky context header in cart (name, progress X/Y) | ✅ DONE |
-| D2.4 | Cart bottom bar above mobile nav + Abbrechen button | ✅ DONE |
-| D2.5 | Offline auto-save draft to IndexedDB (500ms debounce) | ✅ DONE |
-| D2.6 | Staggered card animations + haptic feedback on wizard | ✅ DONE |
-| D2.7 | Pulse CTA buttons, mode cards green/blue accent | ✅ DONE |
-
-### Cross-cutting
-
-- ~~Persist lagerortCategories, audit trail, user preferences to Cosmos DB~~ ✅ DONE (v0.5.0 — Cosmos sync layer)
-- Navigation guard (prevent programmatic access to hidden modules)
-- Replace remaining bottom sheets with ComboboxSelect
-- Clean up unused `notifications` container (now in user-prefs)
-
----
-
-## PROJECT FILE STRUCTURE
+## Project Structure
 
 ```
 dost_lager/
-├── .github/workflows/
-│   └── azure-static-web-apps-mango-beach-0bdbc9710.yml
-├── api/src/functions/     (health, stock, orders, receipts, tickets, delivery-logs, suppliers, audits, user-profiles, user-photo, app-settings, user-prefs, stock-logs, audit-trail)
-│        /scripts/         (seed-inventory.ts)
-│        /utils/           (cosmos.ts)
-├── components/            (30+ components — see CHANGELOG.md for details)
-│   ├── AuditModule.tsx    ← NEW: Full audit module (5 sub-views, swipe, confetti)
-│   ├── Header.tsx         ← Updated: notification bell
-│   ├── StockLogView.tsx   ← Updated: Inventur filter tab + audit badges
-│   └── ...
-├── api.ts                 (service layer + auditsApi)
-├── offlineDb.ts           (IndexedDB v3 — now includes audits store)
-├── offlineQueue.ts        (offline write queue)
-├── cosmosSync.ts           (Cosmos DB sync utility — load + write-through helpers)
-├── App.tsx                (central state + handleAuditComplete + notifications)
-├── types.ts               (AuditSession, AuditItem, AppNotification, + expanded StockLog)
-└── ...
+├── .github/workflows/     CI/CD pipeline + infrastructure provisioning
+├── api/src/functions/      14 Azure Functions (REST endpoints)
+│        /utils/            cosmos.ts (DB client + helpers)
+│        /scripts/          seed-inventory.ts
+├── components/             30+ React components
+├── App.tsx                 Central state (~40 handlers)
+├── api.ts                  REST client with 3-tier fallback (API → IndexedDB → mock)
+├── cosmosSync.ts           Cosmos write-through + load helpers
+├── offlineDb.ts            IndexedDB v3 cache layer
+├── offlineQueue.ts         Offline write queue (auto-flush)
+├── types.ts                All TypeScript interfaces
+├── data/data.ts            Mock database fallback (~800 items)
+└── public/                 PWA manifest + Service Worker
 ```
 
 ---
 
-## KEY TECHNICAL NOTES
+## Key Patterns
 
-1. **Partition keys:** stock/orders/suppliers/audits/stock-logs/audit-trail use `/id`, receipts use `/poId`, tickets use `/poId`, delivery-logs use `/receiptId`, user-profiles use `/id`, app-settings use `/settingId`
-2. **Receipts multi-doc:** Single container, differentiated by `docType`. Always include `docType` + `poId` on writes.
-3. **Write-through pattern:** API calls inside `setState(prev => { ... })` — never `setTimeout`. Prevents stale closures.
-4. **3-tier fallback:** API → IndexedDB → mock data. `dataSource` state tracks active tier.
-5. **Offline queue:** Failed writes → IndexedDB `_writeQueue` → auto-flush on `online` event / visibility change / app start.
-6. **K14 sync guard:** 4 layers: `!navigator.onLine` → `pendingWritesRef > 0` → 15s cooldown → `source === 'api'` only.
-7. **iOS Safari:** Network error is `"Load failed"`, not `"Failed to fetch"`. Detected in `api.ts`.
-8. **Theme toggle:** Icon = destination. Sunrise→Soft, Moon→Dark, Sun→Light.
-9. **UI language:** German. Code/comments English.
-10. **Cosmos imports in API:** Must use `.js` extension (e.g., `from "../utils/cosmos.js"`).
-11. **React hooks:** Never inside `.map()` — extract to named components (lesson from InventoryView crash).
-12. **Audit module:** `handleAuditComplete()` handles both Quick (instant stock update) and Normal (approval-gated). Uses `markWrite()` for K14 protection. Logs with `'audit-quick'`/`'audit-normal'` context + `auditSessionId`, `countedByName`, `approvedByName`.
-13. **Cosmos sync pattern:** localStorage writes immediately (sync), Cosmos fires in background (async, fire-and-forget). If Cosmos fails, localStorage already saved as fallback. Load from Cosmos on mount after auth; write-through on every handler.
-14. **Theme persistence:** `theme-preference` key in localStorage survives logout. Auto mode reads `prefers-color-scheme` and listens for OS changes. User override locks preference permanently.
-15. **Auth flow:** Normal logout = SWA-only (fast re-login same account). "Different account" button = Azure AD logout → fresh SWA login (triggers account picker).
+1. **Write-through** — API calls inside `setState()` prevent stale closures. Cosmos sync fires in parallel, fire-and-forget.
+2. **3-tier fallback** — API → IndexedDB → mock data. `dataSource` tracks active tier.
+3. **Offline queue** — Failed writes → IndexedDB `_writeQueue` → auto-flush on reconnect.
+4. **K14 sync guard** — 4 layers: `!navigator.onLine` → `pendingWrites > 0` → 15s cooldown → `source === 'api'` only.
+5. **Portal architecture** — Dropdowns use `createPortal(document.body)` to escape `backdrop-blur` containing blocks.
+6. **Cosmos sync** — localStorage writes immediately; Cosmos in background. Load from Cosmos on mount after auth.
+7. **Theme persistence** — `theme-preference` survives logout. Auto follows OS. User override permanent.
+8. **Auth flow** — Normal logout = SWA-only. Different account = Azure AD logout → fresh login (account picker).
+9. **German UI, English code** — All user-facing strings in German with correct umlauts.
 
 ---
 
-*For complete history of resolved issues and migration steps, see [CHANGELOG.md](./CHANGELOG.md)*
-*For deployment instructions, see [DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)*
-*For session handoff context, see [HANDOFF-PROMPT.md](./HANDOFF-PROMPT.md)*
+## Issues & Roadmap
+
+All tracked in [GitHub Issues](https://github.com/jecastrom/dost_lager/issues) with milestones:
+
+| Milestone | Focus |
+|---|---|
+| Security (do first) | Key rotation |
+| Quick Wins | Bug fixes, small improvements |
+| Phase B | Product & UX overhaul |
+| Phase C | Module enhancements |
+| Production-Ready | Technical debt cleanup |
+
+---
+
+*Deployment: [DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md) · Changelog: [CHANGELOG.md](./CHANGELOG.md) · Session context: [HANDOFF-PROMPT.md](./HANDOFF-PROMPT.md)*
