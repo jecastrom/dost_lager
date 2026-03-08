@@ -18,6 +18,7 @@ interface CreateOrderWizardProps {
   requireDeliveryDate: boolean;
   enableSmartImport?: boolean;
   existingOrderIds?: string[];
+  knownSuppliers?: string[];
 }
 
 interface CartItem {
