@@ -829,6 +829,14 @@ export default function App() {
           setStatusColumnFirst(settings['status-column-first'] as boolean);
           localStorage.setItem('statusColumnFirst', String(settings['status-column-first']));
         }
+        if (settings['require-delivery-date'] !== undefined) {
+          setRequireDeliveryDate(settings['require-delivery-date'] as boolean);
+          localStorage.setItem('requireDeliveryDate', String(settings['require-delivery-date']));
+        }
+        if (settings['enable-smart-import'] !== undefined) {
+          setEnableSmartImport(settings['enable-smart-import'] as boolean);
+          localStorage.setItem('enableSmartImport', String(settings['enable-smart-import']));
+        }
 
         // 2. User preferences
         const prefs = await loadUserPrefs(userId);
@@ -911,11 +919,13 @@ export default function App() {
   const handleSetRequireDeliveryDate = (required: boolean) => {
     setRequireDeliveryDate(required);
     localStorage.setItem('requireDeliveryDate', String(required));
+    syncAppSetting('require-delivery-date', required);
   };
 
   const handleSetEnableSmartImport = (enabled: boolean) => {
     setEnableSmartImport(enabled);
     localStorage.setItem('enableSmartImport', String(enabled));
+    syncAppSetting('enable-smart-import', enabled);
   };
 
   const handleSetStatusColumnFirst = (val: boolean) => {

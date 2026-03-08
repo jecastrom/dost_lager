@@ -10,6 +10,8 @@ const VALID_KEYS = [
   "timeline-config",
   "global-blind-mode",
   "status-column-first",
+  "require-delivery-date",
+  "enable-smart-import",
 ] as const;
 
 type SettingKey = typeof VALID_KEYS[number];

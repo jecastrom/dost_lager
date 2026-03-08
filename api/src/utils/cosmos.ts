@@ -20,6 +20,8 @@ export const CONTAINERS = {
   AUDITS: "audits",
   APP_SETTINGS: "app-settings",
   USER_PROFILES: "user-profiles",
+  STOCK_LOGS: "stock-logs",
+  AUDIT_TRAIL: "audit-trail",
 } as const;
 
 let client: CosmosClient | null = null;
