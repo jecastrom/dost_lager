@@ -77,7 +77,7 @@ const parsePOText = (text: string, inventory: StockItem[]) => {
   inventory.forEach(i => { if (i.sku) skuMap.set(cleanSku(i.sku), i); if (i.manufacturer) supplierHintMap.set(i.manufacturer.toLowerCase(), i.manufacturer); });
   const dateRegex = /(\d{1,2})\.(\d{1,2})\.(\d{2,4})/;
   const idRegex = /(?:Nr\.?|#|Bestellung|Order|Auftrag)\s*[:.]?\s*([A-Za-z0-9\-\/]{3,})/i;
-  const supplierRegex = /(?:Lieferant|Supplier|Kreditor|Vendor)\s*[:.]?\s*(.+)/i;
+  const supplierRegex = /(?:Lieferant|Supplier|Kreditor|Vendor)\s*[:.]?\s*([A-Za-zÀ-ÿ0-9][\w\s&.,()\-À-ÿ]*[A-Za-zÀ-ÿ0-9.)]+)/i;
   const qtyRegex = /(\d+)\s*(?:x|stk|st|pcs|Pack)/i;
   lines.forEach(line => {
     if (!orderDate) { const d = line.match(dateRegex); if (d) { let y = d[3]; if (y.length === 2) y = '20' + y; orderDate = `${y}-${d[2].padStart(2, '0')}-${d[1].padStart(2, '0')}`; } }
@@ -159,11 +159,22 @@ const parseBulkPOText = (text: string, inventory: StockItem[]): ReturnType<typeo
   return results;
 };
 
-const SUPPLIER_OPTIONS = [
+const SUPPLIER_DEFAULTS = [
   "Battery Kutter", "Energy Solutions", "Power Supply GmbH", "Akku-Tech",
   "Deutsche Batterie", "Euro Power Systems", "Varta AG", "Bosch Automotive",
   "Continental", "Siemens Energy"
 ];
+
+// Merge all supplier sources into a de-duplicated, alphabetically sorted list
+const buildSupplierList = (knownSuppliers: string[], inventory: { manufacturer?: string }[]): string[] => {
+  const set = new Set<string>();
+  SUPPLIER_DEFAULTS.forEach(s => set.add(s));
+  knownSuppliers.forEach(s => { if (s.trim()) set.add(s.trim()); });
+  inventory.forEach(i => { if (i.manufacturer?.trim()) set.add(i.manufacturer.trim()); });
+  // Restore any user-added suppliers from localStorage
+  try { const stored = localStorage.getItem('procureflow_custom_suppliers'); if (stored) JSON.parse(stored).forEach((s: string) => set.add(s)); } catch { }
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'de'));
+};
 
 // ── Supplier Validation Helper ──────────────────────────────
 const findMatchingSupplier = (input: string, supplierList: string[]): string | null => {
@@ -176,7 +187,7 @@ const findMatchingSupplier = (input: string, supplierList: string[]): string | n
 
 // ═════════════════════════════════════════════════════════════
 export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
-  theme, items, onNavigate, onCreateOrder, initialOrder, requireDeliveryDate, enableSmartImport = false, existingOrderIds = []
+  theme, items, onNavigate, onCreateOrder, initialOrder, requireDeliveryDate, enableSmartImport = false, existingOrderIds = [], knownSuppliers = []
 }) => {
   const isDark = theme === 'dark';
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -194,7 +205,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
     return Array.from(labels);
   });
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [supplierOptions, setSupplierOptions] = useState<string[]>(SUPPLIER_OPTIONS);
+  const [supplierOptions, setSupplierOptions] = useState<string[]>(() => buildSupplierList(knownSuppliers, items));
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
@@ -515,9 +526,10 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
               ) : (
                 <div className="flex gap-2">
                   <input type="text" value={newSupplierName} onChange={e => setNewSupplierName(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && newSupplierName.trim()) { setSupplierOptions(p => [...p, newSupplierName.trim()]); setFormData({ ...formData, supplier: newSupplierName.trim() }); setNewSupplierName(''); setShowAddNewSupplier(false); setShowSupplierSheet(false); setSupplierSheetSearch(''); } }}
+                    onKeyDown={e => { if (e.key === 'Enter' && newSupplierName.trim()) { const trimmed = newSupplierName.trim(); setSupplierOptions(p => { const next = [...p, trimmed].sort((a, b) => a.localeCompare(b, 'de')); try { const prev = JSON.parse(localStorage.getItem('procureflow_custom_suppliers') || '[]'); localStorage.setItem('procureflow_custom_suppliers', JSON.stringify(Array.from(new Set([...prev, trimmed])))); } catch {} return next; });
+                     setFormData({ ...formData, supplier: newSupplierName.trim() }); setNewSupplierName(''); setShowAddNewSupplier(false); setShowSupplierSheet(false); setSupplierSheetSearch(''); } }}
                     placeholder="Neuer Lieferant..." className={`flex-1 px-3 py-2.5 rounded-xl border text-sm outline-none ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200'}`} autoFocus />
-                  <button type="button" onClick={() => { if (newSupplierName.trim()) { setSupplierOptions(p => [...p, newSupplierName.trim()]); setFormData({ ...formData, supplier: newSupplierName.trim() }); setNewSupplierName(''); setShowAddNewSupplier(false); setShowSupplierSheet(false); setSupplierSheetSearch(''); } }} disabled={!newSupplierName.trim()}
+                  <button type="button" onClick={() => { if (newSupplierName.trim()) { const trimmed = newSupplierName.trim(); setSupplierOptions(p => { const next = [...p, trimmed].sort((a, b) => a.localeCompare(b, 'de')); try { const prev = JSON.parse(localStorage.getItem('procureflow_custom_suppliers') || '[]'); localStorage.setItem('procureflow_custom_suppliers', JSON.stringify(Array.from(new Set([...prev, trimmed])))); } catch {} return next; }); setFormData({ ...formData, supplier: newSupplierName.trim() }); setNewSupplierName(''); setShowAddNewSupplier(false); setShowSupplierSheet(false); setSupplierSheetSearch(''); } }} disabled={!newSupplierName.trim()}
                     className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold disabled:opacity-50"><CheckCircle2 size={16} /></button>
                 </div>
               )}

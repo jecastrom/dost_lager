@@ -2537,6 +2537,7 @@ export default function App() {
                   requireDeliveryDate={requireDeliveryDate}
                   enableSmartImport={enableSmartImport}
                   existingOrderIds={purchaseOrders.map(o => o.id)}
+                  knownSuppliers={Array.from(new Set(purchaseOrders.map(o => o.supplier).filter(Boolean)))}
                 />
               )}
 
