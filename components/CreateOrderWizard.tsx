@@ -56,7 +56,7 @@ const PlusMinusPicker = ({ value, onChange, min = 1, max = 9999, disabled = fals
       {editing ? (
         <input autoFocus value={draft} onChange={e => setDraft(e.target.value)}
           onBlur={commit} onKeyDown={e => e.key === 'Enter' && commit()}
-          className={`w-12 h-8 text-center text-sm font-bold rounded-lg border outline-none ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300'}`} />
+          className={`w-12 h-8 text-center text-sm font-bold rounded-lg border outline-none ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'}`} />
       ) : (
         <button onClick={() => { if (!disabled) { setDraft(String(value)); setEditing(true); } }} disabled={disabled}
           className={`w-12 h-8 flex items-center justify-center text-sm font-bold rounded-lg border transition-all ${isDark ? 'bg-slate-900 border-slate-600 text-white hover:border-slate-500' : 'bg-white border-slate-300 text-slate-900 hover:border-slate-400'}`}>{value}</button>
@@ -464,7 +464,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
               <h3 className={`text-lg font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}><Sparkles size={20} className="text-amber-500" /> Smart Import</h3>
               <button onClick={() => { setShowImportModal(false); setImportText(''); setImportErrors(null); }} className={`p-2 rounded-full ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}><X size={20} /></button>
             </div>
-            <textarea value={importText} onChange={e => { setImportText(e.target.value); setImportErrors(null); }} placeholder={"Bestelltext hier einfügen…\n\nEinzel-Import: Text einer Bestellung einfügen.\nBulk-Import: Mehrere Bestellungen mit --- trennen.\n\nBeispiel:\nBestellung Nr. PO-001\nLieferant: Battery Kutter\nLiefertermin: 25.03.2026\n4000069 10x\n2030855 4 stk\n---\nBestellung Nr. PO-002\nLieferant: Würth\n…"} className={`flex-1 min-h-[200px] p-4 rounded-xl border text-sm resize-none outline-none focus:ring-2 ${isDark ? 'bg-slate-800 border-slate-700 text-white focus:ring-blue-500/30' : 'bg-slate-50 border-slate-200 focus:ring-[#0077B5]/20'}`} autoFocus />
+            <textarea value={importText} onChange={e => { setImportText(e.target.value); setImportErrors(null); }} placeholder={"Bestelltext hier einfügen…\n\nEinzel-Import: Text einer Bestellung einfügen.\nBulk-Import: Mehrere Bestellungen mit --- trennen.\n\nBeispiel:\nBestellung Nr. PO-001\nLieferant: Battery Kutter\nLiefertermin: 25.03.2026\n4000069 10x\n2030855 4 stk\n---\nBestellung Nr. PO-002\nLieferant: Würth\n…"} className={`flex-1 min-h-[200px] p-4 rounded-xl border text-sm resize-none outline-none focus:ring-2 ${isDark ? 'bg-slate-800 border-slate-700 text-white focus:ring-blue-500/30' : 'bg-slate-50 border-slate-200 text-slate-900 focus:ring-[#0077B5]/20'}`} autoFocus />
             {!importErrors && <p className={`mt-2 text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Einzelne Bestellung → direkt erstellen. Mehrere Blöcke (getrennt mit ---) → Bulk-Erstellung.</p>}
 
             {/* ── ERROR REPORT ── */}
@@ -515,7 +515,7 @@ export const CreateOrderWizard: React.FC<CreateOrderWizardProps> = ({
             <div className="flex-1 overflow-y-auto px-3 pb-2">
               {sheetFilteredSuppliers.length > 0 ? sheetFilteredSuppliers.map(opt => (
                 <button key={opt} type="button" onClick={() => { setFormData({ ...formData, supplier: opt }); setShowSupplierSheet(false); setSupplierSheetSearch(''); }}
-                  className={`w-full text-left px-4 py-3 rounded-xl flex items-center justify-between transition-all mb-1 border text-sm ${formData.supplier === opt ? (isDark ? 'bg-blue-500/10 text-blue-400 border-blue-500/10' : 'bg-blue-50 text-blue-600 border-blue-50') : (isDark ? 'hover:bg-slate-800 border-slate-800/50' : 'hover:bg-slate-50 border-slate-100')}`}>
+                  className={`w-full text-left px-4 py-3 rounded-xl flex items-center justify-between transition-all mb-1 border text-sm ${formData.supplier === opt ? (isDark ? 'bg-blue-500/10 text-blue-400 border-blue-500/10' : 'bg-blue-50 text-blue-600 border-blue-50') : (isDark ? 'hover:bg-slate-800 border-slate-800/50 text-slate-200' : 'hover:bg-slate-50 border-slate-100 text-slate-900')}`}>
                   <span className="font-medium">{opt}</span>
                   {formData.supplier === opt && <CheckCircle2 size={18} className="text-blue-500" />}
                 </button>
